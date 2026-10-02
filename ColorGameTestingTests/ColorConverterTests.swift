@@ -36,7 +36,8 @@ final class ColorConverterTests: XCTestCase {
         XCTAssertEqual(ColorConverter.labToSRGB(SIMD3(-50, 0, 0)), SIMD3(0, 0, 0))
     }
 
-    func testSRGBLabSRGBRoundTripForTwoHundredDeterministicColors() {
+    // Feature: color-mixing-game, Property 17: sRGB → Lab → sRGB round-trip
+    func testSRGBLabSRGBRoundTripForTwoHundredRandomColorsAndEdges() {
         let seed: UInt64 = 0xC01A_BA5E
         var state = seed
         func nextComponent() -> Double {
@@ -46,10 +47,10 @@ final class ColorConverterTests: XCTestCase {
 
         let edgeColors = [SIMD3(0.0, 0.0, 0.0), SIMD3(1.0, 1.0, 1.0),
                           SIMD3(1.0, 0.0, 0.0), SIMD3(0.04045, 0.5, 1.0)]
-        for index in 0..<200 {
-            let input = index < edgeColors.count
-                ? edgeColors[index]
-                : SIMD3(nextComponent(), nextComponent(), nextComponent())
+        let randomColors = (0..<200).map { _ in
+            SIMD3(nextComponent(), nextComponent(), nextComponent())
+        }
+        for (index, input) in (edgeColors + randomColors).enumerated() {
             let output = ColorConverter.labToSRGB(ColorConverter.sRGBToLab(input))
             for channel in 0..<3 {
                 XCTAssertEqual(output[channel], input[channel], accuracy: 1e-6,
