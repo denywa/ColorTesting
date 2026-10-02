@@ -70,7 +70,11 @@ final class GameStateTests: XCTestCase {
         XCTAssertEqual(assignment.primaryColor, magenta)
 
         let round = Round(
-            request: ColorRequest(), colorModel: .cmyk,
+            request: ColorRequest(
+                id: UUID(uuidString: "D0000000-0000-0000-0000-000000000001")!,
+                text: "Test request",
+                targetSRGB: SIMD3(0.2, 0.3, 0.4)
+            ), colorModel: .cmyk,
             assignments: [.player1: assignment],
             mix: Mix(units: [ColorUnit(color: cyan)])
         )
