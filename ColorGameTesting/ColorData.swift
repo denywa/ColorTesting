@@ -45,26 +45,28 @@ enum ColorData {
 
     static let requestPool: [ColorRequest] = [
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000001")!,
-                     text: "Matcha latte, but sadder", targetSRGB: SIMD3(0.42, 0.58, 0.35)),
+                     text: "glossy mocha brown", targetSRGB: sRGB(hex: 0x4A3B32)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000002")!,
-                     text: "A sunset that feels embarrassed", targetSRGB: SIMD3(0.96, 0.51, 0.32)),
+                     text: "milk tea", targetSRGB: sRGB(hex: 0xC8B19A)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000003")!,
-                     text: "The last sip of blueberry tea", targetSRGB: SIMD3(0.37, 0.28, 0.57)),
+                     text: "honey blonde", targetSRGB: sRGB(hex: 0xF6D48B)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000004")!,
-                     text: "Moss after a summer storm", targetSRGB: SIMD3(0.31, 0.45, 0.24)),
+                     text: "lavender", targetSRGB: sRGB(hex: 0xC8B4F4)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000005")!,
-                     text: "A flamingo's day off", targetSRGB: SIMD3(0.91, 0.57, 0.65)),
+                     text: "sky blue", targetSRGB: sRGB(hex: 0x87CEFA)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000006")!,
-                     text: "Moonlight on a frozen pond", targetSRGB: SIMD3(0.61, 0.77, 0.84)),
+                     text: "red blood", targetSRGB: sRGB(hex: 0xB22222)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000007")!,
-                     text: "A dusty library curtain", targetSRGB: SIMD3(0.62, 0.51, 0.43)),
-        ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000008")!,
-                     text: "The inside of a ripe peach", targetSRGB: SIMD3(0.98, 0.68, 0.47)),
-        ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000009")!,
-                     text: "A deep sea secret", targetSRGB: SIMD3(0.12, 0.32, 0.42)),
-        ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-00000000000A")!,
-                     text: "Lavender at the end of winter", targetSRGB: SIMD3(0.72, 0.65, 0.82))
+                     text: "juicy orange", targetSRGB: sRGB(hex: 0xFF8C32))
     ]
+
+    private static func sRGB(hex: UInt32) -> SIMD3<Double> {
+        SIMD3(
+            Double((hex >> 16) & 0xFF) / 255,
+            Double((hex >> 8) & 0xFF) / 255,
+            Double(hex & 0xFF) / 255
+        )
+    }
 
     static func colors(for model: ColorModel) -> [NamedColor] {
         switch model {

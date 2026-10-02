@@ -55,21 +55,32 @@ final class ColorDataTests: XCTestCase {
         XCTAssertTrue(Set(ColorData.cmykPalette.map(\.id)).isDisjoint(with: Set(ColorData.rybPalette.map(\.id))))
     }
 
-    func testRequestPoolHasUniqueStableIDsAndUsableTargets() {
+    func testRequestPoolMatchesSuppliedNamesAndHexTargets() {
         let requests = ColorData.requestPool
-        XCTAssertGreaterThanOrEqual(requests.count, 10)
+        let expected: [(String, SIMD3<Double>)] = [
+            ("glossy mocha brown", SIMD3(74.0 / 255, 59.0 / 255, 50.0 / 255)),
+            ("milk tea", SIMD3(200.0 / 255, 177.0 / 255, 154.0 / 255)),
+            ("honey blonde", SIMD3(246.0 / 255, 212.0 / 255, 139.0 / 255)),
+            ("lavender", SIMD3(200.0 / 255, 180.0 / 255, 244.0 / 255)),
+            ("sky blue", SIMD3(135.0 / 255, 206.0 / 255, 250.0 / 255)),
+            ("red blood", SIMD3(178.0 / 255, 34.0 / 255, 34.0 / 255)),
+            ("juicy orange", SIMD3(255.0 / 255, 140.0 / 255, 50.0 / 255))
+        ]
+        XCTAssertEqual(requests.count, expected.count)
         XCTAssertEqual(Set(requests.map(\.text)).count, requests.count)
         XCTAssertEqual(Set(requests.map(\.id)).count, requests.count)
         XCTAssertTrue(requests.allSatisfy { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
         XCTAssertTrue(requests.allSatisfy { request in
             (0..<3).allSatisfy { (0.0...1.0).contains(request.targetSRGB[$0]) }
         })
-        let expectedIDs = (1...10).map {
+        let expectedIDs = (1...7).map {
             UUID(uuidString: String(format: "C0000000-0000-0000-0000-%012X", $0))!
         }
         XCTAssertEqual(requests.map(\.id), expectedIDs)
-        XCTAssertEqual(requests.first?.text, "Matcha latte, but sadder")
-        XCTAssertEqual(requests.first?.targetSRGB, SIMD3(0.42, 0.58, 0.35))
+        XCTAssertEqual(requests.map(\.text), expected.map(\.0))
+        for (request, (_, target)) in zip(requests, expected) {
+            XCTAssertEqual(request.targetSRGB, target, "Wrong target for \(request.text)")
+        }
     }
 
     func testColorRequestStoresItsIdentityTextAndTarget() {
