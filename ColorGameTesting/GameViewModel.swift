@@ -119,6 +119,45 @@ final class GameViewModel {
         }
     }
 
+    func pressMixButton() {
+        guard phase == .playing, let round,
+              !round.mix.units.isEmpty, !round.mix.isLocked else { return }
+        self.round?.mix.isLocked = true
+        pauseTimer()
+        removeKeyMonitor()
+        mixResult = ColorMixer.blend(round.mix.units, model: round.colorModel)
+        phase = .result
+    }
+
+    func selectRedo() {
+        guard phase == .result, round?.mix.isLocked == true else { return }
+        round?.mix.units.removeAll()
+        round?.mix.isLocked = false
+        mixResult = nil
+        phase = .playing
+        resumeTimer()
+        installKeyMonitor()
+    }
+
+    func selectFinish() {
+        guard phase == .result, let mixResult,
+              let target = round?.request.targetSRGB else { return }
+        let resultLab = ColorConverter.sRGBToLab(mixResult)
+        let targetLab = ColorConverter.sRGBToLab(target)
+        score = ScoreCalculator.deltaE2000(resultLab, targetLab)
+        pauseTimer()
+        phase = .score
+    }
+
+    func startNewRound() {
+        guard phase == .score else { return }
+        pauseTimer()
+        removeKeyMonitor()
+        gameState = GameState()
+        timerSecondsRemaining = 45
+        phase = .settings
+    }
+
     private func randomAssignments(for model: ColorModel) -> [PlayerID: PlayerAssignment] {
         let palette = ColorData.colors(for: model)
         assert(!palette.isEmpty, "The color palette must not be empty")
