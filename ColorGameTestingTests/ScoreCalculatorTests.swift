@@ -3,6 +3,8 @@ import XCTest
 
 final class ScoreCalculatorTests: XCTestCase {
     func testSharmaReferencePairs() {
+        // Sharma et al. (2005) supplementary data:
+        // https://hajim.rochester.edu/ece/sites/gsharma/ciede2000/dataNprograms/ciede2000testdata.txt
         let referencePairs: [(SIMD3<Double>, SIMD3<Double>, Double)] = [
             (SIMD3(50, 2.6772, -79.7751), SIMD3(50, 0, -82.7485), 2.0425),
             (SIMD3(50, 3.1571, -77.2803), SIMD3(50, 0, -82.7485), 2.8615),
