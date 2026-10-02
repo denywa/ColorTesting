@@ -160,8 +160,8 @@ final class GameViewModel {
 
     private func randomAssignments(for model: ColorModel) -> [PlayerID: PlayerAssignment] {
         let palette = ColorData.colors(for: model)
-        assert(palette.count == 5 && Set(palette.map(\.id)).count == 5,
-               "Each color model must have five distinct palette colors")
+        precondition(palette.count == 5 && Set(palette.map(\.id)).count == 5,
+                     "Each color model must have five distinct palette colors")
         var slots = palette + [palette.randomElement()!]
         slots.shuffle()
         var assignments: [PlayerID: PlayerAssignment] = [:]
