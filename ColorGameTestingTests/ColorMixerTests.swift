@@ -3,6 +3,80 @@ import XCTest
 @testable import ColorGameTesting
 
 final class ColorMixerTests: XCTestCase {
+    // Feature: color-mixing-game, Property 14: Color blending is weighted arithmetic mean
+    func testWeightedNativeComponentMeanForRandomCMYKAndRYBMixes() {
+        let seed: UInt64 = 0xC010_0014
+        var generator = MixerSeededGenerator(seed: seed)
+
+        for iteration in 0..<200 {
+            let model: ColorModel = iteration.isMultiple(of: 2) ? .cmyk : .ryb
+            let colorCount = Int.random(in: 2...5, using: &generator)
+            let colors = (0..<colorCount).map { index in
+                randomColor(model: model, idNumber: iteration * 8 + index + 1, using: &generator)
+            }
+            let counts = (0..<colorCount).map { _ in Int.random(in: 1...12, using: &generator) }
+            let total = Double(counts.reduce(0, +))
+            let weights = counts.map { Double($0) / total }
+            let units = zip(colors, counts).flatMap { color, count in
+                Array(repeating: ColorUnit(color: color), count: count)
+            }
+
+            let expected: SIMD3<Double>
+            switch model {
+            case .cmyk:
+                let native = zip(colors, weights).reduce(SIMD4<Double>(repeating: 0)) { sum, pair in
+                    sum + pair.0.cmykComponents! * pair.1
+                }
+                expected = SIMD3(
+                    (1 - native.x) * (1 - native.w),
+                    (1 - native.y) * (1 - native.w),
+                    (1 - native.z) * (1 - native.w)
+                )
+            case .ryb:
+                let native = zip(colors, weights).reduce(SIMD3<Double>(repeating: 0)) { sum, pair in
+                    sum + pair.0.rybComponents! * pair.1
+                }
+                // Expanded polynomial for the design's eight RYB cube corners.
+                // This is independent of ColorMixer's corner-accumulation loop.
+                let r = native.x, y = native.y, b = native.z
+                expected = SIMD3(
+                    (r + y - r * y) * (1 - b) + 0.5 * r * b,
+                    y * (1 - 0.5 * r - 0.2 * r * b),
+                    b * (1 - y) * (1 - 0.5 * r)
+                )
+            }
+
+            let actual = ColorMixer.blend(units, model: model)
+            let input = zip(colors, counts).map { color, count in
+                "id=\(color.id), count=\(count), cmyk=\(String(describing: color.cmykComponents)), ryb=\(String(describing: color.rybComponents))"
+            }.joined(separator: "; ")
+            for channel in 0..<3 {
+                XCTAssertEqual(
+                    actual[channel], expected[channel], accuracy: 1e-12,
+                    "seed=\(seed), iteration=\(iteration), model=\(model), channel=\(channel), weights=\(weights), input=[\(input)]"
+                )
+            }
+        }
+    }
+
+    // Feature: color-mixing-game, Property 15: Single-color blend is identity
+    func testRandomSingleColorIsIdentityForAnyPositiveUnitCount() {
+        let seed: UInt64 = 0xC010_0015
+        var generator = MixerSeededGenerator(seed: seed)
+
+        for iteration in 0..<200 {
+            let model: ColorModel = iteration.isMultiple(of: 2) ? .cmyk : .ryb
+            let color = randomColor(model: model, idNumber: iteration + 1, using: &generator)
+            let count = Int.random(in: 1...100, using: &generator)
+            let units = Array(repeating: ColorUnit(color: color), count: count)
+
+            XCTAssertEqual(
+                ColorMixer.blend(units, model: model), color.sRGB,
+                "seed=\(seed), iteration=\(iteration), model=\(model), count=\(count), id=\(color.id), sRGB=\(color.sRGB), cmyk=\(String(describing: color.cmykComponents)), ryb=\(String(describing: color.rybComponents))"
+            )
+        }
+    }
+
     func testEqualWeightCyanAndMagentaCMYKMix() {
         let cyan = ColorData.cmykPalette[0]
         let magenta = ColorData.cmykPalette[1]
@@ -86,10 +160,56 @@ final class ColorMixerTests: XCTestCase {
                    cmykComponents: nil, rybComponents: components)
     }
 
+    private func randomColor(
+        model: ColorModel, idNumber: Int, using generator: inout MixerSeededGenerator
+    ) -> NamedColor {
+        let id = UUID(uuidString: String(format: "00000000-0000-0000-0000-%012x", idNumber))!
+        let srgb = SIMD3(
+            Double.random(in: 0...1, using: &generator),
+            Double.random(in: 0...1, using: &generator),
+            Double.random(in: 0...1, using: &generator)
+        )
+        switch model {
+        case .cmyk:
+            return NamedColor(
+                id: id, name: "Generated CMYK", sRGB: srgb,
+                cmykComponents: SIMD4(
+                    Double.random(in: 0...1, using: &generator),
+                    Double.random(in: 0...1, using: &generator),
+                    Double.random(in: 0...1, using: &generator),
+                    Double.random(in: 0...1, using: &generator)
+                ),
+                rybComponents: nil
+            )
+        case .ryb:
+            return NamedColor(
+                id: id, name: "Generated RYB", sRGB: srgb, cmykComponents: nil,
+                rybComponents: SIMD3(
+                    Double.random(in: 0...1, using: &generator),
+                    Double.random(in: 0...1, using: &generator),
+                    Double.random(in: 0...1, using: &generator)
+                )
+            )
+        }
+    }
+
     private func assertRGB(_ actual: SIMD3<Double>, equals expected: SIMD3<Double>,
                            file: StaticString = #filePath, line: UInt = #line) {
         for channel in 0..<3 {
             XCTAssertEqual(actual[channel], expected[channel], accuracy: 1e-12, file: file, line: line)
         }
+    }
+}
+
+private struct MixerSeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed
+    }
+
+    mutating func next() -> UInt64 {
+        state = state &* 2_862_933_555_777_941_757 &+ 3_037_000_493
+        return state
     }
 }
