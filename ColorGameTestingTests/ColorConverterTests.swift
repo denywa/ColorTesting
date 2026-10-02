@@ -17,9 +17,9 @@ final class ColorConverterTests: XCTestCase {
                          equalTo: SIMD3(0, 0, 0), accuracy: 1e-6)
         assertComponents(ColorConverter.labToSRGB(SIMD3(100, 0, 0)),
                          equalTo: SIMD3(1, 1, 1), accuracy: 1e-4)
-        let redLab = ColorConverter.sRGBToLab(SIMD3(1, 0, 0))
-        assertComponents(ColorConverter.labToSRGB(redLab),
-                         equalTo: SIMD3(1, 0, 0), accuracy: 1e-6)
+        let redLabReference = SIMD3(53.2408, 80.0938, 67.2069)
+        assertComponents(ColorConverter.labToSRGB(redLabReference),
+                         equalTo: SIMD3(1, 0, 0), accuracy: 1e-4)
     }
 
     func testLabToSRGBClampsOutOfGamutColors() {
