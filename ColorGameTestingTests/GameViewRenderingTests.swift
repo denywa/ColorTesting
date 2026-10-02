@@ -43,6 +43,79 @@ final class GameViewRenderingTests: XCTestCase {
         XCTAssertNotEqual(initial, emptyMix, "The Mix button must show its disabled state")
     }
 
+    func testColorBarRendersEmptySingleAndMultipleColorRatios() throws {
+        let colors = ColorData.cmykPalette
+
+        let empty = try renderedBarPixels(of: Mix())
+        XCTAssertEqual(try rgb(at: 30, in: empty), try rgb(at: 290, in: empty),
+                       "An empty mix needs one full-width neutral segment")
+        let neutral = try rgb(at: 160, in: empty)
+        XCTAssertEqual(neutral.x, neutral.y, accuracy: 0.05)
+        XCTAssertEqual(neutral.y, neutral.z, accuracy: 0.05)
+
+        let single = try renderedBarPixels(of: Mix(units: [ColorUnit(color: colors[0])]))
+        try assertColor(colors[0], at: 30, in: single)
+        try assertColor(colors[0], at: 290, in: single)
+
+        let mixed = try renderedBarPixels(of: Mix(units: [
+            ColorUnit(color: colors[0]), ColorUnit(color: colors[1]),
+            ColorUnit(color: colors[1]), ColorUnit(color: colors[2])
+        ]))
+        try assertColor(colors[0], at: 30, in: mixed)
+        try assertColor(colors[1], at: 120, in: mixed)
+        try assertColor(colors[1], at: 220, in: mixed)
+        try assertColor(colors[2], at: 290, in: mixed)
+
+        let changedRatio = try renderedBarPixels(of: Mix(units: [
+            ColorUnit(color: colors[0]), ColorUnit(color: colors[1]),
+            ColorUnit(color: colors[0]), ColorUnit(color: colors[0])
+        ]))
+        try assertColor(colors[0], at: 120, in: changedRatio)
+        try assertColor(colors[1], at: 290, in: changedRatio)
+    }
+
+    func testGameViewUpdatesBarWhenMixRatiosChange() throws {
+        let viewModel = makeFixture()
+        let colors = ColorData.cmykPalette
+        viewModel.round?.mix.units = [
+            ColorUnit(color: colors[0]), ColorUnit(color: colors[0]), ColorUnit(color: colors[1])
+        ]
+        let firstRatio = try renderedPixels(of: viewModel)
+
+        viewModel.round?.mix.units = [
+            ColorUnit(color: colors[0]), ColorUnit(color: colors[1]), ColorUnit(color: colors[1])
+        ]
+        let secondRatio = try renderedPixels(of: viewModel)
+        XCTAssertNotEqual(firstRatio, secondRatio,
+                          "The displayed bar must react when only the mix proportions change")
+    }
+
+    private func renderedBarPixels(of mix: Mix) throws -> NSBitmapImageRep {
+        let hostingView = NSHostingView(rootView: ColorBarView(mix: mix).frame(width: 320, height: 24))
+        hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
+        hostingView.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds))
+        hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+        return bitmap
+    }
+
+    private func rgb(at x: Int, in bitmap: NSBitmapImageRep) throws -> SIMD3<Double> {
+        let pixelX = x * bitmap.pixelsWide / 320
+        let pixelY = bitmap.pixelsHigh / 2
+        let pixel = try XCTUnwrap(bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB))
+        return SIMD3(pixel.redComponent, pixel.greenComponent, pixel.blueComponent)
+    }
+
+    private func assertColor(_ color: NamedColor, at x: Int, in bitmap: NSBitmapImageRep,
+                             file: StaticString = #filePath, line: UInt = #line) throws {
+        let actual = try rgb(at: x, in: bitmap)
+        for component in 0..<3 {
+            XCTAssertEqual(actual[component], color.sRGB[component], accuracy: 0.27,
+                           "The bar segment at x=\(x) must use \(color.name)'s sRGB color",
+                           file: file, line: line)
+        }
+    }
+
     private func makeFixture() -> GameViewModel {
         let colors = ColorData.cmykPalette
         let viewModel = GameViewModel()

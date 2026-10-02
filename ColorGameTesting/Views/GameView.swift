@@ -30,6 +30,9 @@ struct GameView: View {
                         }
                     }
 
+                    ColorBarView(mix: round.mix)
+                        .frame(height: 28)
+
                     HStack {
                         TimerBadge(secondsRemaining: viewModel.timerSecondsRemaining)
                         Spacer()
@@ -143,7 +146,10 @@ private struct MixButton: View {
             .player2: PlayerAssignment(player: .player2, primaryColor: colors[2], secondaryColor: colors[3]),
             .player3: PlayerAssignment(player: .player3, primaryColor: colors[4], secondaryColor: colors[0])
         ],
-        mix: Mix(units: [ColorUnit(color: colors[0])])
+        mix: Mix(units: [
+            ColorUnit(color: colors[0]), ColorUnit(color: colors[1]),
+            ColorUnit(color: colors[1]), ColorUnit(color: colors[2])
+        ])
     )
     return GameView(viewModel: viewModel)
 }
