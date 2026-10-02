@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    let viewModel: GameViewModel
+    @Bindable var viewModel: GameViewModel
 
     var body: some View {
         VStack(spacing: 20) {
@@ -9,12 +9,35 @@ struct SettingsView: View {
                 .font(.largeTitle)
                 .bold()
 
-            Text("Choose a color model for this round")
-                .font(.headline)
-
-            ColorModelToggle(selectedModel: viewModel.selectedModel) { model in
-                viewModel.selectModel(model)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Choose a color model for this round")
+                    .font(.headline)
+                ColorModelToggle(selectedModel: viewModel.selectedModel) { model in
+                    viewModel.selectModel(model)
+                }
             }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Game Settings")
+                    .font(.headline)
+                
+                HStack {
+                    Text("Random Reassignment Duration")
+                    Spacer()
+                    Picker("Duration", selection: $viewModel.reassignmentDuration) {
+                        Text("15s").tag(15)
+                        Text("30s").tag(30)
+                        Text("45s").tag(45)
+                        Text("60s").tag(60)
+                        Text("90s").tag(90)
+                    }
+                    .frame(width: 120)
+                }
+                
+                Toggle("Show Target Color Hint", isOn: $viewModel.showTargetColor)
+            }
+            .padding()
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
 
             Button("Start Round") {
                 viewModel.confirmSettings()

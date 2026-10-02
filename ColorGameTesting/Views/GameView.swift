@@ -6,15 +6,28 @@ struct GameView: View {
     var body: some View {
         if let round = viewModel.round {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .center, spacing: 24) {
+                    VStack(alignment: .center, spacing: 8) {
                         Text("Request")
                             .font(.headline)
                             .foregroundStyle(.secondary)
-                        Text(round.request.text)
-                            .font(.title2)
-                            .bold()
+                        
+                        HStack(spacing: 12) {
+                            Text(round.request.text)
+                                .font(.system(size: 36, weight: .bold))
+                            
+                            if viewModel.showTargetColor {
+                                Circle()
+                                    .fill(Color(red: round.request.targetSRGB.x, green: round.request.targetSRGB.y, blue: round.request.targetSRGB.z))
+                                    .frame(width: 36, height: 36)
+                                    .overlay(Circle().strokeBorder(.primary, lineWidth: 1))
+                            }
+                        }
                     }
+
+                    ColorBarView(mix: round.mix)
+                        .frame(width: 240, height: 240)
+                        .padding(.vertical)
 
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .top, spacing: 16) {
@@ -29,9 +42,6 @@ struct GameView: View {
                             }
                         }
                     }
-
-                    ColorBarView(mix: round.mix)
-                        .frame(height: 28)
 
                     HStack {
                         TimerBadge(secondsRemaining: viewModel.timerSecondsRemaining)

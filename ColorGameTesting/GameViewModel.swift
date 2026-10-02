@@ -22,6 +22,8 @@ final class GameViewModel {
         get { gameState.score }
         set { gameState.score = newValue }
     }
+    var reassignmentDuration = 45
+    var showTargetColor = false
     var timerSecondsRemaining = 45
 
     @ObservationIgnored private var timer: Timer?
@@ -51,7 +53,7 @@ final class GameViewModel {
             mixResult: nil,
             score: nil
         )
-        timerSecondsRemaining = 45
+        timerSecondsRemaining = reassignmentDuration
         phase = .playing
         startTimer()
         installKeyMonitor()
@@ -84,7 +86,7 @@ final class GameViewModel {
         guard phase == .playing, let model = round?.colorModel,
               round?.mix.isLocked == false else { return }
         round?.assignments = randomAssignments(for: model)
-        timerSecondsRemaining = 45
+        timerSecondsRemaining = reassignmentDuration
     }
 
     func startTimer() {
@@ -154,7 +156,7 @@ final class GameViewModel {
         pauseTimer()
         removeKeyMonitor()
         gameState = GameState()
-        timerSecondsRemaining = 45
+        timerSecondsRemaining = reassignmentDuration
         phase = .settings
     }
 

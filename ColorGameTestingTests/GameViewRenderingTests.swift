@@ -37,7 +37,7 @@ final class GameViewRenderingTests: XCTestCase {
         let changedTimer = try renderedPixels(of: viewModel)
         XCTAssertNotEqual(initial, changedTimer, "The countdown must be visible")
 
-        viewModel.timerSecondsRemaining = 45
+        viewModel.timerSecondsRemaining = viewModel.reassignmentDuration
         viewModel.round?.mix.units.removeAll()
         let emptyMix = try renderedPixels(of: viewModel)
         XCTAssertNotEqual(initial, emptyMix, "The Mix button must show its disabled state")

@@ -36,7 +36,7 @@ final class GameViewModelTests: XCTestCase {
             XCTAssertEqual(viewModel.round?.mix.units.count, 0)
             XCTAssertTrue(viewModel.round?.mix.ratios.isEmpty ?? false)
             XCTAssertFalse(viewModel.round?.mix.isLocked ?? true)
-            XCTAssertEqual(viewModel.timerSecondsRemaining, 45)
+            XCTAssertEqual(viewModel.timerSecondsRemaining, viewModel.reassignmentDuration)
             XCTAssertNil(viewModel.mixResult)
             XCTAssertNil(viewModel.score)
             assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
@@ -126,7 +126,7 @@ final class GameViewModelTests: XCTestCase {
             XCTAssertEqual(viewModel.timerSecondsRemaining, expected)
         }
         viewModel.timerTick()
-        XCTAssertEqual(viewModel.timerSecondsRemaining, 45)
+        XCTAssertEqual(viewModel.timerSecondsRemaining, viewModel.reassignmentDuration)
         XCTAssertEqual(viewModel.round!.mix.units.map(\.color.id), originalUnits)
         XCTAssertEqual(viewModel.round!.mix.ratios, originalRatios)
         assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
