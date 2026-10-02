@@ -40,14 +40,14 @@ enum ColorMixer {
 
     private static func rybToSRGB(_ components: SIMD3<Double>) -> SIMD3<Double> {
         let corners: [(r: Int, y: Int, b: Int, rgb: SIMD3<Double>)] = [
-            (0, 0, 0, SIMD3(0, 0, 0)),
+            (0, 0, 0, SIMD3(1, 1, 1)),
             (1, 0, 0, SIMD3(1, 0, 0)),
             (0, 1, 0, SIMD3(1, 1, 0)),
             (0, 0, 1, SIMD3(0, 0, 1)),
             (1, 1, 0, SIMD3(1, 0.5, 0)),
             (1, 0, 1, SIMD3(0.5, 0, 0.5)),
             (0, 1, 1, SIMD3(0, 1, 0)),
-            (1, 1, 1, SIMD3(0.5, 0.3, 0))
+            (1, 1, 1, SIMD3(0, 0, 0))
         ]
 
         var rgb = SIMD3<Double>(0, 0, 0)

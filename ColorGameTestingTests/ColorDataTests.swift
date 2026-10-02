@@ -31,8 +31,8 @@ final class ColorDataTests: XCTestCase {
             ("Red", SIMD3(1, 0, 0), SIMD3(1, 0, 0)),
             ("Yellow", SIMD3(0, 1, 0), SIMD3(1, 1, 0)),
             ("Blue", SIMD3(0, 0, 1), SIMD3(0, 0, 1)),
-            ("Black", SIMD3(0, 0, 0), SIMD3(0, 0, 0)),
-            ("White", SIMD3(0.5, 0.5, 0.5), SIMD3(1, 1, 1))
+            ("Black", SIMD3(1, 1, 1), SIMD3(0, 0, 0)),
+            ("White", SIMD3(0, 0, 0), SIMD3(1, 1, 1))
         ]
 
         XCTAssertEqual(ColorData.rybPalette.count, expected.count)

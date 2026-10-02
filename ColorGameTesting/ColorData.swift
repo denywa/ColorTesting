@@ -37,10 +37,10 @@ enum ColorData {
                    cmykComponents: nil, rybComponents: SIMD3(0, 0, 1)),
         NamedColor(id: UUID(uuidString: "B0000000-0000-0000-0000-000000000004")!,
                    name: "Black", sRGB: SIMD3(0, 0, 0),
-                   cmykComponents: nil, rybComponents: SIMD3(0, 0, 0)),
+                   cmykComponents: nil, rybComponents: SIMD3(1, 1, 1)),
         NamedColor(id: UUID(uuidString: "B0000000-0000-0000-0000-000000000005")!,
                    name: "White", sRGB: SIMD3(1, 1, 1),
-                   cmykComponents: nil, rybComponents: SIMD3(0.5, 0.5, 0.5))
+                   cmykComponents: nil, rybComponents: SIMD3(0, 0, 0))
     ]
 
     static let requestPool: [ColorRequest] = [

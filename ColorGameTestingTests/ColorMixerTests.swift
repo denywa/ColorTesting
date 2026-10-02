@@ -103,19 +103,19 @@ final class ColorMixerTests: XCTestCase {
         let red = ColorData.rybPalette[0]
         let yellow = ColorData.rybPalette[1]
         let result = ColorMixer.blend([ColorUnit(color: red), ColorUnit(color: yellow)], model: .ryb)
-        assertRGB(result, equals: SIMD3(0.75, 0.375, 0))
+        assertRGB(result, equals: SIMD3(1.0, 0.625, 0.25))
     }
 
     func testRYBInterpolationUsesAllEightSpecifiedCorners() {
         let corners: [(SIMD3<Double>, SIMD3<Double>)] = [
-            (SIMD3(0, 0, 0), SIMD3(0, 0, 0)),
+            (SIMD3(0, 0, 0), SIMD3(1, 1, 1)),
             (SIMD3(1, 0, 0), SIMD3(1, 0, 0)),
             (SIMD3(0, 1, 0), SIMD3(1, 1, 0)),
             (SIMD3(0, 0, 1), SIMD3(0, 0, 1)),
             (SIMD3(1, 1, 0), SIMD3(1, 0.5, 0)),
             (SIMD3(1, 0, 1), SIMD3(0.5, 0, 0.5)),
             (SIMD3(0, 1, 1), SIMD3(0, 1, 0)),
-            (SIMD3(1, 1, 1), SIMD3(0.5, 0.3, 0))
+            (SIMD3(1, 1, 1), SIMD3(0, 0, 0))
         ]
         for (components, expected) in corners {
             // Distinct IDs force conversion through the cube rather than identity handling.
