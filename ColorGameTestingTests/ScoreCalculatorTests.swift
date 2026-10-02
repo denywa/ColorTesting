@@ -40,6 +40,8 @@ final class ScoreCalculatorTests: XCTestCase {
                        ScoreCalculator.deltaE2000(nearFullTurn, nearZero), accuracy: 1e-12)
     }
 
+    // Feature: color-mixing-game, Property 18a: Delta-E 2000 non-negativity
+    // Feature: color-mixing-game, Property 18b: Delta-E 2000 identity
     func testIdentityAndNonNegativity() {
         let colors = [SIMD3(0.0, 0.0, 0.0), SIMD3(100.0, 0.0, 0.0),
                       SIMD3(50.0, -128.0, 127.0), SIMD3(23.5, 41.2, -77.9)]
@@ -47,7 +49,8 @@ final class ScoreCalculatorTests: XCTestCase {
             XCTAssertEqual(ScoreCalculator.deltaE2000(color, color), 0.0)
         }
 
-        var state: UInt64 = 0xC01A_2000
+        let seed: UInt64 = 0xC01A_2000
+        var state = seed
         func nextUnit() -> Double {
             state = state &* 6364136223846793005 &+ 1442695040888963407
             return Double(state >> 11) / Double(1 << 53)
@@ -58,9 +61,10 @@ final class ScoreCalculatorTests: XCTestCase {
             let second = SIMD3(nextUnit() * 100, nextUnit() * 255 - 128,
                                nextUnit() * 255 - 128)
             let distance = ScoreCalculator.deltaE2000(first, second)
-            XCTAssertTrue(distance.isFinite, "pair \(index)")
-            XCTAssertGreaterThanOrEqual(distance, 0.0, "pair \(index)")
-            XCTAssertEqual(ScoreCalculator.deltaE2000(first, first), 0.0, "pair \(index)")
+            let context = "seed=\(seed), iteration=\(index), first=\(first), second=\(second)"
+            XCTAssertTrue(distance.isFinite, context)
+            XCTAssertGreaterThanOrEqual(distance, 0.0, context)
+            XCTAssertEqual(ScoreCalculator.deltaE2000(first, first), 0.0, context)
         }
     }
 }
