@@ -160,13 +160,16 @@ final class GameViewModel {
 
     private func randomAssignments(for model: ColorModel) -> [PlayerID: PlayerAssignment] {
         let palette = ColorData.colors(for: model)
-        assert(!palette.isEmpty, "The color palette must not be empty")
+        assert(palette.count == 5 && Set(palette.map(\.id)).count == 5,
+               "Each color model must have five distinct palette colors")
+        var slots = palette + [palette.randomElement()!]
+        slots.shuffle()
         var assignments: [PlayerID: PlayerAssignment] = [:]
-        for player in PlayerID.allCases {
+        for (index, player) in PlayerID.allCases.enumerated() {
             assignments[player] = PlayerAssignment(
                 player: player,
-                primaryColor: palette.randomElement()!,
-                secondaryColor: palette.randomElement()!
+                primaryColor: slots[2 * index],
+                secondaryColor: slots[2 * index + 1]
             )
         }
         return assignments

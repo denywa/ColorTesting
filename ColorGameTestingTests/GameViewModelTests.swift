@@ -39,22 +39,45 @@ final class GameViewModelTests: XCTestCase {
             XCTAssertEqual(viewModel.timerSecondsRemaining, 45)
             XCTAssertNil(viewModel.mixResult)
             XCTAssertNil(viewModel.score)
-            assertAssignmentsBelongToPalette(viewModel)
+            assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
         }
     }
 
-    func testIndependentColorDrawsAllowDuplicatesWithinAssignments() {
+    func testFivePaletteColorsAndOneDuplicateAtStartAndEveryReassignment() {
+        for model in ColorModel.allCases {
+            let viewModel = makePlayingViewModel(model)
+            defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
+            assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
+            for _ in 0..<100 {
+                viewModel.triggerReassignment()
+                assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
+            }
+        }
+    }
+
+    func testDuplicateCanLandWithinOnePlayerOrAcrossTwoPlayers() {
         let viewModel = makePlayingViewModel(.cmyk)
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
-        var sawDuplicate = false
-        for _ in 0..<100 {
-            if let assignments = viewModel.round?.assignments.values {
-                sawDuplicate = sawDuplicate || assignments.contains { $0.primaryColor.id == $0.secondaryColor.id }
+        var sawWithinPlayer = false
+        var sawAcrossPlayers = false
+        var duplicatedColors = Set<UUID>()
+        for _ in 0..<200 {
+            assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
+            let assignments = viewModel.round!.assignments
+            let within = assignments.values.contains { $0.primaryColor.id == $0.secondaryColor.id }
+            let ids = assignments.values.flatMap { [$0.primaryColor.id, $0.secondaryColor.id] }
+            let counts = Dictionary(ids.map { ($0, 1) }, uniquingKeysWith: +)
+            if let duplicate = counts.first(where: { $0.value == 2 })?.key {
+                duplicatedColors.insert(duplicate)
             }
+            sawWithinPlayer = sawWithinPlayer || within
+            sawAcrossPlayers = sawAcrossPlayers || !within
             viewModel.triggerReassignment()
-            assertAssignmentsBelongToPalette(viewModel)
         }
-        XCTAssertTrue(sawDuplicate, "Independent draws must permit the same color in both slots")
+        XCTAssertTrue(sawWithinPlayer, "The duplicate must be able to occupy one player's pair")
+        XCTAssertTrue(sawAcrossPlayers, "The duplicate must be able to occupy two players' slots")
+        XCTAssertEqual(duplicatedColors, Set(ColorData.cmykPalette.map(\.id)),
+                       "Each palette color must be eligible as the extra color")
     }
 
     func testEveryMappedKeyAddsOneCurrentColorAndUpdatesRatios() {
@@ -106,7 +129,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.timerSecondsRemaining, 45)
         XCTAssertEqual(viewModel.round!.mix.units.map(\.color.id), originalUnits)
         XCTAssertEqual(viewModel.round!.mix.ratios, originalRatios)
-        assertAssignmentsBelongToPalette(viewModel)
+        assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
         let currentPrimary = viewModel.round!.assignments[.player1]!.primaryColor.id
         viewModel.pressKey(KeyCode.q.rawValue)
         XCTAssertEqual(viewModel.round!.mix.units.last?.color.id, currentPrimary)
@@ -141,13 +164,14 @@ final class GameViewModelTests: XCTestCase {
         return viewModel
     }
 
-    private func assertAssignmentsBelongToPalette(_ viewModel: GameViewModel,
+    private func assertAssignmentsContainFullPalettePlusOneDuplicate(_ viewModel: GameViewModel,
                                                   file: StaticString = #filePath, line: UInt = #line) {
         guard let round = viewModel.round else {
             XCTFail("Missing round", file: file, line: line)
             return
         }
         let ids = Set(ColorData.colors(for: round.colorModel).map(\.id))
+        var assignedIDs: [UUID] = []
         for player in PlayerID.allCases {
             guard let assignment = round.assignments[player] else {
                 XCTFail("Missing assignment for \(player)", file: file, line: line)
@@ -156,6 +180,13 @@ final class GameViewModelTests: XCTestCase {
             XCTAssertEqual(assignment.player, player, file: file, line: line)
             XCTAssertTrue(ids.contains(assignment.primaryColor.id), file: file, line: line)
             XCTAssertTrue(ids.contains(assignment.secondaryColor.id), file: file, line: line)
+            assignedIDs.append(assignment.primaryColor.id)
+            assignedIDs.append(assignment.secondaryColor.id)
         }
+        XCTAssertEqual(assignedIDs.count, 6, file: file, line: line)
+        XCTAssertEqual(Set(assignedIDs), ids, "Every palette color must appear", file: file, line: line)
+        let counts = Dictionary(assignedIDs.map { ($0, 1) }, uniquingKeysWith: +)
+        XCTAssertEqual(counts.values.sorted(), [1, 1, 1, 1, 2],
+                       "Exactly one palette color must be duplicated", file: file, line: line)
     }
 }
