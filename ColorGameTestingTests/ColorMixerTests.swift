@@ -3,6 +3,21 @@ import XCTest
 @testable import ColorGameTesting
 
 final class ColorMixerTests: XCTestCase {
+    func testEqualWeightCyanAndMagentaCMYKMix() {
+        let cyan = ColorData.cmykPalette[0]
+        let magenta = ColorData.cmykPalette[1]
+        let result = ColorMixer.blend([ColorUnit(color: cyan), ColorUnit(color: magenta)], model: .cmyk)
+        assertRGB(result, equals: SIMD3(0.5, 0.5, 1))
+    }
+
+    func testAllWhiteCMYKMix() {
+        let white = ColorData.cmykPalette[4]
+        let otherWhite = NamedColor(id: UUID(), name: "White", sRGB: white.sRGB,
+                                    cmykComponents: white.cmykComponents, rybComponents: nil)
+        let result = ColorMixer.blend([ColorUnit(color: white), ColorUnit(color: otherWhite)], model: .cmyk)
+        XCTAssertEqual(result, SIMD3(1, 1, 1))
+    }
+
     func testCMYKBlendsFourChannelsBeforeConvertingToSRGB() {
         let cyan = ColorData.cmykPalette[0]
         let black = ColorData.cmykPalette[3]
