@@ -8,14 +8,19 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var viewModel = GameViewModel()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        switch viewModel.phase {
+        case .settings:
+            SettingsView(viewModel: viewModel)
+        case .playing:
+            GameView(viewModel: viewModel)
+        case .result:
+            ResultView(viewModel: viewModel)
+        case .score:
+            ScoreView(viewModel: viewModel)
         }
-        .padding()
     }
 }
 
