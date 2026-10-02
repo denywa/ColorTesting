@@ -6,11 +6,27 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		A1000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DA0F5625306F9E470052E2D9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DA0F562C306F9E470052E2D9;
+			remoteInfo = ColorGameTesting;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		A10000000000000000000001 /* ColorGameTestingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ColorGameTestingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA0F562D306F9E470052E2D9 /* ColorGameTesting.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ColorGameTesting.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		A10000000000000000000002 /* ColorGameTestingTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ColorGameTestingTests;
+			sourceTree = "<group>";
+		};
 		DA0F562F306F9E470052E2D9 /* ColorGameTesting */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ColorGameTesting;
@@ -19,6 +35,11 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		A10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 		DA0F562A306F9E470052E2D9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
@@ -31,6 +52,7 @@
 			isa = PBXGroup;
 			children = (
 				DA0F562F306F9E470052E2D9 /* ColorGameTesting */,
+				A10000000000000000000002 /* ColorGameTestingTests */,
 				DA0F562E306F9E470052E2D9 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -39,6 +61,7 @@
 			isa = PBXGroup;
 			children = (
 				DA0F562D306F9E470052E2D9 /* ColorGameTesting.app */,
+				A10000000000000000000001 /* ColorGameTestingTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -46,6 +69,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A10000000000000000000004 /* ColorGameTestingTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000009 /* Build configuration list for PBXNativeTarget "ColorGameTestingTests" */;
+			buildPhases = (
+				A10000000000000000000005 /* Sources */,
+				A10000000000000000000003 /* Frameworks */,
+				A10000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1000000000000000000000B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A10000000000000000000002 /* ColorGameTestingTests */,
+			);
+			name = ColorGameTestingTests;
+			productName = ColorGameTestingTests;
+			productReference = A10000000000000000000001 /* ColorGameTestingTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		DA0F562C306F9E470052E2D9 /* ColorGameTesting */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DA0F5638306F9E480052E2D9 /* Build configuration list for PBXNativeTarget "ColorGameTesting" */;
@@ -74,6 +118,10 @@
 				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
+					A10000000000000000000004 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = DA0F562C306F9E470052E2D9;
+					};
 					DA0F562C306F9E470052E2D9 = {
 						CreatedOnToolsVersion = 27.0;
 					};
@@ -94,11 +142,17 @@
 			projectRoot = "";
 			targets = (
 				DA0F562C306F9E470052E2D9 /* ColorGameTesting */,
+				A10000000000000000000004 /* ColorGameTestingTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
 		DA0F562B306F9E470052E2D9 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
@@ -107,6 +161,11 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 		DA0F5629306F9E470052E2D9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
@@ -114,7 +173,49 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		A1000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DA0F562C306F9E470052E2D9 /* ColorGameTesting */;
+			targetProxy = A1000000000000000000000A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		A10000000000000000000007 /* Debug configuration for PBXNativeTarget "ColorGameTestingTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = denywa.ColorGameTestingTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ColorGameTesting.app/Contents/MacOS/ColorGameTesting";
+			};
+			name = Debug;
+		};
+		A10000000000000000000008 /* Release configuration for PBXNativeTarget "ColorGameTestingTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = denywa.ColorGameTestingTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ColorGameTesting.app/Contents/MacOS/ColorGameTesting";
+			};
+			name = Release;
+		};
 		DA0F5636306F9E480052E2D9 /* Debug configuration for PBXProject "ColorGameTesting" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -302,6 +403,14 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A10000000000000000000009 /* Build configuration list for PBXNativeTarget "ColorGameTestingTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000007 /* Debug configuration for PBXNativeTarget "ColorGameTestingTests" */,
+				A10000000000000000000008 /* Release configuration for PBXNativeTarget "ColorGameTestingTests" */,
+			);
+			defaultConfigurationName = Release;
+		};
 		DA0F5628306F9E470052E2D9 /* Build configuration list for PBXProject "ColorGameTesting" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
