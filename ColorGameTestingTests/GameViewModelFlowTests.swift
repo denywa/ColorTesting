@@ -3,6 +3,30 @@ import XCTest
 
 @MainActor
 final class GameViewModelFlowTests: XCTestCase {
+    func testColorButtonsAddAssignedColorsAndRespectGamePhase() {
+        let viewModel = GameViewModel()
+        viewModel.addColor(player: .player1, slot: .primary)
+        XCTAssertNil(viewModel.round)
+
+        viewModel.selectModel(.cmyk)
+        viewModel.confirmSettings()
+        defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
+
+        let expectedColors = PlayerID.allCases.flatMap { player -> [NamedColor] in
+            let assignment = viewModel.round!.assignments[player]!
+            return [assignment.primaryColor, assignment.secondaryColor]
+        }
+        for player in PlayerID.allCases {
+            viewModel.addColor(player: player, slot: .primary)
+            viewModel.addColor(player: player, slot: .secondary)
+        }
+        XCTAssertEqual(viewModel.round?.mix.units.map(\.color), expectedColors)
+
+        viewModel.pressMixButton()
+        viewModel.addColor(player: .player1, slot: .primary)
+        XCTAssertEqual(viewModel.round?.mix.units.count, expectedColors.count)
+    }
+
     func testMixRequiresNonemptyUnlockedPlayingMixAndFreezesRound() {
         let viewModel = makePlayingViewModel(.cmyk)
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
@@ -67,14 +91,17 @@ final class GameViewModelFlowTests: XCTestCase {
         XCTAssertEqual(viewModel.timerSecondsRemaining, remaining - 1)
     }
 
-    func testFinishComputesDeltaE2000AndNewRoundResetsAllState() {
-        let viewModel = makePlayingViewModel(.cmyk)
+    func testFinishComputesMatchPercentageAndNewRoundResetsAllState() {
+        let viewModel = GameViewModel()
+        viewModel.selectModel(.cmyk)
+        viewModel.selectedRequestID = ColorData.requestPool[0].id
+        viewModel.confirmSettings()
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         viewModel.pressKey(KeyCode.q.rawValue)
         viewModel.pressMixButton()
         let result = viewModel.mixResult!
         let target = viewModel.round!.request.targetSRGB
-        let expectedScore = ScoreCalculator.deltaE2000(
+        let expectedScore = ScoreCalculator.matchPercentage(
             ColorConverter.sRGBToLab(result), ColorConverter.sRGBToLab(target)
         )
         viewModel.selectFinish()
@@ -89,6 +116,7 @@ final class GameViewModelFlowTests: XCTestCase {
         viewModel.startNewRound()
         XCTAssertEqual(viewModel.phase, .settings)
         XCTAssertNil(viewModel.selectedModel)
+        XCTAssertNil(viewModel.selectedRequestID)
         XCTAssertNil(viewModel.round)
         XCTAssertNil(viewModel.mixResult)
         XCTAssertNil(viewModel.score)

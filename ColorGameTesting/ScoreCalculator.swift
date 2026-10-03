@@ -3,6 +3,26 @@ import Foundation
 enum ScoreCalculator {
     private static let degreesToRadians = Double.pi / 180
     private static let twentyFiveToSeventh = pow(25.0, 7.0)
+    private static let scoreMidpoint = 23.0
+    private static let scoreNearDifferenceScale = 200.0
+    private static let scoreCutoff = 100.0
+
+    static func matchPercentage(_ lab1: SIMD3<Double>, _ lab2: SIMD3<Double>) -> Double {
+        // ΔE00 is a perceptual distance, not a percentage. Calibrate the game
+        // score so a different shade of the same hue stays fairly close, while
+        // large color-family differences fall quickly. The linear term still
+        // distinguishes near-perfect matches; the fourth-power term handles
+        // larger differences. Normalize the endpoints to exactly 100% and 0%.
+        let distance = min(deltaE2000(lab1, lab2), scoreCutoff)
+        let similarity = scoreSimilarity(at: distance)
+        let zeroPoint = scoreSimilarity(at: scoreCutoff)
+        return 100 * (similarity - zeroPoint) / (1 - zeroPoint)
+    }
+
+    private static func scoreSimilarity(at distance: Double) -> Double {
+        1 / (1 + distance / scoreNearDifferenceScale
+             + pow(distance / scoreMidpoint, 4))
+    }
 
     static func deltaE2000(_ lab1: SIMD3<Double>, _ lab2: SIMD3<Double>) -> Double {
         if lab1 == lab2 { return 0.0 }

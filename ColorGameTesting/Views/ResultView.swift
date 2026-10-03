@@ -25,43 +25,23 @@ struct ResultView: View {
         if let round = viewModel.round, let result = viewModel.mixResult {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text("Comparison")
+                    Text("Your Mix")
                         .font(.largeTitle)
                         .bold()
 
-                    HStack(spacing: 16) {
-                        VStack(alignment: .center, spacing: 8) {
-                            Text("Your Mix")
-                                .font(.headline)
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(red: result.x, green: result.y, blue: result.z))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 260)
+                        .overlay {
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(red: result.x, green: result.y, blue: result.z))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 260)
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .strokeBorder(.primary, lineWidth: 1)
-                                }
-                                .accessibilityLabel(
-                                    "Mixed color result, red \(Int((result.x * 100).rounded())) percent, " +
-                                    "green \(Int((result.y * 100).rounded())) percent, " +
-                                    "blue \(Int((result.z * 100).rounded())) percent"
-                                )
+                                .strokeBorder(.primary, lineWidth: 1)
                         }
-
-                        VStack(alignment: .center, spacing: 8) {
-                            Text("Target: \(round.request.text)")
-                                .font(.headline)
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(red: round.request.targetSRGB.x, green: round.request.targetSRGB.y, blue: round.request.targetSRGB.z))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 260)
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .strokeBorder(.primary, lineWidth: 1)
-                                }
-                                .accessibilityLabel("Target color")
-                        }
-                    }
+                        .accessibilityLabel(
+                            "Mixed color result, red \(Int((result.x * 100).rounded())) percent, " +
+                            "green \(Int((result.y * 100).rounded())) percent, " +
+                            "blue \(Int((result.z * 100).rounded())) percent"
+                        )
 
                     Text("Color Breakdown")
                         .font(.title2)

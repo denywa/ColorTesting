@@ -5,19 +5,19 @@ import XCTest
 
 @MainActor
 final class ScoreViewTests: XCTestCase {
-    func testDisplayedScoreChangesAcrossHundredthBoundary() throws {
+    func testDisplayedPercentageChangesAcrossHundredthBoundary() throws {
         let viewModel = GameViewModel()
         viewModel.phase = .score
-        viewModel.score = 12.344
+        viewModel.score = 87.654
         let first = try render(viewModel)
 
-        viewModel.score = 12.346
+        viewModel.score = 87.656
         let second = try render(viewModel)
 
-        XCTAssertNotEqual(first, second, "The score screen must show the score rounded to two decimals")
-        viewModel.score = 12.341
+        XCTAssertNotEqual(first, second, "The score screen must show the match percentage rounded to two decimals")
+        viewModel.score = 87.651
         let sameHundredth = try render(viewModel)
-        XCTAssertEqual(first, sameHundredth, "Values within one hundredth must show the same score")
+        XCTAssertEqual(first, sameHundredth, "Values within one hundredth must show the same percentage")
     }
 
     private func render(_ viewModel: GameViewModel) throws -> Data {

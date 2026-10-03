@@ -18,6 +18,7 @@
 
 /* Begin PBXFileReference section */
 		A10000000000000000000001 /* ColorGameTestingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ColorGameTestingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000001 /* ColorGameTestingiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ColorGameTestingiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA0F562D306F9E470052E2D9 /* ColorGameTesting.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ColorGameTesting.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -36,6 +37,11 @@
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		A20000000000000000000003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -62,6 +68,7 @@
 			children = (
 				DA0F562D306F9E470052E2D9 /* ColorGameTesting.app */,
 				A10000000000000000000001 /* ColorGameTestingTests.xctest */,
+				A20000000000000000000001 /* ColorGameTestingiOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -89,6 +96,24 @@
 			productName = ColorGameTestingTests;
 			productReference = A10000000000000000000001 /* ColorGameTestingTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A20000000000000000000004 /* ColorGameTestingiOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A20000000000000000000009 /* Build configuration list for PBXNativeTarget "ColorGameTestingiOS" */;
+			buildPhases = (
+				A20000000000000000000005 /* Sources */,
+				A20000000000000000000003 /* Frameworks */,
+				A20000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				DA0F562F306F9E470052E2D9 /* ColorGameTesting */,
+			);
+			name = ColorGameTestingiOS;
+			productName = ColorGameTestingiOS;
+			productReference = A20000000000000000000001 /* ColorGameTestingiOS.app */;
+			productType = "com.apple.product-type.application";
 		};
 		DA0F562C306F9E470052E2D9 /* ColorGameTesting */ = {
 			isa = PBXNativeTarget;
@@ -122,12 +147,15 @@
 						CreatedOnToolsVersion = 27.0;
 						TestTargetID = DA0F562C306F9E470052E2D9;
 					};
+					A20000000000000000000004 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 					DA0F562C306F9E470052E2D9 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
 			};
-			buildConfigurationList = DA0F5628306F9E470052E2D9 /* Build configuration list for PBXProject "ColorGameTesting" */;
+			buildConfigurationList = DA0F5628306F9E470052E2D9 /* Build configuration list for PBXProject "ColorGameTesting2" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -143,12 +171,18 @@
 			targets = (
 				DA0F562C306F9E470052E2D9 /* ColorGameTesting */,
 				A10000000000000000000004 /* ColorGameTestingTests */,
+				A20000000000000000000004 /* ColorGameTestingiOS */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A10000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		A20000000000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -162,6 +196,11 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		A10000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+		A20000000000000000000005 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
 			);
@@ -216,7 +255,60 @@
 			};
 			name = Release;
 		};
-		DA0F5636306F9E480052E2D9 /* Debug configuration for PBXProject "ColorGameTesting" */ = {
+		A20000000000000000000007 /* Debug configuration for PBXNativeTarget "ColorGameTestingiOS" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AGBD4P9452;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = denywa.ColorGameTestingiOS;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A20000000000000000000008 /* Release configuration for PBXNativeTarget "ColorGameTestingiOS" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AGBD4P9452;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = denywa.ColorGameTestingiOS;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		DA0F5636306F9E480052E2D9 /* Debug configuration for PBXProject "ColorGameTesting2" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -280,7 +372,7 @@
 			};
 			name = Debug;
 		};
-		DA0F5637306F9E480052E2D9 /* Release configuration for PBXProject "ColorGameTesting" */ = {
+		DA0F5637306F9E480052E2D9 /* Release configuration for PBXProject "ColorGameTesting2" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -411,11 +503,19 @@
 			);
 			defaultConfigurationName = Release;
 		};
-		DA0F5628306F9E470052E2D9 /* Build configuration list for PBXProject "ColorGameTesting" */ = {
+		A20000000000000000000009 /* Build configuration list for PBXNativeTarget "ColorGameTestingiOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				DA0F5636306F9E480052E2D9 /* Debug configuration for PBXProject "ColorGameTesting" */,
-				DA0F5637306F9E480052E2D9 /* Release configuration for PBXProject "ColorGameTesting" */,
+				A20000000000000000000007 /* Debug configuration for PBXNativeTarget "ColorGameTestingiOS" */,
+				A20000000000000000000008 /* Release configuration for PBXNativeTarget "ColorGameTestingiOS" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		DA0F5628306F9E470052E2D9 /* Build configuration list for PBXProject "ColorGameTesting2" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA0F5636306F9E480052E2D9 /* Debug configuration for PBXProject "ColorGameTesting2" */,
+				DA0F5637306F9E480052E2D9 /* Release configuration for PBXProject "ColorGameTesting2" */,
 			);
 			defaultConfigurationName = Release;
 		};

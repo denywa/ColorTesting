@@ -3,10 +3,42 @@ import SwiftUI
 struct GameView: View {
     let viewModel: GameViewModel
 
+    private var chartSize: CGFloat {
+        #if os(iOS)
+        180
+        #else
+        240
+        #endif
+    }
+
+    private var contentSpacing: CGFloat {
+        #if os(iOS)
+        16
+        #else
+        24
+        #endif
+    }
+
+    private var requestFontSize: CGFloat {
+        #if os(iOS)
+        32
+        #else
+        36
+        #endif
+    }
+
+    private var chartVerticalPadding: CGFloat? {
+        #if os(iOS)
+        4
+        #else
+        nil
+        #endif
+    }
+
     var body: some View {
         if let round = viewModel.round {
             ScrollView {
-                VStack(alignment: .center, spacing: 24) {
+                VStack(alignment: .center, spacing: contentSpacing) {
                     VStack(alignment: .center, spacing: 8) {
                         Text("Request")
                             .font(.headline)
@@ -14,7 +46,9 @@ struct GameView: View {
                         
                         HStack(spacing: 12) {
                             Text(round.request.text)
-                                .font(.system(size: 36, weight: .bold))
+                                .font(.system(size: requestFontSize, weight: .bold))
+                                .minimumScaleFactor(0.7)
+                                .lineLimit(2)
                             
                             if viewModel.showTargetColor {
                                 Circle()
@@ -26,9 +60,16 @@ struct GameView: View {
                     }
 
                     ColorBarView(mix: round.mix)
-                        .frame(width: 240, height: 240)
-                        .padding(.vertical)
+                        .frame(width: chartSize, height: chartSize)
+                        .padding(.vertical, chartVerticalPadding)
 
+                    #if os(iOS)
+                    VStack(spacing: 10) {
+                        ForEach(PlayerID.allCases, id: \.self) { player in
+                            PlayerAssignmentPanel(viewModel: viewModel, player: player)
+                        }
+                    }
+                    #else
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .top, spacing: 16) {
                             ForEach(PlayerID.allCases, id: \.self) { player in
@@ -42,6 +83,7 @@ struct GameView: View {
                             }
                         }
                     }
+                    #endif
 
                     HStack {
                         TimerBadge(secondsRemaining: viewModel.timerSecondsRemaining)
@@ -66,6 +108,22 @@ private struct PlayerAssignmentPanel: View {
     let viewModel: GameViewModel
     let player: PlayerID
 
+    private var colorSpacing: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        16
+        #endif
+    }
+
+    private var panelPadding: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        16
+        #endif
+    }
+
     private var playerTitle: String {
         switch player {
         case .player1: "Player 1"
@@ -80,12 +138,21 @@ private struct PlayerAssignmentPanel: View {
                 Text(playerTitle)
                     .font(.headline)
 
-                HStack(alignment: .top, spacing: 16) {
+                HStack(alignment: .top, spacing: colorSpacing) {
+                    #if os(iOS)
+                    ColorInputButton(color: assignment.primaryColor) {
+                        viewModel.addColor(player: player, slot: .primary)
+                    }
+                    ColorInputButton(color: assignment.secondaryColor) {
+                        viewModel.addColor(player: player, slot: .secondary)
+                    }
+                    #else
                     ColorKeySwatch(color: assignment.primaryColor, keyLabel: player.keyLabels.0)
                     ColorKeySwatch(color: assignment.secondaryColor, keyLabel: player.keyLabels.1)
+                    #endif
                 }
             }
-            .padding()
+            .padding(panelPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
             .accessibilityElement(children: .contain)
@@ -94,6 +161,37 @@ private struct PlayerAssignmentPanel: View {
     }
 }
 
+#if os(iOS)
+private struct ColorInputButton: View {
+    let color: NamedColor
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(red: color.sRGB.x, green: color.sRGB.y, blue: color.sRGB.z))
+                    .frame(width: 42, height: 42)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(.primary, lineWidth: 1)
+                    }
+                Text(color.name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, minHeight: 60)
+            .background(.background, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add \(color.name)")
+        .accessibilityHint("Adds one unit to the mix")
+    }
+}
+#else
 private struct ColorKeySwatch: View {
     let color: NamedColor
     let keyLabel: String
@@ -117,6 +215,7 @@ private struct ColorKeySwatch: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+#endif
 
 private struct TimerBadge: View {
     let secondsRemaining: Int

@@ -45,19 +45,19 @@ enum ColorData {
 
     static let requestPool: [ColorRequest] = [
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000001")!,
-                     text: "glossy mocha brown", targetSRGB: sRGB(hex: 0x4A3B32)),
+                     text: "Glossy mocha brown", targetSRGB: sRGB(hex: 0x4A3B32)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000002")!,
-                     text: "milk tea", targetSRGB: sRGB(hex: 0xC8B19A)),
+                     text: "Milk tea", targetSRGB: sRGB(hex: 0xC8B19A)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000003")!,
-                     text: "honey blonde", targetSRGB: sRGB(hex: 0xF6D48B)),
+                     text: "Honey blonde", targetSRGB: sRGB(hex: 0xF6D48B)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000004")!,
-                     text: "lavender", targetSRGB: sRGB(hex: 0xC8B4F4)),
+                     text: "Lavender", targetSRGB: sRGB(hex: 0xCAB4F4)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000005")!,
-                     text: "sky blue", targetSRGB: sRGB(hex: 0x87CEFA)),
+                     text: "Sky blue", targetSRGB: sRGB(hex: 0x87CEFA)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000006")!,
-                     text: "red blood", targetSRGB: sRGB(hex: 0xB22222)),
+                     text: "Red blood", targetSRGB: sRGB(hex: 0xB22222)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000007")!,
-                     text: "juicy orange", targetSRGB: sRGB(hex: 0xFF8C32))
+                     text: "Juicy orange", targetSRGB: sRGB(hex: 0xFF8C32))
     ]
 
     private static func sRGB(hex: UInt32) -> SIMD3<Double> {

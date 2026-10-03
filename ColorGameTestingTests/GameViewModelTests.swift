@@ -20,10 +20,11 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canConfirm)
     }
 
-    func testRoundStartsWithPoolRequestEmptyMixAndModelPaletteAssignments() {
+    func testRoundStartsWithAvailableRequestEmptyMixAndModelPaletteAssignments() {
         for model in ColorModel.allCases {
             let viewModel = GameViewModel()
             defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
+            XCTAssertNil(viewModel.selectedRequestID)
             viewModel.selectModel(model)
             viewModel.confirmSettings()
 
@@ -31,7 +32,7 @@ final class GameViewModelTests: XCTestCase {
             XCTAssertEqual(viewModel.selectedModel, model)
             XCTAssertEqual(viewModel.round?.colorModel, model)
             XCTAssertEqual(viewModel.gameState.round?.request.id, viewModel.round?.request.id)
-            XCTAssertTrue(ColorData.requestPool.contains { $0.id == viewModel.round?.request.id })
+            XCTAssertTrue(viewModel.availableRequests.contains { $0.id == viewModel.round?.request.id })
             XCTAssertEqual(viewModel.round?.assignments.count, PlayerID.allCases.count)
             XCTAssertEqual(viewModel.round?.mix.units.count, 0)
             XCTAssertTrue(viewModel.round?.mix.ratios.isEmpty ?? false)
@@ -40,6 +41,21 @@ final class GameViewModelTests: XCTestCase {
             XCTAssertNil(viewModel.mixResult)
             XCTAssertNil(viewModel.score)
             assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
+        }
+    }
+
+    func testSelectedRequestIsUsedForTheRound() {
+        for request in ColorData.requestPool {
+            let viewModel = GameViewModel()
+            viewModel.selectModel(.cmyk)
+            viewModel.selectedRequestID = request.id
+            viewModel.confirmSettings()
+
+            XCTAssertEqual(viewModel.round?.request.id, request.id)
+            XCTAssertEqual(viewModel.round?.request.text, request.text)
+            XCTAssertEqual(viewModel.round?.request.targetSRGB, request.targetSRGB)
+            viewModel.pauseTimer()
+            viewModel.removeKeyMonitor()
         }
     }
 
