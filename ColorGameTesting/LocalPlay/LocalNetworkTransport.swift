@@ -12,6 +12,7 @@ final class LocalNetworkTransport: LocalPeerTransport {
     private var endpointIDs: [NWEndpoint: UUID] = [:]
     private var connections: [PeerHandle: NWConnection] = [:]
     private var readyPeers: Set<PeerHandle> = []
+    private var decoders: [PeerHandle: LocalMessageCodec] = [:]
 
     private static func parameters() -> NWParameters {
         let parameters = NWParameters.tcp
@@ -97,6 +98,7 @@ final class LocalNetworkTransport: LocalPeerTransport {
         for connection in connections.values { connection.cancel() }
         connections.removeAll()
         readyPeers.removeAll()
+        decoders.removeAll()
         let connection = NWConnection(to: endpoint, using: Self.parameters())
         track(connection, fallback: .sessionNotFound)
     }
@@ -125,6 +127,7 @@ final class LocalNetworkTransport: LocalPeerTransport {
         for connection in connections.values { connection.cancel() }
         connections.removeAll()
         readyPeers.removeAll()
+        decoders.removeAll()
         endpoints.removeAll()
         endpointIDs.removeAll()
     }
@@ -140,6 +143,7 @@ final class LocalNetworkTransport: LocalPeerTransport {
     private func track(_ connection: NWConnection, fallback: LocalPlayError) {
         let peer = PeerHandle(id: UUID())
         connections[peer] = connection
+        decoders[peer] = LocalMessageCodec()
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             guard let self, let connection else { return }
             Task { @MainActor in
@@ -148,6 +152,9 @@ final class LocalNetworkTransport: LocalPeerTransport {
                 case .ready:
                     self.readyPeers.insert(peer)
                     self.onEvent?(.connected(peer))
+                    if self.connections[peer] === connection {
+                        self.receive(from: peer, on: connection)
+                    }
                 case .failed(let error):
                     self.onEvent?(.failure(Self.map(error, fallback: fallback)))
                     self.remove(peer)
@@ -164,8 +171,43 @@ final class LocalNetworkTransport: LocalPeerTransport {
         connection.start(queue: queue)
     }
 
+    private func receive(from peer: PeerHandle, on connection: NWConnection) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self, weak connection] data, _, isComplete, error in
+            guard let self, let connection else { return }
+            Task { @MainActor in
+                guard self.connections[peer] === connection else { return }
+                if let error {
+                    self.onEvent?(.failure(Self.map(error, fallback: .disconnected)))
+                    self.remove(peer)
+                    return
+                }
+                if let data, !data.isEmpty {
+                    do {
+                        var decoder = self.decoders[peer] ?? LocalMessageCodec()
+                        let messages = try decoder.append(data)
+                        self.decoders[peer] = decoder
+                        for message in messages {
+                            guard self.connections[peer] === connection else { return }
+                            self.onEvent?(.received(message, from: peer))
+                        }
+                    } catch {
+                        self.onEvent?(.failure(error as? LocalPlayError ?? .invalidMessage))
+                        self.remove(peer)
+                        return
+                    }
+                }
+                if isComplete {
+                    self.remove(peer)
+                } else {
+                    self.receive(from: peer, on: connection)
+                }
+            }
+        }
+    }
+
     private func remove(_ peer: PeerHandle) {
         let wasReady = readyPeers.remove(peer) != nil
+        decoders.removeValue(forKey: peer)
         connections.removeValue(forKey: peer)?.cancel()
         if wasReady { onEvent?(.disconnected(peer)) }
     }

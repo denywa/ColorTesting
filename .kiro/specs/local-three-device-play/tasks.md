@@ -54,7 +54,7 @@
   - _Boundary: LocalGameSnapshotMapper_
   - _Depends: 2.2_
   - _Requirements: 2.2, 2.3, 2.5, 3.4, 4.1, 4.2, 5.2, 5.4, 6.3, 6.4_
-- [ ] 2.4 Kirim dan terima pesan terbingkai pada tiap koneksi
+- [x] 2.4 Kirim dan terima pesan terbingkai pada tiap koneksi
   - Teruskan pesan antarkoneksi dengan urutan yang benar serta pisahkan buffer tiap peer.
   - Ubah potongan aliran menjadi pesan utuh dan laporkan kegagalan pengiriman tanpa menafsirkan aturan ronde.
   - Selesai ketika dua peer palsu dan satu koneksi jaringan uji dapat bertukar beberapa pesan utuh dalam urutan yang benar.
