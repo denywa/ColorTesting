@@ -88,6 +88,8 @@ final class GameViewModel {
         }
     }
     private var storedTimerSecondsRemaining = 45
+    private(set) var roundID: UUID?
+    private(set) var assignmentEpoch: Int?
 
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private let customRequestStore: CustomRequestStore
@@ -103,6 +105,10 @@ final class GameViewModel {
 
     var availableRequests: [ColorRequest] { ColorData.requestPool + customRequests }
     var canConfirm: Bool { selectedModel != nil }
+    var isLocalClient: Bool {
+        if case .client = controlMode { return true }
+        return false
+    }
 
     private func notifyHostChange() {
         if case .host = controlMode { didChange?() }
@@ -122,6 +128,8 @@ final class GameViewModel {
         localInputHandler = nil
         didChange = nil
         gameState = GameState()
+        roundID = nil
+        assignmentEpoch = nil
         storedSelectedRequestID = nil
         phase = .settings
         timerSecondsRemaining = reassignmentDuration
@@ -129,7 +137,8 @@ final class GameViewModel {
 
     func applyRemoteState(_ state: GameState, phase: GamePhase,
                           timerSecondsRemaining: Int, reassignmentDuration: Int,
-                          showTargetColor: Bool) {
+                          showTargetColor: Bool, roundID: UUID? = nil,
+                          assignmentEpoch: Int? = nil) {
         guard case .client = controlMode else { return }
         pauseTimer()
         gameState = state
@@ -137,6 +146,8 @@ final class GameViewModel {
         storedTimerSecondsRemaining = timerSecondsRemaining
         storedReassignmentDuration = reassignmentDuration
         storedShowTargetColor = showTargetColor
+        self.roundID = roundID
+        self.assignmentEpoch = assignmentEpoch
         if phase == .playing { installKeyMonitor() } else { removeKeyMonitor() }
     }
 
@@ -187,6 +198,8 @@ final class GameViewModel {
             mixResult: nil,
             score: nil
         )
+        roundID = UUID()
+        assignmentEpoch = 0
         timerSecondsRemaining = reassignmentDuration
         phase = .playing
         startTimer()
@@ -233,6 +246,7 @@ final class GameViewModel {
         guard canMutateRules, phase == .playing, let model = round?.colorModel,
               round?.mix.isLocked == false else { return }
         round?.assignments = randomAssignments(for: model)
+        assignmentEpoch = (assignmentEpoch ?? 0) + 1
         timerSecondsRemaining = reassignmentDuration
         notifyHostChange()
     }
@@ -311,6 +325,8 @@ final class GameViewModel {
         pauseTimer()
         removeKeyMonitor()
         gameState = GameState()
+        roundID = nil
+        assignmentEpoch = nil
         storedSelectedRequestID = nil
         timerSecondsRemaining = reassignmentDuration
         phase = .settings

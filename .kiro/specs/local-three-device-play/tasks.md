@@ -47,7 +47,7 @@
   - _Boundary: GameViewModel_
   - _Depends: 1.3_
   - _Requirements: 3.2, 3.5, 4.1, 4.2, 5.2, 7.1_
-- [ ] 2.3 Petakan keadaan ronde menjadi snapshot yang dapat dibagikan
+- [x] 2.3 Petakan keadaan ronde menjadi snapshot yang dapat dibagikan
   - Sertakan pilihan ronde, target kustom lengkap, penugasan, proporsi serta urutan kemunculan warna, timer, fase, hasil, skor, dan status kursi.
   - Validasi ID warna serta angka yang diterima; terapkan snapshot pada klien tanpa menyalin permintaan kustom ke daftar tersimpan.
   - Selesai ketika snapshot host dan keadaan render klien menghasilkan target, campuran, hasil, dan skor yang sama dalam pengujian round-trip.
