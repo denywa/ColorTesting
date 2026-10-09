@@ -13,7 +13,7 @@
   - Selesai ketika hasil build iOS dan macOS memuat daftar layanan Bonjour sebagai array, alasan izin yang benar, serta hak jaringan macOS.
   - _Boundary: Konfigurasi target aplikasi_
   - _Requirements: 1.2, 1.8, 7.4_
-- [ ] 1.3 Tetapkan model sesi dan kontrak pesan bersama
+- [x] 1.3 Tetapkan model sesi dan kontrak pesan bersama
   - Nyatakan mode, peran tiga pemain, status kursi, identitas sesi/ronde/aksi sementara, kesalahan, dan versi protokol secara bertipe.
   - Nyatakan pesan untuk bergabung, menerima atau menolak, memberi input, memperbarui keadaan, memantau koneksi, dan mengakhiri sesi.
   - Selesai ketika host dan klien dapat menggunakan kontrak yang sama tanpa menyimpan identitas atau keadaan sesi antar-peluncuran aplikasi.
@@ -236,3 +236,4 @@
 
 - Baseline macOS sebelum implementasi: 58 tes lulus dan 3 gagal pada ColorDataTests, GameViewRenderingTests, serta ColorMixerTests. Task 1.1 memulihkan baseline; suite macOS penuh lulus pada verifikasi ulang setelah nilai Lavender C8B4F4 dan tiga tes diselaraskan.
 - NSBonjourServices harus berasal dari plist sumber agar hasil build tetap berupa array; hak jaringan macOS tetap mempertahankan sandbox dan akses baca berkas pilihan pengguna.
+- Kontrak snapshot memakai durasi Int sesuai GameViewModel; validasi payload jaringan yang tidak tepercaya tetap menjadi tanggung jawab codec dan mapper pada task berikutnya.
