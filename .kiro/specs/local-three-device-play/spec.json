@@ -1,0 +1,22 @@
+{
+  "feature_name": "local-three-device-play",
+  "created_at": "2026-10-09T07:11:00Z",
+  "updated_at": "2026-10-09T08:19:18Z",
+  "language": "id",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}

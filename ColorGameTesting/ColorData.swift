@@ -51,7 +51,7 @@ enum ColorData {
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000003")!,
                      text: "Honey blonde", targetSRGB: sRGB(hex: 0xF6D48B)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000004")!,
-                     text: "Lavender", targetSRGB: sRGB(hex: 0xCAB4F4)),
+                     text: "Lavender", targetSRGB: sRGB(hex: 0xC8B4F4)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000005")!,
                      text: "Sky blue", targetSRGB: sRGB(hex: 0x87CEFA)),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000006")!,

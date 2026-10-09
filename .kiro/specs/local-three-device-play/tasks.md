@@ -1,0 +1,237 @@
+# Implementation Plan
+
+- [ ] 1. Siapkan fondasi permainan lokal
+- [x] 1.1 Pulihkan baseline pengujian game yang sudah ada
+  - Selaraskan tes nama permintaan dengan tampilan saat ini dan pulihkan nilai target Lavender yang sebelumnya ditetapkan bersama tesnya.
+  - Selaraskan ekspektasi tes diagram campuran dengan bentuk lingkaran serta tes RYB dengan sudut warna yang sekarang dipakai, tanpa mengubah aturan pencampuran.
+  - Selesai ketika seluruh suite macOS yang sudah ada lulus sebelum konfigurasi jaringan atau perilaku sesi lokal diubah.
+  - _Boundary: ColorData, pengujian regresi game yang sudah ada_
+  - _Requirements: 7.1_
+- [ ] 1.2 Konfigurasikan akses jaringan lokal pada kedua target aplikasi
+  - Daftarkan alasan akses jaringan lokal dan jenis layanan permainan agar sistem dapat menampilkan izin dan menemukan sesi.
+  - Berikan hak koneksi masuk dan keluar pada aplikasi macOS yang disandbox, tanpa mengubah izin mode satu perangkat.
+  - Selesai ketika hasil build iOS dan macOS memuat daftar layanan Bonjour sebagai array, alasan izin yang benar, serta hak jaringan macOS.
+  - _Boundary: Konfigurasi target aplikasi_
+  - _Requirements: 1.2, 1.8, 7.4_
+- [ ] 1.3 Tetapkan model sesi dan kontrak pesan bersama
+  - Nyatakan mode, peran tiga pemain, status kursi, identitas sesi/ronde/aksi sementara, kesalahan, dan versi protokol secara bertipe.
+  - Nyatakan pesan untuk bergabung, menerima atau menolak, memberi input, memperbarui keadaan, memantau koneksi, dan mengakhiri sesi.
+  - Selesai ketika host dan klien dapat menggunakan kontrak yang sama tanpa menyimpan identitas atau keadaan sesi antar-peluncuran aplikasi.
+  - _Boundary: LocalPlayModels_
+  - _Requirements: 1.3, 1.4, 2.2, 2.3, 3.3, 3.4, 4.1, 6.3, 7.2, 7.3_
+- [ ] 1.4 Siapkan pengodean pesan yang tahan terhadap pemotongan aliran
+  - Kodekan pesan bertipe dengan batas panjang dan versi yang jelas; pisahkan pesan yang terpotong atau tergabung dalam satu kiriman.
+  - Tolak payload rusak, ukuran berlebih, dan versi yang tidak cocok tanpa meneruskan keadaan yang tidak valid ke game.
+  - Selesai ketika pengujian codec membuktikan pesan utuh, terpotong, tergabung, rusak, dan terlalu besar diproses sesuai kontrak.
+  - _Boundary: LocalMessageCodec_
+  - _Requirements: 1.7, 3.6, 6.3_
+- [ ] 1.5 Siapkan transport palsu dan waktu terkontrol untuk pengujian sesi
+  - Nyatakan batas transport yang dapat diganti oleh implementasi jaringan nyata atau peer palsu tanpa mengubah aturan game.
+  - Sediakan peer palsu yang dapat mengirim peristiwa koneksi/pesan dan jam yang dapat dimajukan tanpa menunggu waktu nyata.
+  - Selesai ketika satu pengujian fondasi dapat menghubungkan peer palsu, mengirim pesan, memutus koneksi, dan memajukan waktu secara deterministik.
+  - _Boundary: LocalPeerTransport, LocalPlayCoordinatorTests_
+  - _Requirements: 1.3, 3.6, 6.1, 6.3_
+
+- [ ] 2. Bangun komponen inti yang tidak berbagi kepemilikan
+- [ ] 2.1 (P) Temukan dan hubungkan tiga perangkat di Wi-Fi lokal
+  - Host mengiklankan satu sesi dan menerima koneksi; perangkat lain menemukan sesi yang tersedia tanpa akun atau server internet.
+  - Batasi jalur koneksi pada Wi-Fi dan laporkan kegagalan izin, pencarian, atau sambungan dengan status yang dapat dicoba lagi.
+  - Selesai ketika host dapat ditemukan oleh dua klien di jaringan lokal dan koneksi baru dilaporkan ke pengelola sesi.
+  - _Boundary: LocalNetworkTransport_
+  - _Depends: 1.2, 1.3, 1.4, 1.5_
+  - _Requirements: 1.2, 1.7, 1.8, 7.4_
+- [ ] 2.2 (P) Pisahkan keadaan host dari cermin klien tanpa mengubah aturan solo
+  - Sediakan pemberitahuan perubahan setelah aksi dan tick host serta jalur penerapan keadaan klien yang tidak menjalankan timer, pengacakan, atau skor lokal.
+  - Arahkan input sentuh dan keyboard melalui peran lokal; pertahankan keenam input yang ada ketika mode satu perangkat dipilih.
+  - Selesai ketika penerapan keadaan klien dapat menampilkan fase ronde tanpa memutasi aturan sendiri dan pengujian mode solo tetap menunjukkan alur lama.
+  - _Boundary: GameViewModel_
+  - _Depends: 1.3_
+  - _Requirements: 3.2, 3.5, 4.1, 4.2, 5.2, 7.1_
+- [ ] 2.3 Petakan keadaan ronde menjadi snapshot yang dapat dibagikan
+  - Sertakan pilihan ronde, target kustom lengkap, penugasan, proporsi serta urutan kemunculan warna, timer, fase, hasil, skor, dan status kursi.
+  - Validasi ID warna serta angka yang diterima; terapkan snapshot pada klien tanpa menyalin permintaan kustom ke daftar tersimpan.
+  - Selesai ketika snapshot host dan keadaan render klien menghasilkan target, campuran, hasil, dan skor yang sama dalam pengujian round-trip.
+  - _Boundary: LocalGameSnapshotMapper_
+  - _Depends: 2.2_
+  - _Requirements: 2.2, 2.3, 2.5, 3.4, 4.1, 4.2, 5.2, 5.4, 6.3, 6.4_
+- [ ] 2.4 Kirim dan terima pesan terbingkai pada tiap koneksi
+  - Teruskan pesan antarkoneksi dengan urutan yang benar serta pisahkan buffer tiap peer.
+  - Ubah potongan aliran menjadi pesan utuh dan laporkan kegagalan pengiriman tanpa menafsirkan aturan ronde.
+  - Selesai ketika dua peer palsu dan satu koneksi jaringan uji dapat bertukar beberapa pesan utuh dalam urutan yang benar.
+  - _Boundary: LocalNetworkTransport_
+  - _Depends: 2.1_
+  - _Requirements: 1.7, 3.6, 6.3_
+- [ ] 2.5 Deteksi putus koneksi dan bangun ulang jalur lokal
+  - Gunakan heartbeat dan waktu terkontrol untuk melaporkan koneksi yang diam atau gagal.
+  - Coba ulang koneksi klien dan iklan host saat Wi-Fi pulih atau aplikasi kembali ke depan, tanpa menyimpan keadaan ronde di transport.
+  - Selesai ketika peer yang tidak merespons dinyatakan terputus dan transport kembali melaporkan koneksi aktif setelah Wi-Fi atau aplikasi pulih.
+  - _Boundary: LocalNetworkTransport_
+  - _Depends: 1.5, 2.4_
+  - _Requirements: 6.1, 6.3, 6.5_
+
+- [ ] 3. Tegakkan aturan satu sesi bersama
+- [ ] 3.1 Kelola lobi, kursi unik, dan penerimaan peserta
+  - Beri host kursi pertama dan dua klien kursi berbeda; pertahankan identitas sementara untuk sambung ulang.
+  - Tolak perangkat keempat serta versi aplikasi yang tidak cocok, dan tahan Start sampai ketiga kursi aktif.
+  - Selesai ketika host memiliki tiga kursi unik, tiap klien menerima perannya, dan Start ditolak selama peserta kurang dari tiga.
+  - _Boundary: LocalPlayCoordinator_
+  - _Depends: 2.4, 2.5_
+  - _Requirements: 1.3, 1.5, 1.6, 1.7, 6.5_
+- [ ] 3.2 Terima kontribusi warna sekali sesuai peran dan warna yang terlihat
+  - Cocokkan input dengan kursi koneksinya, ronde, slot, warna yang ditampilkan, dan revisi penugasan saat input dibuat.
+  - Urutkan input hampir bersamaan di host; abaikan ID aksi ganda, fase yang salah, campuran terkunci, dan sesi yang dijeda.
+  - Selesai ketika setiap input sah menambah tepat satu unit warna yang dimaksud dan input tidak sah tidak mengubah campuran.
+  - _Boundary: LocalPlayCoordinator_
+  - _Depends: 2.2, 3.1_
+  - _Requirements: 3.2, 3.3, 3.5, 3.6, 4.4_
+- [ ] 3.3 Sinkronkan timer, penugasan, dan campuran melalui snapshot host
+  - Naikkan revisi keadaan sesudah perubahan kursi, kontribusi, tick, pergantian warna, perubahan fase, serta jeda/lanjut; siarkan keadaan terbaru ke klien.
+  - Pertahankan campuran saat warna diacak ulang dan abaikan snapshot lama atau milik sesi lain pada klien.
+  - Selesai ketika pengujian dengan keadaan ronde buatan menunjukkan kedua klien menerima revisi baru beserta kursi, hitung mundur, penugasan, dan proporsi yang sama dengan host.
+  - _Boundary: LocalPlayCoordinator_
+  - _Depends: 2.3, 3.2_
+  - _Requirements: 1.4, 2.2, 3.4, 4.1, 4.2, 4.3, 4.4, 6.2, 6.4_
+- [ ] 3.4 Terapkan pengaturan host dan target bersama saat ronde dimulai
+  - Izinkan hanya host memilih model, target, durasi, dan petunjuk serta memulai ronde setelah tiga kursi aktif.
+  - Bawa teks dan warna target kustom host ke ronde semua perangkat tanpa menambahkannya ke daftar tersimpan klien.
+  - Selesai ketika ketiga perangkat memulai ronde dengan pilihan yang sama dan perubahan pengaturan dari klien ditolak.
+  - _Boundary: LocalPlayCoordinator_
+  - _Depends: 3.3_
+  - _Requirements: 1.5, 2.1, 2.2, 2.3, 2.4, 2.5_
+- [ ] 3.5 Terapkan keputusan Mix, Redo, Finish, dan New Round milik host
+  - Mix mengunci campuran terisi dan menampilkan satu hasil; Redo mengosongkan campuran tetapi mempertahankan target, penugasan, dan sisa waktu.
+  - Finish menampilkan satu skor kelompok; New Round kembali ke pengaturan tanpa melepaskan tiga kursi.
+  - Selesai ketika hanya host dapat memindahkan seluruh perangkat melalui fase hasil, bermain ulang, skor, dan pengaturan berikutnya.
+  - _Boundary: LocalPlayCoordinator_
+  - _Depends: 3.4_
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 7.2_
+- [ ] 3.6 Jeda dan pulihkan sesi ketika perangkat terputus
+  - Saat peer hilang setelah ronde dimulai, hentikan timer dan seluruh aksi serta umumkan kursi yang terputus.
+  - Saat host akan masuk latar belakang, jeda ronde dan siarkan snapshot jeda sebelum aplikasi ditangguhkan; perlakukan klien yang masuk latar belakang sebagai putus sementara ketika koneksinya tidak aktif.
+  - Terima kembali pemilik kursi yang sama, kirim snapshot penuh, lalu lanjutkan fase dan sisa waktu hanya setelah tiga kursi aktif.
+  - Selesai ketika gangguan koneksi atau perpindahan aplikasi ke latar belakang tidak menghapus kontribusi yang sudah diterima, dan sesi kembali ke fase serta sisa waktu yang sama sesudah pulih.
+  - _Boundary: LocalPlayCoordinator_
+  - _Depends: 2.5, 3.3_
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
+- [ ] 3.7 Akhiri atau tinggalkan sesi tanpa menyimpan ronde
+  - Host dapat mengakhiri sesi dan memberi tahu klien; peserta yang menunggu sambung ulang dapat keluar sendiri.
+  - Lepas koneksi, timer, serta identitas sementara ketika sesi selesai atau aplikasi ditutup.
+  - Selesai ketika perangkat kembali ke pilihan mode setelah keluar dan peluncuran berikutnya tidak memulihkan sesi lama.
+  - _Boundary: LocalPlayCoordinator_
+  - _Depends: 3.6_
+  - _Requirements: 6.6, 6.7, 7.3_
+
+- [ ] 4. Sajikan mode dan kendali sesuai peran
+- [ ] 4.1 (P) Tampilkan pilihan mode bermain
+  - Beri pilihan jelas antara tiga pemain di satu perangkat dan tiga perangkat dalam jaringan lokal.
+  - Pastikan pilihan mode satu perangkat menuju pengaturan yang sudah ada tanpa memulai jaringan.
+  - Selesai ketika kedua pilihan dapat diakses melalui sentuhan, keyboard, dan pembaca layar.
+  - _Boundary: ModeSelectionView_
+  - _Depends: 3.7_
+  - _Requirements: 1.1, 7.1, 7.3_
+- [ ] 4.2 (P) Tampilkan lobi dan status sambungan yang dapat ditindaklanjuti
+  - Tampilkan sesi yang ditemukan, tindakan membuat/bergabung, kursi tiap pemain, dan alasan kegagalan yang bisa dicoba lagi.
+  - Bedakan tampilan host dan klien; saat menunggu koneksi kembali, tampilkan pemain yang hilang dan pilihan keluar.
+  - Selesai ketika tiga pemain dapat melihat peran serta status yang benar tanpa memperoleh kendali milik host.
+  - _Boundary: LocalLobbyView_
+  - _Depends: 3.1, 3.6_
+  - _Requirements: 1.2, 1.3, 1.4, 1.7, 2.4, 6.2, 6.7_
+- [ ] 4.3 Batasi pengaturan ronde dan tombol mulai pada lobi host
+  - Izinkan host mengubah model, target, durasi, dan petunjuk; klien hanya melihat status sampai ronde dimulai.
+  - Nonaktifkan Start saat model belum dipilih atau belum ada tiga perangkat yang terhubung.
+  - Selesai ketika tamu tidak dapat mengubah pengaturan bersama dan host tidak dapat memulai ronde terlalu dini.
+  - _Boundary: SettingsView_
+  - _Depends: 3.1, 3.4_
+  - _Requirements: 1.5, 2.1, 2.2, 2.4_
+- [ ] 4.4 (P) Batasi layar bermain pada dua input milik pemain lokal
+  - Tampilkan peran, dua warna aktif, permintaan target, timer, dan campuran bersama pada setiap perangkat.
+  - Sembunyikan atau nonaktifkan input pemain lain, tindakan Mix pada klien, dan semua input saat sesi dijeda.
+  - Selesai ketika tiap perangkat hanya dapat mengaktifkan dua slotnya sendiri dan hanya host dapat menekan Mix setelah campuran terisi.
+  - _Boundary: GameView_
+  - _Depends: 3.2, 3.5, 3.6_
+  - _Requirements: 3.1, 3.2, 3.5, 5.1, 5.6, 6.1_
+- [ ] 4.5 (P) Tampilkan hasil dan tindakan host pada fase hasil
+  - Semua perangkat melihat warna hasil serta rincian campuran yang sama.
+  - Hanya host melihat Redo dan Finish; keduanya tidak tersedia selama jeda.
+  - Selesai ketika klien tidak dapat memicu Redo/Finish dan hasil tetap terlihat saat menunggu sambungan kembali.
+  - _Boundary: ResultView_
+  - _Depends: 3.5, 3.6_
+  - _Requirements: 5.2, 5.3, 5.4, 5.6, 6.1_
+- [ ] 4.6 (P) Tampilkan satu skor bersama dan kendali ronde berikutnya
+  - Tampilkan skor kelompok yang sama pada semua perangkat tanpa membuat skor pemain terpisah.
+  - Hanya host melihat New Round, dan kendali itu tidak tersedia selama jeda.
+  - Selesai ketika klien dapat meninjau skor tetapi tidak dapat memulai ronde berikutnya.
+  - _Boundary: ScoreView_
+  - _Depends: 3.5, 3.6_
+  - _Requirements: 5.4, 5.5, 5.6, 7.2_
+
+- [ ] 5. Hubungkan seluruh alur ke aplikasi
+- [ ] 5.1 Rute pilihan mode, lobi, dan fase ronde dari layar utama
+  - Buat pemilihan mode sebagai pintu masuk dan pertahankan alur solo tanpa mengubah aturan lama.
+  - Tampilkan pengaturan host di lobi, status tamu saat menunggu, dan layar fase yang sama sesudah ronde dimulai.
+  - Selesai ketika pengguna dapat masuk dan keluar dari kedua mode tanpa layar buntu atau sesi jaringan yang tertinggal.
+  - _Boundary: ContentView, LocalPlayCoordinator_
+  - _Depends: 4.1, 4.2, 4.3_
+  - _Requirements: 1.1, 2.1, 5.5, 6.6, 6.7, 7.1, 7.3_
+- [ ] 5.2 Hubungkan input pemain dan Mix ke otoritas sesi
+  - Sambungkan tombol warna dan keyboard ke peran lokal; aksi klien dikirim ke host tanpa mengubah campuran lokal.
+  - Rute Mix host melalui keadaan bersama dan cegah tombol warna atau Mix menembus status jeda.
+  - Selesai ketika input dari tiga perangkat mengubah satu campuran dan hanya host dapat membuka hasil.
+  - _Boundary: GameViewModel, LocalPlayCoordinator, GameView_
+  - _Depends: 3.2, 3.5, 4.4, 5.1_
+  - _Requirements: 3.2, 3.3, 3.4, 3.5, 5.1, 5.2_
+- [ ] 5.3 Hubungkan hasil, skor, dan keluar sesi ke otoritas host
+  - Rute Redo, Finish, dan New Round dari layar masing-masing ke host; klien hanya menerima perubahan fase.
+  - Sediakan Akhiri Sesi bagi host dan Keluar bagi klien pada seluruh fase lokal.
+  - Selesai ketika seluruh perangkat mengikuti transisi fase yang sama dan dapat meninggalkan sesi sesuai perannya.
+  - _Boundary: ContentView, LocalPlayCoordinator, ResultView, ScoreView_
+  - _Depends: 3.5, 3.7, 4.5, 4.6, 5.2_
+  - _Requirements: 5.3, 5.4, 5.5, 5.6, 6.6, 6.7_
+- [ ] 5.4 Hubungkan siklus hidup aplikasi dengan jeda dan sambung ulang sesi
+  - Teruskan perubahan aktif/latar belakang aplikasi ke koordinator: host menjeda sebelum ditangguhkan, sedangkan klien yang kembali ke depan mencoba menyambung ulang.
+  - Pertahankan tampilan jeda dan identitas kursi saat aplikasi kembali aktif; lanjutkan ronde hanya setelah host memulihkan tiga kursi.
+  - Selesai ketika memindahkan host atau klien ke latar belakang lalu kembali ke depan tidak memajukan timer selama jeda dan seluruh perangkat kembali ke keadaan bersama yang sama.
+  - _Boundary: ContentView, LocalPlayCoordinator, LocalNetworkTransport_
+  - _Depends: 2.5, 3.6, 5.1_
+  - _Requirements: 6.1, 6.3, 6.4, 6.5_
+
+- [ ] 6. Validasi alur, kegagalan, dan regresi
+- [ ] 6.1 Uji satu sesi lengkap dengan tiga peer palsu
+  - Jalankan host dan dua klien melalui gabung, pengaturan, input, Mix, Redo, Finish, dan New Round.
+  - Bandingkan fase, target, timer, campuran, hasil, skor, dan kursi pada seluruh peer setelah setiap transisi.
+  - Selesai ketika pengujian integrasi membuktikan ketiga peer konvergen dan sesi tetap hidup pada ronde berikutnya.
+  - _Boundary: LocalPlayCoordinatorTests_
+  - _Depends: 5.3_
+  - _Requirements: 1.3, 2.2, 2.3, 3.4, 4.1, 5.2, 5.3, 5.4, 5.5, 7.2_
+- [ ] 6.2 Uji batas input, duplikat, dan pergantian warna
+  - Simulasikan input serentak/duplikat, perubahan warna tepat di batas timer, perangkat keempat, dan snapshot lama.
+  - Pastikan identitas kursi dan revisi penugasan mencegah warna atau pemain yang salah mengubah campuran.
+  - Selesai ketika tiap kontribusi sah masuk tepat sekali, perangkat keempat ditolak, dan snapshot lama tidak mengganti keadaan terbaru.
+  - _Boundary: LocalPlayCoordinatorTests_
+  - _Depends: 6.1_
+  - _Requirements: 1.6, 3.3, 3.5, 3.6, 4.3, 4.4_
+- [ ] 6.3 Uji jeda dan pemulihan koneksi secara deterministik
+  - Simulasikan tamu atau host terputus, heartbeat habis, host masuk latar belakang, klien kembali ke depan, dan penolakan input serta perpindahan fase selama jeda.
+  - Sambungkan kembali kursi yang sama atau pilih Keluar, lalu periksa campuran, fase, dan sisa waktu.
+  - Selesai ketika timer tidak maju saat jeda, host mengirim keadaan jeda sebelum ditangguhkan, dan pemulihan tidak kehilangan kontribusi yang sudah diterima host.
+  - _Boundary: LocalPlayCoordinatorTests_
+  - _Depends: 1.5, 5.4, 6.1_
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.7_
+- [ ] 6.4 Jalankan regresi antarmuka dan build kedua platform
+  - Periksa pilihan mode, status lobi, kendali host, dua input lokal, serta keterbacaan status jeda.
+  - Jalankan suite macOS yang ada dan build target iOS; periksa bahwa mode satu perangkat masih melalui alur lama.
+  - Selesai ketika pengujian rendering/flow yang relevan lulus dan kedua target berhasil dibangun dengan konfigurasi jaringan yang benar.
+  - _Boundary: ContentViewTests, GameViewRenderingTests, GameViewModelFlowTests_
+  - _Depends: 6.2, 6.3_
+  - _Requirements: 1.1, 1.4, 1.5, 2.4, 3.1, 3.2, 5.1, 5.6, 6.2, 7.1, 7.4_
+- [ ] 6.5 Verifikasi koneksi nyata pada tiga perangkat dalam satu Wi-Fi
+  - Periksa dialog izin, penemuan, pengisian kursi, penolakan perangkat keempat, dan sinkronisasi satu ronde pada perangkat fisik.
+  - Putuskan lalu pulihkan Wi-Fi salah satu perangkat; periksa jeda, kursi semula, sisa waktu, dan hasil yang sama.
+  - Selesai ketika alur lokal, izin jaringan, dan pemulihan koneksi terbukti berjalan pada tiga perangkat fisik di Wi-Fi yang sama.
+  - _Boundary: LocalNetworkTransport, LocalPlayCoordinator_
+  - _Depends: 6.4_
+  - _Requirements: 1.2, 1.3, 1.6, 1.8, 4.1, 5.2, 6.1, 6.3, 6.4, 7.4_
+
+## Implementation Notes
+
+- Baseline macOS sebelum implementasi: 58 tes lulus dan 3 gagal pada ColorDataTests, GameViewRenderingTests, serta ColorMixerTests. Task 1.1 memulihkan baseline; suite macOS penuh lulus pada verifikasi ulang setelah nilai Lavender C8B4F4 dan tiga tes diselaraskan.
