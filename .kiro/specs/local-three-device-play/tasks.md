@@ -19,7 +19,7 @@
   - Selesai ketika host dan klien dapat menggunakan kontrak yang sama tanpa menyimpan identitas atau keadaan sesi antar-peluncuran aplikasi.
   - _Boundary: LocalPlayModels_
   - _Requirements: 1.3, 1.4, 2.2, 2.3, 3.3, 3.4, 4.1, 6.3, 7.2, 7.3_
-- [ ] 1.4 Siapkan pengodean pesan yang tahan terhadap pemotongan aliran
+- [x] 1.4 Siapkan pengodean pesan yang tahan terhadap pemotongan aliran
   - Kodekan pesan bertipe dengan batas panjang dan versi yang jelas; pisahkan pesan yang terpotong atau tergabung dalam satu kiriman.
   - Tolak payload rusak, ukuran berlebih, dan versi yang tidak cocok tanpa meneruskan keadaan yang tidak valid ke game.
   - Selesai ketika pengujian codec membuktikan pesan utuh, terpotong, tergabung, rusak, dan terlalu besar diproses sesuai kontrak.
@@ -237,3 +237,4 @@
 - Baseline macOS sebelum implementasi: 58 tes lulus dan 3 gagal pada ColorDataTests, GameViewRenderingTests, serta ColorMixerTests. Task 1.1 memulihkan baseline; suite macOS penuh lulus pada verifikasi ulang setelah nilai Lavender C8B4F4 dan tiga tes diselaraskan.
 - NSBonjourServices harus berasal dari plist sumber agar hasil build tetap berupa array; hak jaringan macOS tetap mempertahankan sandbox dan akses baca berkas pilihan pengguna.
 - Kontrak snapshot memakai durasi Int sesuai GameViewModel; validasi payload jaringan yang tidak tepercaya tetap menjadi tanggung jawab codec dan mapper pada task berikutnya.
+- Kesalahan framing, JSON, ukuran, atau versi dari codec harus menutup koneksi peer terkait di transport; setiap koneksi memakai instans decoder terpisah.
