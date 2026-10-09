@@ -33,7 +33,7 @@
   - _Requirements: 1.3, 3.6, 6.1, 6.3_
 
 - [ ] 2. Bangun komponen inti yang tidak berbagi kepemilikan
-- [ ] 2.1 (P) Temukan dan hubungkan tiga perangkat di Wi-Fi lokal
+- [x] 2.1 (P) Temukan dan hubungkan tiga perangkat di Wi-Fi lokal
   - Host mengiklankan satu sesi dan menerima koneksi; perangkat lain menemukan sesi yang tersedia tanpa akun atau server internet.
   - Batasi jalur koneksi pada Wi-Fi dan laporkan kegagalan izin, pencarian, atau sambungan dengan status yang dapat dicoba lagi.
   - Selesai ketika host dapat ditemukan oleh dua klien di jaringan lokal dan koneksi baru dilaporkan ke pengelola sesi.
@@ -238,3 +238,4 @@
 - NSBonjourServices harus berasal dari plist sumber agar hasil build tetap berupa array; hak jaringan macOS tetap mempertahankan sandbox dan akses baca berkas pilihan pengguna.
 - Kontrak snapshot memakai durasi Int sesuai GameViewModel; validasi payload jaringan yang tidak tepercaya tetap menjadi tanggung jawab codec dan mapper pada task berikutnya.
 - Kesalahan framing, JSON, ukuran, atau versi dari codec harus menutup koneksi peer terkait di transport; setiap koneksi memakai instans decoder terpisah.
+- Transport nyata sudah mengirim bingkai dan menghubungkan dua klien melalui Bonjour/Wi-Fi; penerimaan serta pemisahan pesan per koneksi dilanjutkan pada task 2.4.
