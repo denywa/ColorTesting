@@ -40,7 +40,7 @@
   - _Boundary: LocalNetworkTransport_
   - _Depends: 1.2, 1.3, 1.4, 1.5_
   - _Requirements: 1.2, 1.7, 1.8, 7.4_
-- [ ] 2.2 (P) Pisahkan keadaan host dari cermin klien tanpa mengubah aturan solo
+- [x] 2.2 (P) Pisahkan keadaan host dari cermin klien tanpa mengubah aturan solo
   - Sediakan pemberitahuan perubahan setelah aksi dan tick host serta jalur penerapan keadaan klien yang tidak menjalankan timer, pengacakan, atau skor lokal.
   - Arahkan input sentuh dan keyboard melalui peran lokal; pertahankan keenam input yang ada ketika mode satu perangkat dipilih.
   - Selesai ketika penerapan keadaan klien dapat menampilkan fase ronde tanpa memutasi aturan sendiri dan pengujian mode solo tetap menunjukkan alur lama.
