@@ -7,7 +7,7 @@
   - Selesai ketika seluruh suite macOS yang sudah ada lulus sebelum konfigurasi jaringan atau perilaku sesi lokal diubah.
   - _Boundary: ColorData, pengujian regresi game yang sudah ada_
   - _Requirements: 7.1_
-- [ ] 1.2 Konfigurasikan akses jaringan lokal pada kedua target aplikasi
+- [x] 1.2 Konfigurasikan akses jaringan lokal pada kedua target aplikasi
   - Daftarkan alasan akses jaringan lokal dan jenis layanan permainan agar sistem dapat menampilkan izin dan menemukan sesi.
   - Berikan hak koneksi masuk dan keluar pada aplikasi macOS yang disandbox, tanpa mengubah izin mode satu perangkat.
   - Selesai ketika hasil build iOS dan macOS memuat daftar layanan Bonjour sebagai array, alasan izin yang benar, serta hak jaringan macOS.
@@ -235,3 +235,4 @@
 ## Implementation Notes
 
 - Baseline macOS sebelum implementasi: 58 tes lulus dan 3 gagal pada ColorDataTests, GameViewRenderingTests, serta ColorMixerTests. Task 1.1 memulihkan baseline; suite macOS penuh lulus pada verifikasi ulang setelah nilai Lavender C8B4F4 dan tiga tes diselaraskan.
+- NSBonjourServices harus berasal dari plist sumber agar hasil build tetap berupa array; hak jaringan macOS tetap mempertahankan sandbox dan akses baca berkas pilihan pengguna.
