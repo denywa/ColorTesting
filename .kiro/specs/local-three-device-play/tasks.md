@@ -25,7 +25,7 @@
   - Selesai ketika pengujian codec membuktikan pesan utuh, terpotong, tergabung, rusak, dan terlalu besar diproses sesuai kontrak.
   - _Boundary: LocalMessageCodec_
   - _Requirements: 1.7, 3.6, 6.3_
-- [ ] 1.5 Siapkan transport palsu dan waktu terkontrol untuk pengujian sesi
+- [x] 1.5 Siapkan transport palsu dan waktu terkontrol untuk pengujian sesi
   - Nyatakan batas transport yang dapat diganti oleh implementasi jaringan nyata atau peer palsu tanpa mengubah aturan game.
   - Sediakan peer palsu yang dapat mengirim peristiwa koneksi/pesan dan jam yang dapat dimajukan tanpa menunggu waktu nyata.
   - Selesai ketika satu pengujian fondasi dapat menghubungkan peer palsu, mengirim pesan, memutus koneksi, dan memajukan waktu secara deterministik.
