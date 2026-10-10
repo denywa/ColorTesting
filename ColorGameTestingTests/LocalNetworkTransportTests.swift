@@ -124,4 +124,143 @@ import XCTest
         client.browse()
         client.stop()
     }
+
+    func testHeartbeatTimesOutSilentPeerAtNineSeconds() async throws {
+        let clock = FakeLocalPlayClock()
+        let host = LocalNetworkTransport(clock: clock)
+        let client = LocalNetworkTransport(clock: clock)
+        let name = "ColorGame-\(UUID().uuidString.prefix(8))"
+        defer { host.stop(); client.stop() }
+        let connected = expectation(description: "host accepted client")
+        let disconnected = expectation(description: "silent client disconnected")
+        var didDisconnect = false
+        host.onEvent = { event in
+            if case .connected = event { connected.fulfill() }
+            if case .disconnected = event { didDisconnect = true; disconnected.fulfill() }
+        }
+        client.onEvent = { event in
+            if case .discovered(let session) = event, session.name == name { client.connect(session) }
+        }
+        try host.host(serviceName: name)
+        client.browse()
+        await fulfillment(of: [connected], timeout: 15)
+        host.startHeartbeats(sessionID: UUID())
+        clock.advance(by: 8.9)
+        XCTAssertFalse(didDisconnect)
+        clock.advance(by: 0.1)
+        await fulfillment(of: [disconnected], timeout: 2)
+    }
+
+    func testMatchingHeartbeatsKeepBothPeersConnected() async throws {
+        let clock = FakeLocalPlayClock()
+        let host = LocalNetworkTransport(clock: clock)
+        let client = LocalNetworkTransport(clock: clock)
+        let name = "ColorGame-\(UUID().uuidString.prefix(8))"
+        defer { host.stop(); client.stop() }
+        let connected = expectation(description: "both peers connected")
+        connected.expectedFulfillmentCount = 2
+        let heartbeats = expectation(description: "both peers receive three heartbeats")
+        heartbeats.expectedFulfillmentCount = 6
+        var disconnects = 0
+        host.onEvent = { event in
+            if case .connected = event { connected.fulfill() }
+            if case .received(.heartbeat, from: _) = event { heartbeats.fulfill() }
+            if case .disconnected = event { disconnects += 1 }
+        }
+        client.onEvent = { event in
+            if case .discovered(let session) = event, session.name == name { client.connect(session) }
+            if case .connected = event { connected.fulfill() }
+            if case .received(.heartbeat, from: _) = event { heartbeats.fulfill() }
+            if case .disconnected = event { disconnects += 1 }
+        }
+        try host.host(serviceName: name)
+        client.browse()
+        await fulfillment(of: [connected], timeout: 15)
+        let sessionID = UUID()
+        host.startHeartbeats(sessionID: sessionID)
+        client.startHeartbeats(sessionID: sessionID)
+        for _ in 0..<3 {
+            clock.advance(by: 3)
+            try await Task.sleep(for: .milliseconds(150))
+        }
+        await fulfillment(of: [heartbeats], timeout: 5)
+        XCTAssertEqual(disconnects, 0)
+    }
+
+    func testResumeReconnectsClientAfterHostRestartsService() async throws {
+        let clock = FakeLocalPlayClock()
+        let host = LocalNetworkTransport(clock: clock)
+        let client = LocalNetworkTransport(clock: clock)
+        let name = "ColorGame-\(UUID().uuidString.prefix(8))"
+        defer { host.stop(); client.stop() }
+        let first = expectation(description: "first client connection")
+        let recovered = expectation(description: "client reconnects")
+        var connections = 0
+        client.onEvent = { event in
+            switch event {
+            case .discovered(let session) where session.name == name:
+                if connections == 0 { client.connect(session) }
+            case .connected:
+                connections += 1
+                if connections == 1 { first.fulfill() }
+                if connections == 2 { recovered.fulfill() }
+            default: break
+            }
+        }
+        try host.host(serviceName: name)
+        client.browse()
+        await fulfillment(of: [first], timeout: 15)
+        host.stop()
+        try host.host(serviceName: name)
+        client.resume()
+        clock.advance(by: 3)
+        await fulfillment(of: [recovered], timeout: 15)
+    }
+
+    func testHostResumeReadvertisesForNewBrowser() async throws {
+        let host = LocalNetworkTransport()
+        let browser = LocalNetworkTransport()
+        let name = "ColorGame-\(UUID().uuidString.prefix(8))"
+        defer { host.stop(); browser.stop() }
+        let discovered = expectation(description: "resumed host service discovered")
+        browser.onEvent = { event in
+            if case .discovered(let session) = event, session.name == name { discovered.fulfill() }
+        }
+        try host.host(serviceName: name)
+        host.resume()
+        browser.browse()
+        await fulfillment(of: [discovered], timeout: 15)
+    }
+
+    func testClientRetriesAfterConnectionDropsWithoutForegroundSignal() async throws {
+        let clock = FakeLocalPlayClock()
+        let host = LocalNetworkTransport(clock: clock)
+        let client = LocalNetworkTransport(clock: clock)
+        let name = "ColorGame-\(UUID().uuidString.prefix(8))"
+        defer { host.stop(); client.stop() }
+        let first = expectation(description: "first connection")
+        let dropped = expectation(description: "host outage detected")
+        let recovered = expectation(description: "automatic retry connected")
+        var count = 0
+        client.onEvent = { event in
+            switch event {
+            case .discovered(let session) where session.name == name:
+                if count == 0 { client.connect(session) }
+            case .connected:
+                count += 1
+                if count == 1 { first.fulfill() }
+                if count == 2 { recovered.fulfill() }
+            case .disconnected: dropped.fulfill()
+            default: break
+            }
+        }
+        try host.host(serviceName: name)
+        client.browse()
+        await fulfillment(of: [first], timeout: 15)
+        host.stop()
+        await fulfillment(of: [dropped], timeout: 10)
+        try host.host(serviceName: name)
+        clock.advance(by: 3)
+        await fulfillment(of: [recovered], timeout: 15)
+    }
 }

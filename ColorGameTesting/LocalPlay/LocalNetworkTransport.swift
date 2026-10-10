@@ -5,6 +5,12 @@ import Network
 final class LocalNetworkTransport: LocalPeerTransport {
     var onEvent: (@MainActor (TransportEvent) -> Void)?
 
+    init(clock: (any LocalPlayClock)? = nil) {
+        self.clock = clock ?? SystemLocalPlayClock()
+    }
+
+    private let clock: any LocalPlayClock
+
     private let queue = DispatchQueue(label: "ColorGameTesting.localNetwork")
     private var listener: NWListener?
     private var browser: NWBrowser?
@@ -13,6 +19,14 @@ final class LocalNetworkTransport: LocalPeerTransport {
     private var connections: [PeerHandle: NWConnection] = [:]
     private var readyPeers: Set<PeerHandle> = []
     private var decoders: [PeerHandle: LocalMessageCodec] = [:]
+    private enum Mode { case hosting(String), browsing }
+    private var mode: Mode?
+    private var targetName: String?
+    private var retryTask: (any LocalPlayScheduledTask)?
+    private var heartbeatTask: (any LocalPlayScheduledTask)?
+    private var heartbeatSessionID: UUID?
+    private var lastHeard: [PeerHandle: TimeInterval] = [:]
+    private var nextPing: UInt64 = 0
 
     private static func parameters() -> NWParameters {
         let parameters = NWParameters.tcp
@@ -23,6 +37,17 @@ final class LocalNetworkTransport: LocalPeerTransport {
 
     func host(serviceName: String) throws {
         stop()
+        mode = .hosting(serviceName)
+        do { try startListener(serviceName: serviceName) }
+        catch {
+            scheduleRetry()
+            throw error
+        }
+    }
+
+    private func startListener(serviceName: String) throws {
+        listener?.cancel()
+        listener = nil
         let listener: NWListener
         do {
             listener = try NWListener(using: Self.parameters())
@@ -37,10 +62,14 @@ final class LocalNetworkTransport: LocalPeerTransport {
                 guard self.listener === listener else { return }
                 if case .failed(let error) = state {
                     self.onEvent?(.failure(Self.map(error, fallback: .wifiUnavailable)))
-                    self.stop()
+                    self.listener?.cancel()
+                    self.listener = nil
+                    self.scheduleRetry()
                 } else if case .waiting(let error) = state {
                     self.onEvent?(.failure(Self.map(error, fallback: .wifiUnavailable)))
-                    self.stop()
+                    self.listener?.cancel()
+                    self.listener = nil
+                    self.scheduleRetry()
                 }
             }
         }
@@ -53,6 +82,13 @@ final class LocalNetworkTransport: LocalPeerTransport {
 
     func browse() {
         stop()
+        mode = .browsing
+        startBrowser()
+    }
+
+    private func startBrowser() {
+        browser?.cancel()
+        browser = nil
         let browser = NWBrowser(for: .bonjour(type: "_colorgame._tcp", domain: nil), using: Self.parameters())
         self.browser = browser
         browser.stateUpdateHandler = { [weak self, weak browser] state in
@@ -61,10 +97,14 @@ final class LocalNetworkTransport: LocalPeerTransport {
                 guard self.browser === browser else { return }
                 if case .failed(let error) = state {
                     self.onEvent?(.failure(Self.map(error, fallback: .sessionNotFound)))
-                    self.stop()
+                    self.browser?.cancel()
+                    self.browser = nil
+                    self.scheduleRetry()
                 } else if case .waiting(let error) = state {
                     self.onEvent?(.failure(Self.map(error, fallback: .sessionNotFound)))
-                    self.stop()
+                    self.browser?.cancel()
+                    self.browser = nil
+                    self.scheduleRetry()
                 }
             }
         }
@@ -85,20 +125,22 @@ final class LocalNetworkTransport: LocalPeerTransport {
                         self.endpoints.removeValue(forKey: id)
                     }
                 }
+                self.connectToTargetIfAvailable()
             }
         }
         browser.start(queue: queue)
     }
 
     func connect(_ session: DiscoveredSession) {
+        targetName = session.name
         guard let endpoint = endpoints[session.id] else {
             onEvent?(.failure(.sessionNotFound))
+            scheduleRetry()
             return
         }
-        for connection in connections.values { connection.cancel() }
-        connections.removeAll()
-        readyPeers.removeAll()
-        decoders.removeAll()
+        for peer in Array(connections.keys) { remove(peer) }
+        retryTask?.cancel()
+        retryTask = nil
         let connection = NWConnection(to: endpoint, using: Self.parameters())
         track(connection, fallback: .sessionNotFound)
     }
@@ -108,18 +150,30 @@ final class LocalNetworkTransport: LocalPeerTransport {
             throw LocalPlayError.disconnected
         }
         let frame = try LocalMessageCodec().encode(message)
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(content: frame, completion: .contentProcessed { error in
-                if let error {
-                    continuation.resume(throwing: Self.map(error, fallback: .disconnected))
-                } else {
-                    continuation.resume()
-                }
-            })
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                connection.send(content: frame, completion: .contentProcessed { error in
+                    if let error {
+                        continuation.resume(throwing: Self.map(error, fallback: .disconnected))
+                    } else {
+                        continuation.resume()
+                    }
+                })
+            }
+        } catch {
+            remove(peer)
+            throw error
         }
     }
 
     func stop() {
+        mode = nil
+        targetName = nil
+        retryTask?.cancel()
+        retryTask = nil
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        heartbeatSessionID = nil
         listener?.cancel()
         listener = nil
         browser?.cancel()
@@ -130,6 +184,84 @@ final class LocalNetworkTransport: LocalPeerTransport {
         decoders.removeAll()
         endpoints.removeAll()
         endpointIDs.removeAll()
+        lastHeard.removeAll()
+    }
+
+    func startHeartbeats(sessionID: UUID) {
+        heartbeatSessionID = sessionID
+        heartbeatTask?.cancel()
+        for peer in readyPeers { lastHeard[peer] = clock.now }
+        scheduleHeartbeat()
+    }
+
+    func resume() {
+        retryTask?.cancel()
+        retryTask = nil
+        switch mode {
+        case .hosting:
+            listener?.cancel()
+            listener = nil
+        case .browsing:
+            browser?.cancel()
+            browser = nil
+            endpoints.removeAll()
+            endpointIDs.removeAll()
+            for peer in Array(connections.keys) { remove(peer) }
+        case nil: return
+        }
+        retry()
+    }
+
+    private func scheduleHeartbeat() {
+        heartbeatTask = clock.schedule(after: 3) { [weak self] in
+            guard let self, let sessionID = self.heartbeatSessionID else { return }
+            for peer in Array(self.readyPeers) {
+                if self.clock.now - (self.lastHeard[peer] ?? self.clock.now) >= 9 {
+                    self.remove(peer)
+                } else {
+                    self.nextPing &+= 1
+                    let message = WireMessage.heartbeat(.init(sessionID: sessionID, ping: self.nextPing))
+                    Task { try? await self.send(message, to: peer) }
+                }
+            }
+            self.scheduleHeartbeat()
+        }
+    }
+
+    private func scheduleRetry() {
+        guard retryTask == nil, mode != nil else { return }
+        retryTask = clock.schedule(after: 3) { [weak self] in
+            guard let self else { return }
+            self.retryTask = nil
+            self.retry()
+        }
+    }
+
+    private func retry() {
+        switch mode {
+        case .hosting(let name):
+            guard listener == nil else { return }
+            do { try startListener(serviceName: name) }
+            catch {
+                onEvent?(.failure(error as? LocalPlayError ?? .wifiUnavailable))
+                scheduleRetry()
+            }
+        case .browsing:
+            if browser == nil { startBrowser() }
+            guard connections.isEmpty else { return }
+            connectToTargetIfAvailable()
+            if targetName != nil, connections.isEmpty { scheduleRetry() }
+        case nil: break
+        }
+    }
+
+    private func connectToTargetIfAvailable() {
+        guard case .browsing = mode, connections.isEmpty, let targetName else { return }
+        guard let endpoint = endpointIDs.keys.first(where: {
+            if case .service(let name, _, _, _) = $0 { return name == targetName }
+            return false
+        }) else { return }
+        track(NWConnection(to: endpoint, using: Self.parameters()), fallback: .sessionNotFound)
     }
 
     private func accept(_ connection: NWConnection) {
@@ -151,6 +283,11 @@ final class LocalNetworkTransport: LocalPeerTransport {
                 switch state {
                 case .ready:
                     self.readyPeers.insert(peer)
+                    self.lastHeard[peer] = self.clock.now
+                    if case .browsing = self.mode {
+                        self.retryTask?.cancel()
+                        self.retryTask = nil
+                    }
                     self.onEvent?(.connected(peer))
                     if self.connections[peer] === connection {
                         self.receive(from: peer, on: connection)
@@ -158,11 +295,14 @@ final class LocalNetworkTransport: LocalPeerTransport {
                 case .failed(let error):
                     self.onEvent?(.failure(Self.map(error, fallback: fallback)))
                     self.remove(peer)
+                    self.scheduleRetry()
                 case .waiting(let error):
                     self.onEvent?(.failure(Self.map(error, fallback: fallback)))
                     self.remove(peer)
+                    self.scheduleRetry()
                 case .cancelled:
                     self.remove(peer)
+                    self.scheduleRetry()
                 default:
                     break
                 }
@@ -188,6 +328,14 @@ final class LocalNetworkTransport: LocalPeerTransport {
                         self.decoders[peer] = decoder
                         for message in messages {
                             guard self.connections[peer] === connection else { return }
+                            if case .heartbeat(let heartbeat) = message,
+                               let sessionID = self.heartbeatSessionID,
+                               heartbeat.sessionID != sessionID {
+                                self.onEvent?(.failure(.invalidSession))
+                                self.remove(peer)
+                                return
+                            }
+                            self.lastHeard[peer] = self.clock.now
                             self.onEvent?(.received(message, from: peer))
                         }
                     } catch {
@@ -198,6 +346,7 @@ final class LocalNetworkTransport: LocalPeerTransport {
                 }
                 if isComplete {
                     self.remove(peer)
+                    self.scheduleRetry()
                 } else {
                     self.receive(from: peer, on: connection)
                 }
@@ -208,8 +357,10 @@ final class LocalNetworkTransport: LocalPeerTransport {
     private func remove(_ peer: PeerHandle) {
         let wasReady = readyPeers.remove(peer) != nil
         decoders.removeValue(forKey: peer)
+        lastHeard.removeValue(forKey: peer)
         connections.removeValue(forKey: peer)?.cancel()
         if wasReady { onEvent?(.disconnected(peer)) }
+        if case .browsing = mode, connections.isEmpty { scheduleRetry() }
     }
 
     private nonisolated static func map(_ error: Error, fallback: LocalPlayError) -> LocalPlayError {

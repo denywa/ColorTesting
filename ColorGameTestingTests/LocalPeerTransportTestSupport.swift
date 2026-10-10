@@ -70,6 +70,8 @@ final class FakePeerTransport: LocalPeerTransport {
     func send(_ message: WireMessage, to peer: PeerHandle) async throws {
         try network.send(message, from: self, to: peer)
     }
+    func startHeartbeats(sessionID: UUID) {}
+    func resume() {}
     func stop() { network.disconnect(self) }
 }
 

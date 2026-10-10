@@ -61,7 +61,7 @@
   - _Boundary: LocalNetworkTransport_
   - _Depends: 2.1_
   - _Requirements: 1.7, 3.6, 6.3_
-- [ ] 2.5 Deteksi putus koneksi dan bangun ulang jalur lokal
+- [x] 2.5 Deteksi putus koneksi dan bangun ulang jalur lokal
   - Gunakan heartbeat dan waktu terkontrol untuk melaporkan koneksi yang diam atau gagal.
   - Coba ulang koneksi klien dan iklan host saat Wi-Fi pulih atau aplikasi kembali ke depan, tanpa menyimpan keadaan ronde di transport.
   - Selesai ketika peer yang tidak merespons dinyatakan terputus dan transport kembali melaporkan koneksi aktif setelah Wi-Fi atau aplikasi pulih.
@@ -239,3 +239,4 @@
 - Kontrak snapshot memakai durasi Int sesuai GameViewModel; validasi payload jaringan yang tidak tepercaya tetap menjadi tanggung jawab codec dan mapper pada task berikutnya.
 - Kesalahan framing, JSON, ukuran, atau versi dari codec harus menutup koneksi peer terkait di transport; setiap koneksi memakai instans decoder terpisah.
 - Transport nyata sudah mengirim bingkai dan menghubungkan dua klien melalui Bonjour/Wi-Fi; penerimaan serta pemisahan pesan per koneksi dilanjutkan pada task 2.4.
+- Koordinator memulai heartbeat setelah ID sesi diketahui dan memanggil resume saat aplikasi kembali ke depan; sambungan baru harus dipetakan ke kursi lama melalui token, termasuk ketika peer lama menunggu batas waktu sembilan detik.
