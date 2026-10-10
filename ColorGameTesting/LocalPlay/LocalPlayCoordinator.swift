@@ -34,7 +34,12 @@ final class LocalPlayCoordinator {
     }
 
     var canStartRound: Bool {
-        role == .host && session?.seats.count == 3 &&
+        role == .host && connectionStatus == .connected &&
+        viewModel.phase == .settings && viewModel.selectedModel != nil &&
+        (1...3600).contains(viewModel.reassignmentDuration) &&
+        (viewModel.selectedRequestID == nil ||
+         viewModel.availableRequests.contains { $0.id == viewModel.selectedRequestID }) &&
+        session?.paused == false && session?.seats.count == 3 &&
         session?.seats.allSatisfy { $0.status == .connected } == true
     }
 
@@ -204,6 +209,9 @@ final class LocalPlayCoordinator {
 
     private func broadcastSnapshot() {
         guard let session else { return }
+        if role == .host && viewModel.phase == .settings {
+            viewModel.timerSecondsRemaining = viewModel.reassignmentDuration
+        }
         do {
             let snapshot = try snapshotMapper.makeSnapshot(from: viewModel, session: session)
             latestSnapshot = snapshot
@@ -247,6 +255,11 @@ final class LocalPlayCoordinator {
 
     @discardableResult
     func perform(_ action: LocalGameAction) -> Bool {
+        if case .startRound = action {
+            guard canStartRound else { return false }
+            viewModel.confirmSettings()
+            return viewModel.phase == .playing && viewModel.roundID != nil
+        }
         guard let role, let sessionID,
               let roundID = viewModel.roundID, viewModel.phase == .playing,
               viewModel.round?.mix.isLocked == false,

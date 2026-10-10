@@ -33,7 +33,8 @@ final class LocalPlayCoordinatorTests: XCTestCase {
 
     func testHostAssignsThreeUniqueSeatsAndStartGate() async throws {
         let network = FakePeerNetwork()
-        let host = makeCoordinator(network)
+        let hostModel = GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let host = LocalPlayCoordinator(viewModel: hostModel, transport: network.makePeer())
         let second = makeCoordinator(network)
         let third = makeCoordinator(network)
 
@@ -51,7 +52,86 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         third.join(try XCTUnwrap(third.discoveredSessions.first))
         await waitUntil { third.role == .player3 }
         XCTAssertEqual(host.session?.seats.map(\.role), [.host, .player2, .player3])
+        XCTAssertFalse(host.canStartRound)
+        hostModel.selectModel(.ryb)
         XCTAssertTrue(host.canStartRound)
+    }
+
+    func testHostStartSharesSettingsAndCustomTargetWithoutSavingItOnClients() async throws {
+        let network = FakePeerNetwork()
+        let hostDefaults = UserDefaults(suiteName: UUID().uuidString)!
+        let secondDefaults = UserDefaults(suiteName: UUID().uuidString)!
+        let thirdDefaults = UserDefaults(suiteName: UUID().uuidString)!
+        let hostModel = GameViewModel(requestDefaults: hostDefaults)
+        let secondModel = GameViewModel(requestDefaults: secondDefaults)
+        let thirdModel = GameViewModel(requestDefaults: thirdDefaults)
+        let host = LocalPlayCoordinator(viewModel: hostModel, transport: network.makePeer())
+        let second = LocalPlayCoordinator(viewModel: secondModel, transport: network.makePeer())
+        let third = LocalPlayCoordinator(viewModel: thirdModel, transport: network.makePeer())
+
+        try host.startHosting()
+        hostModel.selectModel(.cmyk)
+        hostModel.reassignmentDuration = 12
+        hostModel.showTargetColor = true
+        XCTAssertTrue(hostModel.addCustomRequest(text: "Sea glass green", hex: "#32A89B"))
+        let request = try XCTUnwrap(hostModel.customRequests.last)
+        XCTAssertFalse(host.perform(.startRound))
+        second.startBrowsing()
+        second.join(try XCTUnwrap(second.discoveredSessions.first))
+        await waitUntil { second.role == .player2 }
+        XCTAssertFalse(host.perform(.startRound))
+        third.startBrowsing()
+        third.join(try XCTUnwrap(third.discoveredSessions.first))
+        await waitUntil { third.role == .player3 }
+        await waitUntil { secondModel.selectedModel == .cmyk && thirdModel.selectedModel == .cmyk }
+
+        for client in [secondModel, thirdModel] {
+            XCTAssertEqual(client.reassignmentDuration, 12)
+            XCTAssertTrue(client.showTargetColor)
+            client.selectedModel = .ryb
+            client.selectedRequestID = ColorData.requestPool[0].id
+            client.reassignmentDuration = 90
+            client.showTargetColor = false
+            client.confirmSettings()
+            XCTAssertEqual(client.selectedModel, .cmyk)
+            XCTAssertNil(client.selectedRequestID)
+            XCTAssertEqual(client.reassignmentDuration, 12)
+            XCTAssertTrue(client.showTargetColor)
+            XCTAssertEqual(client.phase, .settings)
+        }
+        XCTAssertFalse(second.perform(.startRound))
+        XCTAssertFalse(third.perform(.startRound))
+
+        hostModel.selectedModel = nil
+        XCTAssertFalse(host.canStartRound)
+        XCTAssertFalse(host.perform(.startRound))
+        hostModel.selectedModel = .cmyk
+        hostModel.selectedRequestID = UUID()
+        XCTAssertFalse(host.canStartRound)
+        XCTAssertFalse(host.perform(.startRound))
+        hostModel.selectedRequestID = request.id
+        hostModel.reassignmentDuration = 0
+        XCTAssertFalse(host.canStartRound)
+        XCTAssertFalse(host.perform(.startRound))
+        hostModel.reassignmentDuration = 12
+
+        XCTAssertTrue(host.canStartRound)
+        XCTAssertTrue(host.perform(.startRound))
+        await waitUntil { secondModel.phase == .playing && thirdModel.phase == .playing }
+        XCTAssertEqual(hostModel.phase, .playing)
+        XCTAssertFalse(host.perform(.startRound))
+        for (client, model, defaults) in [(second, secondModel, secondDefaults),
+                                          (third, thirdModel, thirdDefaults)] {
+            XCTAssertEqual(client.latestSnapshot?.target?.id, request.id)
+            XCTAssertEqual(client.latestSnapshot?.target?.text, request.text)
+            XCTAssertEqual(model.round?.request.text, "Sea glass green")
+            XCTAssertEqual(model.round?.request.targetSRGB, request.targetSRGB)
+            XCTAssertEqual(model.selectedModel, .cmyk)
+            XCTAssertEqual(model.reassignmentDuration, 12)
+            XCTAssertTrue(model.showTargetColor)
+            XCTAssertTrue(model.customRequests.isEmpty)
+            XCTAssertTrue(CustomRequestStore(defaults: defaults).load().isEmpty)
+        }
     }
 
     func testHostRetainsRoleWhenTransportThrowsThenRetries() async throws {
@@ -192,7 +272,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             await waitUntil { client.role != nil }
         }
         hostModel.selectModel(.ryb)
-        hostModel.confirmSettings()
+        XCTAssertTrue(host.perform(.startRound))
         return (host, hostModel, second, secondModel, secondTransport, third, thirdModel, thirdTransport)
     }
 

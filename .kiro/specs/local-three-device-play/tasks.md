@@ -91,7 +91,7 @@
   - _Boundary: LocalPlayCoordinator_
   - _Depends: 2.3, 3.2_
   - _Requirements: 1.4, 2.2, 3.4, 4.1, 4.2, 4.3, 4.4, 6.2, 6.4_
-- [ ] 3.4 Terapkan pengaturan host dan target bersama saat ronde dimulai
+- [x] 3.4 Terapkan pengaturan host dan target bersama saat ronde dimulai
   - Izinkan hanya host memilih model, target, durasi, dan petunjuk serta memulai ronde setelah tiga kursi aktif.
   - Bawa teks dan warna target kustom host ke ronde semua perangkat tanpa menambahkannya ke daftar tersimpan klien.
   - Selesai ketika ketiga perangkat memulai ronde dengan pilihan yang sama dan perubahan pengaturan dari klien ditolak.
