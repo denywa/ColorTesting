@@ -113,7 +113,7 @@
   - _Boundary: LocalPlayCoordinator_
   - _Depends: 2.5, 3.3_
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
-- [ ] 3.7 Akhiri atau tinggalkan sesi tanpa menyimpan ronde
+- [x] 3.7 Akhiri atau tinggalkan sesi tanpa menyimpan ronde
   - Host dapat mengakhiri sesi dan memberi tahu klien; peserta yang menunggu sambung ulang dapat keluar sendiri.
   - Lepas koneksi, timer, serta identitas sementara ketika sesi selesai atau aplikasi ditutup.
   - Selesai ketika perangkat kembali ke pilihan mode setelah keluar dan peluncuran berikutnya tidak memulihkan sesi lama.
@@ -244,3 +244,4 @@
 - Hook didChange pada host mencatat riwayat penugasan tiap epoch; task sinkronisasi snapshot berikutnya harus mempertahankan pencatatan ini saat menambahkan siaran keadaan.
 - Antrean kirim per peer menjaga urutan Welcome sebelum snapshot awal; revisi snapshot host meningkat setelah perubahan view model dan kursi, sedangkan klien menolak revisi lama atau ID sesi lain.
 - Saat kursi tersambung kembali, host tetap menjeda ronde sampai Welcome dan snapshot penuh berhasil dikirim; ID percobaan mencegah penyelesaian kiriman lama membuka jeda baru.
+- Koordinator menyediakan leaveSession() untuk tombol keluar dan appWillTerminate() untuk siklus hidup aplikasi; host mengirim End sebelum menutup transport, lalu semua identitas sesi sementara dihapus.

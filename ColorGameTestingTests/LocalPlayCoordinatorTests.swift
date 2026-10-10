@@ -744,4 +744,111 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         XCTAssertEqual(secondModel.roundID, roundID)
         XCTAssertEqual(secondModel.round?.mix.units.map(\.color.id), mix)
     }
+
+    func testHostEndNotifiesClientsAndClearsRoundAndSession() async throws {
+        let network = FakePeerNetwork()
+        let hostModel = GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let hostTransport = network.makePeer()
+        let host = LocalPlayCoordinator(viewModel: hostModel, transport: hostTransport)
+        let second = makeCoordinator(network)
+        let third = makeCoordinator(network)
+        try host.startHosting()
+        for client in [second, third] {
+            client.startBrowsing()
+            client.join(try XCTUnwrap(client.discoveredSessions.first))
+            await waitUntil { client.role != nil && client.latestSnapshot != nil }
+        }
+        hostModel.selectModel(.ryb)
+        XCTAssertTrue(host.perform(.startRound))
+
+        await host.leaveSession()
+        await waitUntil { second.mode == .singleDevice && third.mode == .singleDevice }
+        for coordinator in [host, second, third] {
+            XCTAssertEqual(coordinator.mode, .singleDevice)
+            XCTAssertNil(coordinator.role)
+            XCTAssertNil(coordinator.sessionID)
+            XCTAssertNil(coordinator.session)
+            XCTAssertNil(coordinator.latestSnapshot)
+            XCTAssertTrue(coordinator.seatStatus.isEmpty)
+        }
+        XCTAssertEqual(hostModel.phase, .settings)
+        XCTAssertNil(hostModel.round)
+        XCTAssertNil(hostModel.roundID)
+        XCTAssertTrue(hostTransport.connected.isEmpty)
+        XCTAssertFalse(host.perform(.startRound))
+        XCTAssertTrue(second.discoveredSessions.isEmpty)
+    }
+
+    func testDisconnectedClientCanLeaveWithoutHostAndCannotResumeOldSession() async throws {
+        let game = try await activeGame()
+        game.secondTransport.stop()
+        XCTAssertEqual(game.second.connectionStatus, .disconnected)
+        XCTAssertTrue(game.second.paused)
+
+        await game.second.leaveSession()
+        XCTAssertEqual(game.second.mode, .singleDevice)
+        XCTAssertNil(game.second.role)
+        XCTAssertNil(game.second.sessionID)
+        XCTAssertNil(game.second.latestSnapshot)
+        XCTAssertEqual(game.secondModel.phase, .settings)
+        XCTAssertNil(game.secondModel.roundID)
+        XCTAssertFalse(game.second.paused)
+        game.second.startBrowsing()
+        game.second.join(try XCTUnwrap(game.second.discoveredSessions.first))
+        await waitUntil { game.second.error == .sessionFull }
+        XCTAssertNil(game.second.role)
+        XCTAssertNil(game.second.sessionID)
+    }
+
+    func testHostEndWaitsForQueuedSnapshotBeforeClosingTransport() async throws {
+        let network = FakePeerNetwork()
+        let hostModel = GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let hostTransport = HoldingSnapshotTransport(peer: network.makePeer())
+        let host = LocalPlayCoordinator(viewModel: hostModel, transport: hostTransport)
+        let secondTransport = network.makePeer()
+        let second = LocalPlayCoordinator(viewModel: GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!),
+                                          transport: secondTransport)
+        let third = makeCoordinator(network)
+        try host.startHosting()
+        for client in [second, third] {
+            client.startBrowsing()
+            client.join(try XCTUnwrap(client.discoveredSessions.first))
+            await waitUntil { client.role != nil && client.latestSnapshot != nil }
+        }
+        hostModel.selectModel(.ryb)
+        XCTAssertTrue(host.perform(.startRound))
+        hostTransport.holdNextSnapshot(to: secondTransport.handle)
+        hostModel.addColor(player: .player1, slot: .primary)
+        await waitUntil { hostTransport.isHolding }
+
+        let ending = Task { await host.leaveSession() }
+        await Task.yield()
+        XCTAssertEqual(second.role, .player2)
+        XCTAssertFalse(hostTransport.peer.connected.isEmpty)
+        hostTransport.release()
+        await ending.value
+        await waitUntil { second.role == nil && third.role == nil }
+        XCTAssertTrue(hostTransport.peer.connected.isEmpty)
+        XCTAssertNil(host.sessionID)
+    }
+
+    func testAppTerminationDiscardsTemporarySessionWithoutSendingEnd() throws {
+        let network = FakePeerNetwork()
+        let hostModel = GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let hostTransport = network.makePeer()
+        let host = LocalPlayCoordinator(viewModel: hostModel, transport: hostTransport)
+        try host.startHosting()
+        let oldSessionID = host.sessionID
+
+        host.appWillTerminate()
+        XCTAssertEqual(host.mode, .singleDevice)
+        XCTAssertNil(host.sessionID)
+        XCTAssertNil(host.session)
+        XCTAssertNil(hostModel.roundID)
+        let probe = makeCoordinator(network)
+        probe.startBrowsing()
+        XCTAssertTrue(probe.discoveredSessions.isEmpty)
+        try host.startHosting()
+        XCTAssertNotEqual(host.sessionID, oldSessionID)
+    }
 }

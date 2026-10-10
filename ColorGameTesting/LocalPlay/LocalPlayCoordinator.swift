@@ -15,7 +15,7 @@ final class LocalPlayCoordinator {
 
     private let viewModel: GameViewModel
     private let transport: any LocalPeerTransport
-    private let clientID = UUID()
+    private var clientID = UUID()
     private var reconnectToken: UUID?
     private var hostPeer: PeerHandle?
     private var peersByRole: [SessionRole: PeerHandle] = [:]
@@ -30,11 +30,16 @@ final class LocalPlayCoordinator {
     private var pauseRequested = false
     private var awaitingSnapshot = false
     private var recoveringPeers: [SessionRole: (peer: PeerHandle, attempt: UUID)] = [:]
+    private var endingSession = false
 
     init(viewModel: GameViewModel, transport: any LocalPeerTransport) {
         self.viewModel = viewModel
         self.transport = transport
         transport.onEvent = { [weak self] event in self?.handle(event) }
+    }
+
+    isolated deinit {
+        transport.stop()
     }
 
     var canStartRound: Bool {
@@ -61,7 +66,59 @@ final class LocalPlayCoordinator {
 
     func chooseMode(_ mode: PlayMode) { self.mode = mode }
 
+    func leaveSession() async {
+        guard !endingSession else { return }
+        endingSession = true
+        viewModel.pauseTimer()
+        viewModel.didChange = nil
+        if role == .host, let sessionID {
+            for task in Array(outboundTasks.values) { await task.value }
+            guard self.sessionID == sessionID else { return }
+            let end = WireMessage.end(.init(sessionID: sessionID, reason: .hostEnded))
+            for peer in Set(peersByRole.values) {
+                guard self.sessionID == sessionID else { return }
+                try? await transport.send(end, to: peer)
+            }
+        }
+        finishSession()
+    }
+
+    func appWillTerminate() {
+        finishSession()
+    }
+
+    private func finishSession() {
+        transport.onEvent = nil
+        transport.stop()
+        viewModel.endLocalPlay()
+        mode = .singleDevice
+        role = nil
+        session = nil
+        sessionID = nil
+        discoveredSessions.removeAll()
+        connectionStatus = .waiting
+        error = nil
+        latestSnapshot = nil
+        clientID = UUID()
+        reconnectToken = nil
+        hostPeer = nil
+        peersByRole.removeAll()
+        pendingPeers.removeAll()
+        acceptedActionIDs.removeAll()
+        assignmentHistory.removeAll()
+        historyRoundID = nil
+        welcomedPeers.removeAll()
+        outboundTasks.removeAll()
+        hostIsForeground = true
+        pauseRequested = false
+        awaitingSnapshot = false
+        recoveringPeers.removeAll()
+        endingSession = false
+    }
+
     func startHosting(serviceName: String = "ColorGame") throws {
+        guard !endingSession else { throw LocalPlayError.invalidSession }
+        transport.onEvent = { [weak self] event in self?.handle(event) }
         let id = UUID()
         let initial = try SessionState(sessionID: id, seats: [
             SessionSeat(role: .host, clientID: clientID, reconnectToken: nil, status: .connected)
@@ -98,6 +155,8 @@ final class LocalPlayCoordinator {
     }
 
     func startBrowsing() {
+        guard !endingSession else { return }
+        transport.onEvent = { [weak self] event in self?.handle(event) }
         mode = .threeDevices
         discoveredSessions = []
         error = nil
@@ -105,6 +164,7 @@ final class LocalPlayCoordinator {
     }
 
     func join(_ discovered: DiscoveredSession) {
+        guard !endingSession else { return }
         mode = .threeDevices
         error = nil
         connectionStatus = .waiting
@@ -112,6 +172,7 @@ final class LocalPlayCoordinator {
     }
 
     func handle(_ event: TransportEvent) {
+        guard !endingSession, mode == .threeDevices else { return }
         switch event {
         case .discovered(let discovered):
             if let index = discoveredSessions.firstIndex(where: { $0.name == discovered.name }) {
@@ -131,9 +192,12 @@ final class LocalPlayCoordinator {
                                                      clientID: clientID, sessionID: sessionID,
                                                      reconnectToken: reconnectToken))
                 Task { [weak self] in
-                    guard let self else { return }
+                    guard let self, self.hostPeer == peer, self.mode == .threeDevices else { return }
                     do { try await self.transport.send(hello, to: peer) }
-                    catch { self.error = error as? LocalPlayError ?? .disconnected }
+                    catch {
+                        guard self.hostPeer == peer, self.mode == .threeDevices else { return }
+                        self.error = error as? LocalPlayError ?? .disconnected
+                    }
                 }
             }
         case .disconnected(let peer):
@@ -193,6 +257,9 @@ final class LocalPlayCoordinator {
                         self.error = error as? LocalPlayError ?? .invalidMessage
                         transport.disconnect(peer)
                     }
+                case .end(let end):
+                    guard end.sessionID == sessionID else { return }
+                    finishSession()
                 default: break
                 }
             }
@@ -215,7 +282,7 @@ final class LocalPlayCoordinator {
     }
 
     private func publishChange() {
-        guard role == .host, var current = session else { return }
+        guard !endingSession, role == .host, var current = session else { return }
         current.snapshotRevision += 1
         session = current
         broadcastSnapshot()
@@ -237,14 +304,18 @@ final class LocalPlayCoordinator {
 
     private func enqueue(_ message: WireMessage, to peer: PeerHandle,
                          afterSend: (() -> Void)? = nil) {
+        guard !endingSession else { return }
         let previous = outboundTasks[peer]
+        let queuedSessionID = sessionID
         outboundTasks[peer] = Task { [weak self] in
             await previous?.value
-            guard let self else { return }
+            guard let self, !self.endingSession, self.sessionID == queuedSessionID else { return }
             do {
                 try await self.transport.send(message, to: peer)
+                guard !self.endingSession, self.sessionID == queuedSessionID else { return }
                 afterSend?()
             } catch {
+                guard !self.endingSession, self.sessionID == queuedSessionID else { return }
                 self.error = error as? LocalPlayError ?? .disconnected
                 self.transport.disconnect(peer)
             }
@@ -265,6 +336,7 @@ final class LocalPlayCoordinator {
     }
 
     func appDidBecomeActive() {
+        guard !endingSession else { return }
         transport.resume()
         if role == .host {
             hostIsForeground = true
@@ -300,6 +372,7 @@ final class LocalPlayCoordinator {
 
     @discardableResult
     func perform(_ action: LocalGameAction) -> Bool {
+        guard !endingSession else { return false }
         if case .startRound = action {
             guard canStartRound else { return false }
             viewModel.confirmSettings()
@@ -345,9 +418,13 @@ final class LocalPlayCoordinator {
         if role == .host { return acceptInput(input, from: .host) }
         guard let hostPeer else { return false }
         Task { [weak self] in
-            guard let self else { return }
+            guard let self, self.hostPeer == hostPeer,
+                  self.sessionID == input.sessionID else { return }
             do { try await self.transport.send(.input(input), to: hostPeer) }
-            catch { self.error = error as? LocalPlayError ?? .disconnected }
+            catch {
+                guard self.hostPeer == hostPeer, self.sessionID == input.sessionID else { return }
+                self.error = error as? LocalPlayError ?? .disconnected
+            }
         }
         return true
     }
@@ -426,7 +503,7 @@ final class LocalPlayCoordinator {
         let welcome = WireMessage.welcome(.init(sessionID: current.sessionID,
                                                 role: assigned, reconnectToken: token))
         enqueue(welcome, to: peer) { [weak self] in
-            guard let self, self.peersByRole[assigned] == peer else { return }
+            guard let self, !self.endingSession, self.peersByRole[assigned] == peer else { return }
             self.welcomedPeers.insert(peer)
             guard let session = self.session,
                   let snapshot = try? self.snapshotMapper.makeSnapshot(from: self.viewModel, session: session) else {
