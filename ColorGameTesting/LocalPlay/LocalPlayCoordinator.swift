@@ -19,6 +19,9 @@ final class LocalPlayCoordinator {
     private var hostPeer: PeerHandle?
     private var peersByRole: [SessionRole: PeerHandle] = [:]
     private var pendingPeers: Set<PeerHandle> = []
+    private var acceptedActionIDs: Set<UUID> = []
+    private var assignmentHistory: [Int: [PlayerID: PlayerAssignment]] = [:]
+    private var historyRoundID: UUID?
 
     init(viewModel: GameViewModel, transport: any LocalPeerTransport) {
         self.viewModel = viewModel
@@ -44,6 +47,13 @@ final class LocalPlayCoordinator {
         session = initial
         connectionStatus = .connected
         error = nil
+        acceptedActionIDs.removeAll()
+        assignmentHistory.removeAll()
+        historyRoundID = nil
+        viewModel.configureLocalPlay(localPlayer: .player1, isHost: true) { [weak self] _, slot in
+            self?.performLocalColor(slot)
+        }
+        viewModel.didChange = { [weak self] in self?.recordAssignment() }
         defer { transport.startHeartbeats(sessionID: id) }
         do { try transport.host(serviceName: serviceName) }
         catch {
@@ -103,6 +113,11 @@ final class LocalPlayCoordinator {
         case .received(let message, let peer):
             if role == .host {
                 if case .hello(let hello) = message { accept(hello, from: peer) }
+                else if case .input(let input) = message {
+                    if let assigned = peersByRole.first(where: { $0.value == peer })?.key {
+                        _ = acceptInput(input, from: assigned)
+                    }
+                }
                 else if case .heartbeat = message { break }
                 else { reject(.invalidMessage, peer: peer) }
             } else if peer == hostPeer {
@@ -119,6 +134,9 @@ final class LocalPlayCoordinator {
                     role = welcome.role
                     reconnectToken = welcome.reconnectToken
                     connectionStatus = .connected
+                    viewModel.configureLocalPlay(localPlayer: welcome.role.playerID, isHost: false) { [weak self] _, slot in
+                        self?.performLocalColor(slot)
+                    }
                     transport.startHeartbeats(sessionID: welcome.sessionID)
                 case .reject(let rejection):
                     error = rejection.reason
@@ -130,6 +148,68 @@ final class LocalPlayCoordinator {
         case .failure(let failure):
             error = failure
         }
+    }
+
+    private func recordAssignment() {
+        guard role == .host else { return }
+        if historyRoundID != viewModel.roundID {
+            historyRoundID = viewModel.roundID
+            assignmentHistory.removeAll()
+            acceptedActionIDs.removeAll()
+        }
+        guard let epoch = viewModel.assignmentEpoch,
+              let assignments = viewModel.round?.assignments,
+              assignments.count == PlayerID.allCases.count else { return }
+        if assignmentHistory[epoch] == nil { assignmentHistory[epoch] = assignments }
+    }
+
+    private func performLocalColor(_ slot: ColorSlot) {
+        guard let role, let assignment = viewModel.round?.assignments[role.playerID],
+              let epoch = viewModel.assignmentEpoch else { return }
+        let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
+        perform(.addColor(slot: slot, observedColorID: color.id, assignmentEpoch: epoch))
+    }
+
+    @discardableResult
+    func perform(_ action: LocalGameAction) -> Bool {
+        guard let role, let sessionID,
+              let roundID = viewModel.roundID, viewModel.phase == .playing,
+              viewModel.round?.mix.isLocked == false,
+              connectionStatus == .connected else { return false }
+        guard case let .addColor(slot, observedColorID, epoch) = action,
+              epoch == viewModel.assignmentEpoch,
+              let assignment = viewModel.round?.assignments[role.playerID],
+              (slot == .primary ? assignment.primaryColor.id : assignment.secondaryColor.id) == observedColorID else {
+            return false
+        }
+        let input = WireMessage.Input(sessionID: sessionID, roundID: roundID,
+                                      actionID: UUID(), action: action)
+        if role == .host { return acceptInput(input, from: .host) }
+        guard let hostPeer else { return false }
+        Task { [weak self] in
+            guard let self else { return }
+            do { try await self.transport.send(.input(input), to: hostPeer) }
+            catch { self.error = error as? LocalPlayError ?? .disconnected }
+        }
+        return true
+    }
+
+    private func acceptInput(_ input: WireMessage.Input, from source: SessionRole) -> Bool {
+        guard role == .host, let session,
+              input.sessionID == session.sessionID,
+              input.roundID == viewModel.roundID,
+              session.seats.count == PlayerID.allCases.count,
+              session.seats.allSatisfy({ $0.status == .connected }),
+              !session.paused, viewModel.phase == .playing,
+              viewModel.round?.mix.isLocked == false,
+              !acceptedActionIDs.contains(input.actionID),
+              case let .addColor(slot, observedColorID, epoch) = input.action,
+              let assignment = assignmentHistory[epoch]?[source.playerID] else { return false }
+        let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
+        guard color.id == observedColorID,
+              viewModel.acceptColor(color, for: source.playerID) else { return false }
+        acceptedActionIDs.insert(input.actionID)
+        return true
     }
 
     private func accept(_ hello: WireMessage.Hello, from peer: PeerHandle) {

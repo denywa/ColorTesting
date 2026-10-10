@@ -77,7 +77,7 @@
   - _Boundary: LocalPlayCoordinator_
   - _Depends: 2.4, 2.5_
   - _Requirements: 1.3, 1.5, 1.6, 1.7, 6.5_
-- [ ] 3.2 Terima kontribusi warna sekali sesuai peran dan warna yang terlihat
+- [x] 3.2 Terima kontribusi warna sekali sesuai peran dan warna yang terlihat
   - Cocokkan input dengan kursi koneksinya, ronde, slot, warna yang ditampilkan, dan revisi penugasan saat input dibuat.
   - Urutkan input hampir bersamaan di host; abaikan ID aksi ganda, fase yang salah, campuran terkunci, dan sesi yang dijeda.
   - Selesai ketika setiap input sah menambah tepat satu unit warna yang dimaksud dan input tidak sah tidak mengubah campuran.
@@ -241,3 +241,4 @@
 - Transport nyata sudah mengirim bingkai dan menghubungkan dua klien melalui Bonjour/Wi-Fi; penerimaan serta pemisahan pesan per koneksi dilanjutkan pada task 2.4.
 - Koordinator memulai heartbeat setelah ID sesi diketahui dan memanggil resume saat aplikasi kembali ke depan; sambungan baru harus dipetakan ke kursi lama melalui token, termasuk ketika peer lama menunggu batas waktu sembilan detik.
 - Hello dengan versi berbeda diteruskan ke koordinator agar host dapat mengirim Reject; transport menerima satu peer sementara untuk penolakan atau penggantian kursi lama, sedangkan batas dua kursi aktif ditegakkan koordinator.
+- Hook didChange pada host mencatat riwayat penugasan tiap epoch; task sinkronisasi snapshot berikutnya harus mempertahankan pencatatan ini saat menambahkan siaran keadaan.
