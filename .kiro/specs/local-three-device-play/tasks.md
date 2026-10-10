@@ -143,7 +143,7 @@
   - _Boundary: SettingsView_
   - _Depends: 3.1, 3.4_
   - _Requirements: 1.5, 2.1, 2.2, 2.4_
-- [ ] 4.4 (P) Batasi layar bermain pada dua input milik pemain lokal
+- [x] 4.4 (P) Batasi layar bermain pada dua input milik pemain lokal
   - Tampilkan peran, dua warna aktif, permintaan target, timer, dan campuran bersama pada setiap perangkat.
   - Sembunyikan atau nonaktifkan input pemain lain, tindakan Mix pada klien, dan semua input saat sesi dijeda.
   - Selesai ketika tiap perangkat hanya dapat mengaktifkan dua slotnya sendiri dan hanya host dapat menekan Mix setelah campuran terisi.
@@ -248,3 +248,4 @@
 - ModeSelectionView mengirim PlayMode melalui dua Button standar; tugas 5.1 harus mengarahkan pilihan satu perangkat ke SettingsView tanpa memulai transport.
 - Tombol Coba Lagi pada kursi yang sudah terisi memanggil resume agar ID sesi, kursi, dan target sambung ulang tetap ada; kesalahan klien baru dihapus setelah snapshot sah berhasil diterapkan.
 - SettingsView menerima koordinator opsional: host memakai canStartRound dan perform(startRound), klien hanya melihat status, sedangkan pemanggil tanpa koordinator mempertahankan alur solo.
+- GameView menerima koordinator opsional, menampilkan hanya panel peran lokal, menandai jeda, dan mengirim Mix host melalui koordinator; jalur solo tetap menampilkan tiga pemain.
