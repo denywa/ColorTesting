@@ -98,7 +98,7 @@
   - _Boundary: LocalPlayCoordinator_
   - _Depends: 3.3_
   - _Requirements: 1.5, 2.1, 2.2, 2.3, 2.4, 2.5_
-- [ ] 3.5 Terapkan keputusan Mix, Redo, Finish, dan New Round milik host
+- [x] 3.5 Terapkan keputusan Mix, Redo, Finish, dan New Round milik host
   - Mix mengunci campuran terisi dan menampilkan satu hasil; Redo mengosongkan campuran tetapi mempertahankan target, penugasan, dan sisa waktu.
   - Finish menampilkan satu skor kelompok; New Round kembali ke pengaturan tanpa melepaskan tiga kursi.
   - Selesai ketika hanya host dapat memindahkan seluruh perangkat melalui fase hasil, bermain ulang, skor, dan pengaturan berikutnya.

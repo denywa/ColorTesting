@@ -260,6 +260,30 @@ final class LocalPlayCoordinator {
             viewModel.confirmSettings()
             return viewModel.phase == .playing && viewModel.roundID != nil
         }
+        if role == .host, connectionStatus == .connected,
+           let session, session.seats.count == PlayerID.allCases.count,
+           session.seats.allSatisfy({ $0.status == .connected }), !session.paused {
+            switch action {
+            case .mix:
+                guard viewModel.phase == .playing, let mix = viewModel.round?.mix,
+                      !mix.isLocked, !mix.units.isEmpty else { return false }
+                viewModel.pressMixButton()
+                return viewModel.phase == .result
+            case .redo:
+                guard viewModel.phase == .result, viewModel.round?.mix.isLocked == true else { return false }
+                viewModel.selectRedo()
+                return viewModel.phase == .playing
+            case .finish:
+                guard viewModel.phase == .result, viewModel.mixResult != nil else { return false }
+                viewModel.selectFinish()
+                return viewModel.phase == .score
+            case .newRound:
+                guard viewModel.phase == .score else { return false }
+                viewModel.startNewRound()
+                return viewModel.phase == .settings
+            default: break
+            }
+        }
         guard let role, let sessionID,
               let roundID = viewModel.roundID, viewModel.phase == .playing,
               viewModel.round?.mix.isLocked == false,
