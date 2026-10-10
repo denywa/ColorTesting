@@ -122,7 +122,7 @@
   - _Requirements: 6.6, 6.7, 7.3_
 
 - [ ] 4. Sajikan mode dan kendali sesuai peran
-- [ ] 4.1 (P) Tampilkan pilihan mode bermain
+- [x] 4.1 (P) Tampilkan pilihan mode bermain
   - Beri pilihan jelas antara tiga pemain di satu perangkat dan tiga perangkat dalam jaringan lokal.
   - Pastikan pilihan mode satu perangkat menuju pengaturan yang sudah ada tanpa memulai jaringan.
   - Selesai ketika kedua pilihan dapat diakses melalui sentuhan, keyboard, dan pembaca layar.
@@ -245,3 +245,4 @@
 - Antrean kirim per peer menjaga urutan Welcome sebelum snapshot awal; revisi snapshot host meningkat setelah perubahan view model dan kursi, sedangkan klien menolak revisi lama atau ID sesi lain.
 - Saat kursi tersambung kembali, host tetap menjeda ronde sampai Welcome dan snapshot penuh berhasil dikirim; ID percobaan mencegah penyelesaian kiriman lama membuka jeda baru.
 - Koordinator menyediakan leaveSession() untuk tombol keluar dan appWillTerminate() untuk siklus hidup aplikasi; host mengirim End sebelum menutup transport, lalu semua identitas sesi sementara dihapus.
+- ModeSelectionView mengirim PlayMode melalui dua Button standar; tugas 5.1 harus mengarahkan pilihan satu perangkat ke SettingsView tanpa memulai transport.
