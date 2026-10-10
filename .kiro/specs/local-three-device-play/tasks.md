@@ -136,7 +136,7 @@
   - _Boundary: LocalLobbyView_
   - _Depends: 3.1, 3.6_
   - _Requirements: 1.2, 1.3, 1.4, 1.7, 2.4, 6.2, 6.7_
-- [ ] 4.3 Batasi pengaturan ronde dan tombol mulai pada lobi host
+- [x] 4.3 Batasi pengaturan ronde dan tombol mulai pada lobi host
   - Izinkan host mengubah model, target, durasi, dan petunjuk; klien hanya melihat status sampai ronde dimulai.
   - Nonaktifkan Start saat model belum dipilih atau belum ada tiga perangkat yang terhubung.
   - Selesai ketika tamu tidak dapat mengubah pengaturan bersama dan host tidak dapat memulai ronde terlalu dini.
@@ -247,3 +247,4 @@
 - Koordinator menyediakan leaveSession() untuk tombol keluar dan appWillTerminate() untuk siklus hidup aplikasi; host mengirim End sebelum menutup transport, lalu semua identitas sesi sementara dihapus.
 - ModeSelectionView mengirim PlayMode melalui dua Button standar; tugas 5.1 harus mengarahkan pilihan satu perangkat ke SettingsView tanpa memulai transport.
 - Tombol Coba Lagi pada kursi yang sudah terisi memanggil resume agar ID sesi, kursi, dan target sambung ulang tetap ada; kesalahan klien baru dihapus setelah snapshot sah berhasil diterapkan.
+- SettingsView menerima koordinator opsional: host memakai canStartRound dan perform(startRound), klien hanya melihat status, sedangkan pemanggil tanpa koordinator mempertahankan alur solo.

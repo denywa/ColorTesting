@@ -2,72 +2,91 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var viewModel: GameViewModel
+    let coordinator: LocalPlayCoordinator?
     @State private var showingAddRequest = false
+
+    init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil) {
+        self.viewModel = viewModel
+        self.coordinator = coordinator
+    }
+
+    var canStartRound: Bool {
+        coordinator?.canStartRound ?? viewModel.canConfirm
+    }
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("Color Mixing")
-                .font(.largeTitle)
-                .bold()
+            if let coordinator, coordinator.role != .host {
+                Text("Waiting for the host to start the round")
+                Text("Players connected: \(coordinator.seatStatus.filter { $0.status == .connected }.count) of 3")
+            } else {
+                Text("Color Mixing")
+                    .font(.largeTitle)
+                    .bold()
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Choose a color model for this round")
-                    .font(.headline)
-                ColorModelToggle(selectedModel: viewModel.selectedModel) { model in
-                    viewModel.selectModel(model)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Choose a color model for this round")
+                        .font(.headline)
+                    ColorModelToggle(selectedModel: viewModel.selectedModel) { model in
+                        viewModel.selectModel(model)
+                    }
                 }
-            }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Choose a color request")
-                    .font(.headline)
-                HStack {
-                    Picker("Color Request", selection: $viewModel.selectedRequestID) {
-                        Text("Random").tag(nil as UUID?)
-                        ForEach(viewModel.availableRequests) { request in
-                            Text(request.text).tag(request.id as UUID?)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Choose a color request")
+                        .font(.headline)
+                    HStack {
+                        Picker("Color Request", selection: $viewModel.selectedRequestID) {
+                            Text("Random").tag(nil as UUID?)
+                            ForEach(viewModel.availableRequests) { request in
+                                Text(request.text).tag(request.id as UUID?)
+                            }
                         }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Button {
-                        showingAddRequest = true
-                    } label: {
-                        Label("Add", systemImage: "plus")
+                        Button {
+                            showingAddRequest = true
+                        } label: {
+                            Label("Add", systemImage: "plus")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Add color request")
                     }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Add color request")
                 }
-            }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Game Settings")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Game Settings")
+                        .font(.headline)
                 
-                HStack {
-                    Text("Random Reassignment Duration")
-                    Spacer()
-                    Picker("Duration", selection: $viewModel.reassignmentDuration) {
-                        Text("15s").tag(15)
-                        Text("30s").tag(30)
-                        Text("45s").tag(45)
-                        Text("60s").tag(60)
-                        Text("90s").tag(90)
+                    HStack {
+                        Text("Random Reassignment Duration")
+                        Spacer()
+                        Picker("Duration", selection: $viewModel.reassignmentDuration) {
+                            Text("15s").tag(15)
+                            Text("30s").tag(30)
+                            Text("45s").tag(45)
+                            Text("60s").tag(60)
+                            Text("90s").tag(90)
+                        }
+                        .frame(width: 120)
                     }
-                    .frame(width: 120)
-                }
                 
-                Toggle("Show Target Color Hint", isOn: $viewModel.showTargetColor)
-            }
-            .padding()
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+                    Toggle("Show Target Color Hint", isOn: $viewModel.showTargetColor)
+                }
+                .padding()
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
 
-            Button("Start Round") {
-                viewModel.confirmSettings()
+                Button("Start Round") {
+                    if let coordinator {
+                        coordinator.perform(.startRound)
+                    } else {
+                        viewModel.confirmSettings()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canStartRound)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(!viewModel.canConfirm)
         }
         .padding()
         .frame(maxWidth: 420)
