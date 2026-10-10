@@ -84,7 +84,7 @@
   - _Boundary: LocalPlayCoordinator_
   - _Depends: 2.2, 3.1_
   - _Requirements: 3.2, 3.3, 3.5, 3.6, 4.4_
-- [ ] 3.3 Sinkronkan timer, penugasan, dan campuran melalui snapshot host
+- [x] 3.3 Sinkronkan timer, penugasan, dan campuran melalui snapshot host
   - Naikkan revisi keadaan sesudah perubahan kursi, kontribusi, tick, pergantian warna, perubahan fase, serta jeda/lanjut; siarkan keadaan terbaru ke klien.
   - Pertahankan campuran saat warna diacak ulang dan abaikan snapshot lama atau milik sesi lain pada klien.
   - Selesai ketika pengujian dengan keadaan ronde buatan menunjukkan kedua klien menerima revisi baru beserta kursi, hitung mundur, penugasan, dan proporsi yang sama dengan host.
@@ -242,3 +242,4 @@
 - Koordinator memulai heartbeat setelah ID sesi diketahui dan memanggil resume saat aplikasi kembali ke depan; sambungan baru harus dipetakan ke kursi lama melalui token, termasuk ketika peer lama menunggu batas waktu sembilan detik.
 - Hello dengan versi berbeda diteruskan ke koordinator agar host dapat mengirim Reject; transport menerima satu peer sementara untuk penolakan atau penggantian kursi lama, sedangkan batas dua kursi aktif ditegakkan koordinator.
 - Hook didChange pada host mencatat riwayat penugasan tiap epoch; task sinkronisasi snapshot berikutnya harus mempertahankan pencatatan ini saat menambahkan siaran keadaan.
+- Antrean kirim per peer menjaga urutan Welcome sebelum snapshot awal; revisi snapshot host meningkat setelah perubahan view model dan kursi, sedangkan klien menolak revisi lama atau ID sesi lain.
