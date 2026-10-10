@@ -166,6 +166,8 @@ final class LocalNetworkTransport: LocalPeerTransport {
         }
     }
 
+    func disconnect(_ peer: PeerHandle) { remove(peer) }
+
     func stop() {
         mode = nil
         targetName = nil
@@ -265,7 +267,8 @@ final class LocalNetworkTransport: LocalPeerTransport {
     }
 
     private func accept(_ connection: NWConnection) {
-        guard listener != nil, connections.count < 2 else {
+        // Two seated peers plus one pending Hello or reconnect attempt.
+        guard listener != nil, connections.count < 3 else {
             connection.cancel()
             return
         }

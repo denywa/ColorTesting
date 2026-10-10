@@ -66,12 +66,12 @@ import XCTest
         }
     }
 
-    func testMismatchedVersionIsRejected() throws {
+    func testMismatchedHelloVersionReachesCoordinatorForRejection() throws {
         let wrong = WireMessage.hello(.init(protocolVersion: LocalPlayProtocol.version + 1, clientID: UUID(), sessionID: nil, reconnectToken: nil))
         var decoder = LocalMessageCodec()
-        XCTAssertThrowsError(try decoder.append(frame(JSONEncoder().encode(wrong)))) { error in
-            XCTAssertEqual(error as? LocalPlayError, .versionMismatch)
-        }
+        let messages = try decoder.append(frame(JSONEncoder().encode(wrong)))
+        guard case .hello(let decoded) = messages.first else { return XCTFail("Expected Hello") }
+        XCTAssertEqual(decoded.protocolVersion, LocalPlayProtocol.version + 1)
     }
 
     func testMismatchedSnapshotVersionIsRejected() throws {

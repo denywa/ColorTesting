@@ -52,6 +52,13 @@ final class FakePeerNetwork {
             peer.hostedSession = nil
         }
     }
+
+    func disconnect(_ peer: FakePeerTransport, from handle: PeerHandle) {
+        guard peer.connected.remove(handle) != nil else { return }
+        peers[handle]?.connected.remove(peer.handle)
+        peer.onEvent?(.disconnected(handle))
+        peers[handle]?.onEvent?(.disconnected(peer.handle))
+    }
 }
 
 @MainActor
@@ -59,7 +66,7 @@ final class FakePeerTransport: LocalPeerTransport {
     var onEvent: (@MainActor (TransportEvent) -> Void)?
     let handle = PeerHandle(id: UUID())
     fileprivate var hostedSession: DiscoveredSession?
-    fileprivate var connected: Set<PeerHandle> = []
+    var connected: Set<PeerHandle> = []
     private let network: FakePeerNetwork
 
     init(network: FakePeerNetwork) { self.network = network }
@@ -70,6 +77,7 @@ final class FakePeerTransport: LocalPeerTransport {
     func send(_ message: WireMessage, to peer: PeerHandle) async throws {
         try network.send(message, from: self, to: peer)
     }
+    func disconnect(_ peer: PeerHandle) { network.disconnect(self, from: peer) }
     func startHeartbeats(sessionID: UUID) {}
     func resume() {}
     func stop() { network.disconnect(self) }

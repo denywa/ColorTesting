@@ -16,6 +16,7 @@ protocol LocalPeerTransport: AnyObject {
     func browse()
     func connect(_ session: DiscoveredSession)
     func send(_ message: WireMessage, to peer: PeerHandle) async throws
+    func disconnect(_ peer: PeerHandle)
     func startHeartbeats(sessionID: UUID)
     func resume()
     func stop()

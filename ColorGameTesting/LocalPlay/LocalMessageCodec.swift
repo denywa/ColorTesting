@@ -44,8 +44,6 @@ struct LocalMessageCodec {
 
     private static func checkVersion(_ message: WireMessage) throws {
         switch message {
-        case .hello(let hello) where hello.protocolVersion != LocalPlayProtocol.version:
-            throw LocalPlayError.versionMismatch
         case .snapshot(let snapshot) where snapshot.protocolVersion != LocalPlayProtocol.version:
             throw LocalPlayError.versionMismatch
         default:

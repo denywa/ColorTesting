@@ -70,7 +70,7 @@
   - _Requirements: 6.1, 6.3, 6.5_
 
 - [ ] 3. Tegakkan aturan satu sesi bersama
-- [ ] 3.1 Kelola lobi, kursi unik, dan penerimaan peserta
+- [x] 3.1 Kelola lobi, kursi unik, dan penerimaan peserta
   - Beri host kursi pertama dan dua klien kursi berbeda; pertahankan identitas sementara untuk sambung ulang.
   - Tolak perangkat keempat serta versi aplikasi yang tidak cocok, dan tahan Start sampai ketiga kursi aktif.
   - Selesai ketika host memiliki tiga kursi unik, tiap klien menerima perannya, dan Start ditolak selama peserta kurang dari tiga.
@@ -240,3 +240,4 @@
 - Kesalahan framing, JSON, ukuran, atau versi dari codec harus menutup koneksi peer terkait di transport; setiap koneksi memakai instans decoder terpisah.
 - Transport nyata sudah mengirim bingkai dan menghubungkan dua klien melalui Bonjour/Wi-Fi; penerimaan serta pemisahan pesan per koneksi dilanjutkan pada task 2.4.
 - Koordinator memulai heartbeat setelah ID sesi diketahui dan memanggil resume saat aplikasi kembali ke depan; sambungan baru harus dipetakan ke kursi lama melalui token, termasuk ketika peer lama menunggu batas waktu sembilan detik.
+- Hello dengan versi berbeda diteruskan ke koordinator agar host dapat mengirim Reject; transport menerima satu peer sementara untuk penolakan atau penggantian kursi lama, sedangkan batas dua kursi aktif ditegakkan koordinator.
