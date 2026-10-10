@@ -253,6 +253,7 @@ final class LocalPlayCoordinator {
                         try snapshotMapper.apply(snapshot, to: viewModel)
                         latestSnapshot = snapshot
                         awaitingSnapshot = false
+                        error = nil
                     } catch {
                         self.error = error as? LocalPlayError ?? .invalidMessage
                         transport.disconnect(peer)

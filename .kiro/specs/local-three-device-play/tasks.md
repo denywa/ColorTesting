@@ -129,7 +129,7 @@
   - _Boundary: ModeSelectionView_
   - _Depends: 3.7_
   - _Requirements: 1.1, 7.1, 7.3_
-- [ ] 4.2 (P) Tampilkan lobi dan status sambungan yang dapat ditindaklanjuti
+- [x] 4.2 (P) Tampilkan lobi dan status sambungan yang dapat ditindaklanjuti
   - Tampilkan sesi yang ditemukan, tindakan membuat/bergabung, kursi tiap pemain, dan alasan kegagalan yang bisa dicoba lagi.
   - Bedakan tampilan host dan klien; saat menunggu koneksi kembali, tampilkan pemain yang hilang dan pilihan keluar.
   - Selesai ketika tiga pemain dapat melihat peran serta status yang benar tanpa memperoleh kendali milik host.
@@ -246,3 +246,4 @@
 - Saat kursi tersambung kembali, host tetap menjeda ronde sampai Welcome dan snapshot penuh berhasil dikirim; ID percobaan mencegah penyelesaian kiriman lama membuka jeda baru.
 - Koordinator menyediakan leaveSession() untuk tombol keluar dan appWillTerminate() untuk siklus hidup aplikasi; host mengirim End sebelum menutup transport, lalu semua identitas sesi sementara dihapus.
 - ModeSelectionView mengirim PlayMode melalui dua Button standar; tugas 5.1 harus mengarahkan pilihan satu perangkat ke SettingsView tanpa memulai transport.
+- Tombol Coba Lagi pada kursi yang sudah terisi memanggil resume agar ID sesi, kursi, dan target sambung ulang tetap ada; kesalahan klien baru dihapus setelah snapshot sah berhasil diterapkan.
