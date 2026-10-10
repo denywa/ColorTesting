@@ -150,7 +150,7 @@
   - _Boundary: GameView_
   - _Depends: 3.2, 3.5, 3.6_
   - _Requirements: 3.1, 3.2, 3.5, 5.1, 5.6, 6.1_
-- [ ] 4.5 (P) Tampilkan hasil dan tindakan host pada fase hasil
+- [x] 4.5 (P) Tampilkan hasil dan tindakan host pada fase hasil
   - Semua perangkat melihat warna hasil serta rincian campuran yang sama.
   - Hanya host melihat Redo dan Finish; keduanya tidak tersedia selama jeda.
   - Selesai ketika klien tidak dapat memicu Redo/Finish dan hasil tetap terlihat saat menunggu sambungan kembali.
@@ -249,3 +249,4 @@
 - Tombol Coba Lagi pada kursi yang sudah terisi memanggil resume agar ID sesi, kursi, dan target sambung ulang tetap ada; kesalahan klien baru dihapus setelah snapshot sah berhasil diterapkan.
 - SettingsView menerima koordinator opsional: host memakai canStartRound dan perform(startRound), klien hanya melihat status, sedangkan pemanggil tanpa koordinator mempertahankan alur solo.
 - GameView menerima koordinator opsional, menampilkan hanya panel peran lokal, menandai jeda, dan mengirim Mix host melalui koordinator; jalur solo tetap menampilkan tiga pemain.
+- ResultView menampilkan hasil dan rincian campuran saat jeda, menyembunyikan Redo/Finish dari klien, serta mengirim tindakan host melalui koordinator.
