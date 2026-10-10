@@ -18,6 +18,48 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         func stop() {}
     }
 
+    private final class HoldingSnapshotTransport: LocalPeerTransport {
+        var onEvent: (@MainActor (TransportEvent) -> Void)?
+        let peer: FakePeerTransport
+        var holdFor: PeerHandle?
+        private(set) var isHolding = false
+        private(set) var deliveredToHeldPeer: [GameSnapshot] = []
+        private var releaseSend: CheckedContinuation<Void, Never>?
+        private var failOnRelease = false
+
+        init(peer: FakePeerTransport) {
+            self.peer = peer
+            peer.onEvent = { [weak self] event in self?.onEvent?(event) }
+        }
+
+        func host(serviceName: String) throws { try peer.host(serviceName: serviceName) }
+        func browse() { peer.browse() }
+        func connect(_ session: DiscoveredSession) { peer.connect(session) }
+        func send(_ message: WireMessage, to target: PeerHandle) async throws {
+            if target == holdFor, case .snapshot(let snapshot) = message {
+                if !isHolding {
+                    isHolding = true
+                    await withCheckedContinuation { releaseSend = $0 }
+                }
+                if failOnRelease { throw LocalPlayError.disconnected }
+                try await peer.send(message, to: target)
+                deliveredToHeldPeer.append(snapshot)
+            } else {
+                try await peer.send(message, to: target)
+            }
+        }
+        func holdNextSnapshot(to target: PeerHandle, failOnRelease: Bool = false) {
+            holdFor = target
+            isHolding = false
+            self.failOnRelease = failOnRelease
+        }
+        func release() { releaseSend?.resume(); releaseSend = nil }
+        func disconnect(_ target: PeerHandle) { peer.disconnect(target) }
+        func startHeartbeats(sessionID: UUID) { peer.startHeartbeats(sessionID: sessionID) }
+        func resume() { peer.resume() }
+        func stop() { peer.stop() }
+    }
+
     private func makeCoordinator(_ network: FakePeerNetwork) -> LocalPlayCoordinator {
         LocalPlayCoordinator(viewModel: GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!),
                              transport: network.makePeer())
@@ -581,5 +623,125 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         game.host.setPaused(false)
         game.thirdTransport.stop()
         XCTAssertFalse(game.host.perform(.mix))
+    }
+
+    func testDisconnectPausesAndReconnectRestoresSameRound() async throws {
+        let game = try await activeGame()
+        game.hostModel.addColor(player: .player1, slot: .primary)
+        await waitUntil { game.thirdModel.round?.mix.units.count == 1 }
+        let roundID = game.hostModel.roundID
+        let assignments = game.hostModel.round?.assignments
+        let remaining = game.hostModel.timerSecondsRemaining
+        let mix = game.hostModel.round?.mix.units.map(\.color.id)
+        let seatID = game.host.session?.seats.first { $0.role == .player2 }?.clientID
+        game.secondTransport.stop()
+
+        XCTAssertTrue(game.host.paused)
+        XCTAssertEqual(game.host.seatStatus.first { $0.player == .player2 }?.status, .disconnected)
+        await waitUntil { game.third.latestSnapshot?.paused == true }
+        game.host.setPaused(false)
+        XCTAssertTrue(game.host.paused)
+        XCTAssertTrue(game.second.paused)
+        XCTAssertFalse(game.host.perform(.mix))
+        XCTAssertFalse(game.second.perform(.addColor(slot: .primary,
+            observedColorID: game.secondModel.round!.assignments[.player2]!.primaryColor.id,
+            assignmentEpoch: game.secondModel.assignmentEpoch!)))
+        XCTAssertFalse(game.third.perform(.addColor(slot: .primary,
+            observedColorID: game.thirdModel.round!.assignments[.player3]!.primaryColor.id,
+            assignmentEpoch: game.thirdModel.assignmentEpoch!)))
+        XCTAssertEqual(game.hostModel.round?.mix.units.map(\.color.id), mix)
+        XCTAssertEqual(game.hostModel.timerSecondsRemaining, remaining)
+
+        game.second.startBrowsing()
+        game.second.join(try XCTUnwrap(game.second.discoveredSessions.first))
+        await waitUntil { game.second.connectionStatus == .connected && game.second.latestSnapshot?.paused == false }
+        XCTAssertEqual(game.host.session?.seats.first { $0.role == .player2 }?.clientID, seatID)
+        XCTAssertEqual(game.second.role, .player2)
+        XCTAssertFalse(game.host.paused)
+        XCTAssertEqual(game.secondModel.roundID, roundID)
+        XCTAssertEqual(game.secondModel.round?.assignments.mapValues { [$0.primaryColor.id, $0.secondaryColor.id] },
+                       assignments?.mapValues { [$0.primaryColor.id, $0.secondaryColor.id] })
+        XCTAssertEqual(game.secondModel.round?.mix.units.map(\.color.id), mix)
+        XCTAssertEqual(game.secondModel.timerSecondsRemaining, remaining)
+    }
+
+    func testBackgroundPauseFlushesSnapshotAndRequiresForeground() async throws {
+        let game = try await activeGame()
+        let remaining = game.hostModel.timerSecondsRemaining
+        await game.host.hostDidEnterBackground()
+        XCTAssertTrue(game.host.paused)
+        XCTAssertTrue(game.second.latestSnapshot?.paused == true)
+        XCTAssertTrue(game.third.latestSnapshot?.paused == true)
+        XCTAssertEqual(game.second.latestSnapshot?.snapshotRevision, game.host.session?.snapshotRevision)
+        game.host.setPaused(false)
+        XCTAssertTrue(game.host.paused)
+        XCTAssertFalse(game.host.perform(.mix))
+        XCTAssertEqual(game.hostModel.timerSecondsRemaining, remaining)
+        game.secondTransport.stop()
+        game.second.startBrowsing()
+        game.second.join(try XCTUnwrap(game.second.discoveredSessions.first))
+        await waitUntil { game.host.seatStatus.first { $0.player == .player2 }?.status == .connected }
+        XCTAssertTrue(game.host.paused)
+        await waitUntil { game.second.latestSnapshot?.paused == true }
+        game.host.appDidBecomeActive()
+        await waitUntil { game.second.latestSnapshot?.paused == false && game.third.latestSnapshot?.paused == false }
+        XCTAssertFalse(game.host.paused)
+        XCTAssertEqual(game.hostModel.timerSecondsRemaining, remaining)
+    }
+
+    func testReconnectWaitsForFullSnapshotDeliveryBeforeHostResumes() async throws {
+        let network = FakePeerNetwork()
+        let hostModel = GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let hostTransport = HoldingSnapshotTransport(peer: network.makePeer())
+        let host = LocalPlayCoordinator(viewModel: hostModel, transport: hostTransport)
+        let secondModel = GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let secondTransport = network.makePeer()
+        let second = LocalPlayCoordinator(viewModel: secondModel, transport: secondTransport)
+        let third = makeCoordinator(network)
+        try host.startHosting()
+        for client in [second, third] {
+            client.startBrowsing()
+            client.join(try XCTUnwrap(client.discoveredSessions.first))
+            await waitUntil { client.role != nil }
+        }
+        hostModel.selectModel(.ryb)
+        XCTAssertTrue(host.perform(.startRound))
+        hostModel.addColor(player: .player1, slot: .primary)
+        await waitUntil { second.latestSnapshot?.snapshotRevision == host.session?.snapshotRevision }
+        let roundID = hostModel.roundID
+        let mix = hostModel.round?.mix.units.map(\.color.id)
+        let remaining = hostModel.timerSecondsRemaining
+        secondTransport.stop()
+        XCTAssertTrue(host.paused)
+        hostTransport.holdNextSnapshot(to: secondTransport.handle)
+        second.startBrowsing()
+        second.join(try XCTUnwrap(second.discoveredSessions.first))
+        await waitUntil { hostTransport.isHolding }
+
+        XCTAssertTrue(host.paused)
+        XCTAssertFalse(host.perform(.mix))
+        XCTAssertEqual(hostModel.timerSecondsRemaining, remaining)
+        XCTAssertEqual(hostModel.round?.mix.units.map(\.color.id), mix)
+        hostTransport.release()
+        await waitUntil { !host.paused && second.latestSnapshot?.paused == false }
+        XCTAssertEqual(hostTransport.deliveredToHeldPeer.first?.paused, true)
+        XCTAssertEqual(secondModel.roundID, roundID)
+        XCTAssertEqual(secondModel.round?.mix.units.map(\.color.id), mix)
+        XCTAssertEqual(secondModel.timerSecondsRemaining, remaining)
+
+        secondTransport.stop()
+        hostTransport.holdNextSnapshot(to: secondTransport.handle, failOnRelease: true)
+        second.startBrowsing()
+        second.join(try XCTUnwrap(second.discoveredSessions.first))
+        await waitUntil { hostTransport.isHolding }
+        hostTransport.release()
+        await waitUntil { host.seatStatus.first { $0.player == .player2 }?.status == .disconnected }
+        XCTAssertTrue(host.paused)
+        hostTransport.holdFor = nil
+        second.startBrowsing()
+        second.join(try XCTUnwrap(second.discoveredSessions.first))
+        await waitUntil { !host.paused && second.latestSnapshot?.paused == false }
+        XCTAssertEqual(secondModel.roundID, roundID)
+        XCTAssertEqual(secondModel.round?.mix.units.map(\.color.id), mix)
     }
 }

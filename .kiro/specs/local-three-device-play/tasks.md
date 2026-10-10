@@ -105,7 +105,7 @@
   - _Boundary: LocalPlayCoordinator_
   - _Depends: 3.4_
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 7.2_
-- [ ] 3.6 Jeda dan pulihkan sesi ketika perangkat terputus
+- [x] 3.6 Jeda dan pulihkan sesi ketika perangkat terputus
   - Saat peer hilang setelah ronde dimulai, hentikan timer dan seluruh aksi serta umumkan kursi yang terputus.
   - Saat host akan masuk latar belakang, jeda ronde dan siarkan snapshot jeda sebelum aplikasi ditangguhkan; perlakukan klien yang masuk latar belakang sebagai putus sementara ketika koneksinya tidak aktif.
   - Terima kembali pemilik kursi yang sama, kirim snapshot penuh, lalu lanjutkan fase dan sisa waktu hanya setelah tiga kursi aktif.
@@ -243,3 +243,4 @@
 - Hello dengan versi berbeda diteruskan ke koordinator agar host dapat mengirim Reject; transport menerima satu peer sementara untuk penolakan atau penggantian kursi lama, sedangkan batas dua kursi aktif ditegakkan koordinator.
 - Hook didChange pada host mencatat riwayat penugasan tiap epoch; task sinkronisasi snapshot berikutnya harus mempertahankan pencatatan ini saat menambahkan siaran keadaan.
 - Antrean kirim per peer menjaga urutan Welcome sebelum snapshot awal; revisi snapshot host meningkat setelah perubahan view model dan kursi, sedangkan klien menolak revisi lama atau ID sesi lain.
+- Saat kursi tersambung kembali, host tetap menjeda ronde sampai Welcome dan snapshot penuh berhasil dikirim; ID percobaan mencegah penyelesaian kiriman lama membuka jeda baru.

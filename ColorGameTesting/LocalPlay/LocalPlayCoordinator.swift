@@ -26,6 +26,10 @@ final class LocalPlayCoordinator {
     private let snapshotMapper = LocalGameSnapshotMapper()
     private var welcomedPeers: Set<PeerHandle> = []
     private var outboundTasks: [PeerHandle: Task<Void, Never>] = [:]
+    private var hostIsForeground = true
+    private var pauseRequested = false
+    private var awaitingSnapshot = false
+    private var recoveringPeers: [SessionRole: (peer: PeerHandle, attempt: UUID)] = [:]
 
     init(viewModel: GameViewModel, transport: any LocalPeerTransport) {
         self.viewModel = viewModel
@@ -34,7 +38,7 @@ final class LocalPlayCoordinator {
     }
 
     var canStartRound: Bool {
-        role == .host && connectionStatus == .connected &&
+        role == .host && hostIsForeground && connectionStatus == .connected &&
         viewModel.phase == .settings && viewModel.selectedModel != nil &&
         (1...3600).contains(viewModel.reassignmentDuration) &&
         (viewModel.selectedRequestID == nil ||
@@ -50,7 +54,10 @@ final class LocalPlayCoordinator {
         return latestSnapshot?.seatStatus ?? []
     }
 
-    var paused: Bool { role == .host ? session?.paused ?? false : latestSnapshot?.paused ?? false }
+    var paused: Bool {
+        if role == .host { return session?.paused ?? false }
+        return role != nil && (awaitingSnapshot || connectionStatus != .connected || latestSnapshot?.paused == true)
+    }
 
     func chooseMode(_ mode: PlayMode) { self.mode = mode }
 
@@ -71,6 +78,9 @@ final class LocalPlayCoordinator {
         welcomedPeers.removeAll()
         outboundTasks.removeAll()
         latestSnapshot = nil
+        hostIsForeground = true
+        pauseRequested = false
+        recoveringPeers.removeAll()
         viewModel.configureLocalPlay(localPlayer: .player1, isHost: true) { [weak self] _, slot in
             self?.performLocalColor(slot)
         }
@@ -116,6 +126,7 @@ final class LocalPlayCoordinator {
                 pendingPeers.insert(peer)
             } else {
                 hostPeer = peer
+                awaitingSnapshot = true
                 let hello = WireMessage.hello(.init(protocolVersion: LocalPlayProtocol.version,
                                                      clientID: clientID, sessionID: sessionID,
                                                      reconnectToken: reconnectToken))
@@ -131,10 +142,12 @@ final class LocalPlayCoordinator {
             outboundTasks.removeValue(forKey: peer)
             if role == .host, let assigned = peersByRole.first(where: { $0.value == peer })?.key {
                 peersByRole.removeValue(forKey: assigned)
+                if recoveringPeers[assigned]?.peer == peer { recoveringPeers.removeValue(forKey: assigned) }
                 updateSeat(assigned, status: .disconnected)
             } else if hostPeer == peer {
                 hostPeer = nil
                 connectionStatus = .disconnected
+                awaitingSnapshot = true
             }
         case .received(let message, let peer):
             if role == .host {
@@ -175,6 +188,7 @@ final class LocalPlayCoordinator {
                     do {
                         try snapshotMapper.apply(snapshot, to: viewModel)
                         latestSnapshot = snapshot
+                        awaitingSnapshot = false
                     } catch {
                         self.error = error as? LocalPlayError ?? .invalidMessage
                         transport.disconnect(peer)
@@ -238,12 +252,43 @@ final class LocalPlayCoordinator {
     }
 
     func setPaused(_ paused: Bool) {
+        guard role == .host, viewModel.phase != .settings else { return }
+        pauseRequested = paused
+        refreshPause()
+    }
+
+    func hostDidEnterBackground() async {
+        guard role == .host else { return }
+        hostIsForeground = false
+        refreshPause()
+        for task in Array(outboundTasks.values) { await task.value }
+    }
+
+    func appDidBecomeActive() {
+        transport.resume()
+        if role == .host {
+            hostIsForeground = true
+            refreshPause()
+        }
+    }
+
+    private func refreshPause() {
         guard role == .host, viewModel.phase != .settings,
-              var current = session, current.paused != paused else { return }
-        current.paused = paused
+              var current = session else { return }
+        let shouldPause = shouldPause(for: current.seats)
+        guard current.paused != shouldPause else { return }
+        current.paused = shouldPause
         session = current
-        if paused { viewModel.pauseTimer() } else { viewModel.resumeTimer() }
+        if shouldPause { viewModel.pauseTimer() } else { viewModel.resumeTimer() }
         publishChange()
+    }
+
+    private func shouldPause(for seats: [SessionSeat]) -> Bool {
+        viewModel.phase != .settings &&
+        (pauseRequested || !hostIsForeground ||
+         !recoveringPeers.isEmpty ||
+         seats.count != PlayerID.allCases.count ||
+         seats.contains { $0.status != .connected })
     }
 
     private func performLocalColor(_ slot: ColorSlot) {
@@ -287,7 +332,8 @@ final class LocalPlayCoordinator {
         guard let role, let sessionID,
               let roundID = viewModel.roundID, viewModel.phase == .playing,
               viewModel.round?.mix.isLocked == false,
-              connectionStatus == .connected else { return false }
+              connectionStatus == .connected, !paused,
+              (role == .host || !awaitingSnapshot) else { return false }
         guard case let .addColor(slot, observedColorID, epoch) = action,
               epoch == viewModel.assignmentEpoch,
               let assignment = viewModel.round?.assignments[role.playerID],
@@ -364,6 +410,11 @@ final class LocalPlayCoordinator {
                                         snapshotRevision: current.snapshotRevision + 1)
             broadcastSnapshot()
         }
+        let recoveryAttempt = viewModel.phase == .settings ? nil : UUID()
+        if let recoveryAttempt {
+            recoveringPeers[assigned] = (peer, recoveryAttempt)
+            refreshPause()
+        }
         if let stale = peersByRole[assigned], stale != peer {
             peersByRole[assigned] = peer
             transport.disconnect(stale)
@@ -377,9 +428,17 @@ final class LocalPlayCoordinator {
         enqueue(welcome, to: peer) { [weak self] in
             guard let self, self.peersByRole[assigned] == peer else { return }
             self.welcomedPeers.insert(peer)
-            if let session = self.session,
-               let snapshot = try? self.snapshotMapper.makeSnapshot(from: self.viewModel, session: session) {
-                self.enqueue(.snapshot(snapshot), to: peer)
+            guard let session = self.session,
+                  let snapshot = try? self.snapshotMapper.makeSnapshot(from: self.viewModel, session: session) else {
+                self.transport.disconnect(peer)
+                return
+            }
+            self.enqueue(.snapshot(snapshot), to: peer) { [weak self] in
+                guard let self, self.peersByRole[assigned] == peer,
+                      let recoveryAttempt,
+                      self.recoveringPeers[assigned]?.attempt == recoveryAttempt else { return }
+                self.recoveringPeers.removeValue(forKey: assigned)
+                self.refreshPause()
             }
         }
     }
@@ -390,9 +449,13 @@ final class LocalPlayCoordinator {
               current.seats[index].status != status else { return }
         var seats = current.seats
         seats[index].status = status
+        let shouldPause = shouldPause(for: seats)
         session = try! SessionState(sessionID: current.sessionID, seats: seats,
-                                    paused: current.paused,
+                                    paused: shouldPause,
                                     snapshotRevision: current.snapshotRevision + 1)
+        if current.paused != shouldPause {
+            if shouldPause { viewModel.pauseTimer() } else { viewModel.resumeTimer() }
+        }
         broadcastSnapshot()
     }
 
