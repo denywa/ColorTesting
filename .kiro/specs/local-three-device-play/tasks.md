@@ -235,6 +235,7 @@
 
 ## Implementation Notes
 
+- Laporan uji manual pengguna untuk 6.5: sesi berhasil dibuat dan diikuti melalui Mac, satu iPhone fisik, dan satu simulator iPhone di Mac; campuran warna tersinkron, dan perangkat yang terputus dapat tersambung kembali. Ini membuktikan alur campuran pada tiga endpoint, tetapi belum memenuhi syarat tiga perangkat fisik, pemeriksaan dialog izin, dan penolakan perangkat keempat.
 - Verifikasi 6.4: 139 tes macOS lulus tanpa kegagalan atau skip, build iOS berhasil, dan plist hasil build kedua platform memuat layanan Bonjour `_colorgame._tcp` serta alasan izin jaringan lokal. Hak sandbox, klien, dan server jaringan macOS tersedia pada berkas entitlement sumber; penandatanganan build uji dinonaktifkan.
 - Jalur input sentuh/keyboard dan Mix sudah terhubung oleh tugas sebelumnya; tes integrasi tiga peer memverifikasi satu campuran host, snapshot klien, batas peran, dan jeda tanpa perubahan kode produksi.
 - Baseline macOS sebelum implementasi: 58 tes lulus dan 3 gagal pada ColorDataTests, GameViewRenderingTests, serta ColorMixerTests. Task 1.1 memulihkan baseline; suite macOS penuh lulus pada verifikasi ulang setelah nilai Lavender C8B4F4 dan tiga tes diselaraskan.
