@@ -166,7 +166,7 @@
   - _Requirements: 5.4, 5.5, 5.6, 7.2_
 
 - [ ] 5. Hubungkan seluruh alur ke aplikasi
-- [ ] 5.1 Rute pilihan mode, lobi, dan fase ronde dari layar utama
+- [x] 5.1 Rute pilihan mode, lobi, dan fase ronde dari layar utama
   - Buat pemilihan mode sebagai pintu masuk dan pertahankan alur solo tanpa mengubah aturan lama.
   - Tampilkan pengaturan host di lobi, status tamu saat menunggu, dan layar fase yang sama sesudah ronde dimulai.
   - Selesai ketika pengguna dapat masuk dan keluar dari kedua mode tanpa layar buntu atau sesi jaringan yang tertinggal.
@@ -251,3 +251,4 @@
 - GameView menerima koordinator opsional, menampilkan hanya panel peran lokal, menandai jeda, dan mengirim Mix host melalui koordinator; jalur solo tetap menampilkan tiga pemain.
 - ResultView menampilkan hasil dan rincian campuran saat jeda, menyembunyikan Redo/Finish dari klien, serta mengirim tindakan host melalui koordinator.
 - ScoreView memakai satu nilai skor dari GameViewModel, menyembunyikan New Round pada klien, dan mengirim tindakan host melalui koordinator setelah jeda berakhir.
+- ContentView mempertahankan satu GameViewModel/koordinator, membuka pilihan mode saat awal atau setelah sesi lokal berakhir, dan merutekan lobi host/tamu serta layar fase melalui koordinator.
