@@ -173,7 +173,7 @@
   - _Boundary: ContentView, LocalPlayCoordinator_
   - _Depends: 4.1, 4.2, 4.3_
   - _Requirements: 1.1, 2.1, 5.5, 6.6, 6.7, 7.1, 7.3_
-- [ ] 5.2 Hubungkan input pemain dan Mix ke otoritas sesi
+- [x] 5.2 Hubungkan input pemain dan Mix ke otoritas sesi
   - Sambungkan tombol warna dan keyboard ke peran lokal; aksi klien dikirim ke host tanpa mengubah campuran lokal.
   - Rute Mix host melalui keadaan bersama dan cegah tombol warna atau Mix menembus status jeda.
   - Selesai ketika input dari tiga perangkat mengubah satu campuran dan hanya host dapat membuka hasil.
@@ -234,6 +234,7 @@
 
 ## Implementation Notes
 
+- Jalur input sentuh/keyboard dan Mix sudah terhubung oleh tugas sebelumnya; tes integrasi tiga peer memverifikasi satu campuran host, snapshot klien, batas peran, dan jeda tanpa perubahan kode produksi.
 - Baseline macOS sebelum implementasi: 58 tes lulus dan 3 gagal pada ColorDataTests, GameViewRenderingTests, serta ColorMixerTests. Task 1.1 memulihkan baseline; suite macOS penuh lulus pada verifikasi ulang setelah nilai Lavender C8B4F4 dan tiga tes diselaraskan.
 - NSBonjourServices harus berasal dari plist sumber agar hasil build tetap berupa array; hak jaringan macOS tetap mempertahankan sandbox dan akses baca berkas pilihan pengguna.
 - Kontrak snapshot memakai durasi Int sesuai GameViewModel; validasi payload jaringan yang tidak tepercaya tetap menjadi tanggung jawab codec dan mapper pada task berikutnya.
