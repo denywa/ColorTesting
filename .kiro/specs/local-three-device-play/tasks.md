@@ -180,7 +180,7 @@
   - _Boundary: GameViewModel, LocalPlayCoordinator, GameView_
   - _Depends: 3.2, 3.5, 4.4, 5.1_
   - _Requirements: 3.2, 3.3, 3.4, 3.5, 5.1, 5.2_
-- [ ] 5.3 Hubungkan hasil, skor, dan keluar sesi ke otoritas host
+- [x] 5.3 Hubungkan hasil, skor, dan keluar sesi ke otoritas host
   - Rute Redo, Finish, dan New Round dari layar masing-masing ke host; klien hanya menerima perubahan fase.
   - Sediakan Akhiri Sesi bagi host dan Keluar bagi klien pada seluruh fase lokal.
   - Selesai ketika seluruh perangkat mengikuti transisi fase yang sama dan dapat meninggalkan sesi sesuai perannya.

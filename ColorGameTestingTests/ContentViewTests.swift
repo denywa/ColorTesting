@@ -74,6 +74,46 @@ final class ContentViewTests: XCTestCase {
         XCTAssertEqual(model.phase, .settings)
     }
 
+    func testActiveLocalPhasesShowSessionExitControl() throws {
+        let model = GameViewModel()
+        let coordinator = LocalPlayCoordinator(viewModel: model,
+                                               transport: FakePeerNetwork().makePeer())
+        try coordinator.startHosting()
+        let content = ContentView(viewModel: model, coordinator: coordinator,
+                                  selectedMode: .threeDevices)
+        XCTAssertEqual(content.localSessionExitTitle, "End Session")
+
+        for phase in [GamePhase.playing, .result, .score] {
+            model.phase = phase
+            let phaseOnly: Data = switch phase {
+            case .playing: try renderedPixels(of: GameView(viewModel: model, coordinator: coordinator))
+            case .result: try renderedPixels(of: ResultView(viewModel: model, coordinator: coordinator))
+            case .score: try renderedPixels(of: ScoreView(viewModel: model, coordinator: coordinator))
+            case .settings: try renderedPixels(of: SettingsView(viewModel: model, coordinator: coordinator))
+            }
+            XCTAssertNotEqual(try renderedPixels(of: content),
+                              phaseOnly,
+                              "The \(phase) phase must display a session exit control")
+        }
+    }
+
+    func testGuestSessionExitUsesLeaveLabel() async throws {
+        let network = FakePeerNetwork()
+        let host = LocalPlayCoordinator(viewModel: GameViewModel(), transport: network.makePeer())
+        let guestModel = GameViewModel()
+        let guest = LocalPlayCoordinator(viewModel: guestModel, transport: network.makePeer())
+        try host.startHosting()
+        guest.startBrowsing()
+        guest.join(try XCTUnwrap(guest.discoveredSessions.first))
+        for _ in 0..<100 where guest.role == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(guest.role, .player2)
+        XCTAssertEqual(ContentView(viewModel: guestModel, coordinator: guest,
+                                   selectedMode: .threeDevices).localSessionExitTitle,
+                       "Leave Session")
+    }
+
     private func renderedPixels<Content: View>(of content: Content) throws -> Data {
         let hostingView = NSHostingView(rootView: content)
         hostingView.frame = NSRect(x: 0, y: 0, width: 720, height: 600)

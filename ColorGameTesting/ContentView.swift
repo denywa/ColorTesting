@@ -70,8 +70,21 @@ struct ContentView: View {
                 LocalLobbyView(coordinator: coordinator)
             }
         } else {
-            phaseContent(coordinator: coordinator)
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button(localSessionExitTitle) {
+                        Task { await coordinator.leaveSession() }
+                    }
+                    .padding()
+                }
+                phaseContent(coordinator: coordinator)
+            }
         }
+    }
+
+    var localSessionExitTitle: String {
+        coordinator.role == .host ? "End Session" : "Leave Session"
     }
 
     @ViewBuilder
