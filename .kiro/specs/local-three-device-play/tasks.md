@@ -231,6 +231,7 @@
   - _Boundary: LocalNetworkTransport, LocalPlayCoordinator_
   - _Depends: 6.4_
   - _Requirements: 1.2, 1.3, 1.6, 1.8, 4.1, 5.2, 6.1, 6.3, 6.4, 7.4_
+  - _Blocked: Perangkat fisik yang tersedia hanya Mac dan satu iPhone terhubung; diperlukan satu perangkat tambahan untuk sesi tiga pemain dan perangkat keempat untuk menguji penolakan peserta tambahan pada Wi-Fi yang sama. Simulator tidak memenuhi verifikasi izin dan pemulihan jaringan fisik._
 
 ## Implementation Notes
 
