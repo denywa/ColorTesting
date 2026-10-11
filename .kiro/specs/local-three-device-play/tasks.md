@@ -157,7 +157,7 @@
   - _Boundary: ResultView_
   - _Depends: 3.5, 3.6_
   - _Requirements: 5.2, 5.3, 5.4, 5.6, 6.1_
-- [ ] 4.6 (P) Tampilkan satu skor bersama dan kendali ronde berikutnya
+- [x] 4.6 (P) Tampilkan satu skor bersama dan kendali ronde berikutnya
   - Tampilkan skor kelompok yang sama pada semua perangkat tanpa membuat skor pemain terpisah.
   - Hanya host melihat New Round, dan kendali itu tidak tersedia selama jeda.
   - Selesai ketika klien dapat meninjau skor tetapi tidak dapat memulai ronde berikutnya.
@@ -250,3 +250,4 @@
 - SettingsView menerima koordinator opsional: host memakai canStartRound dan perform(startRound), klien hanya melihat status, sedangkan pemanggil tanpa koordinator mempertahankan alur solo.
 - GameView menerima koordinator opsional, menampilkan hanya panel peran lokal, menandai jeda, dan mengirim Mix host melalui koordinator; jalur solo tetap menampilkan tiga pemain.
 - ResultView menampilkan hasil dan rincian campuran saat jeda, menyembunyikan Redo/Finish dari klien, serta mengirim tindakan host melalui koordinator.
+- ScoreView memakai satu nilai skor dari GameViewModel, menyembunyikan New Round pada klien, dan mengirim tindakan host melalui koordinator setelah jeda berakhir.
