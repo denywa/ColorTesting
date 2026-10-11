@@ -293,7 +293,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         XCTAssertEqual(second.role, .player2)
     }
 
-    private func activeGame() async throws -> (host: LocalPlayCoordinator, hostModel: GameViewModel,
+    private func joinedGame() async throws -> (host: LocalPlayCoordinator, hostModel: GameViewModel,
                                                 second: LocalPlayCoordinator, secondModel: GameViewModel,
                                                 secondTransport: FakePeerTransport,
                                                 third: LocalPlayCoordinator, thirdModel: GameViewModel,
@@ -313,9 +313,18 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             client.join(try XCTUnwrap(client.discoveredSessions.first))
             await waitUntil { client.role != nil }
         }
-        hostModel.selectModel(.ryb)
-        XCTAssertTrue(host.perform(.startRound))
         return (host, hostModel, second, secondModel, secondTransport, third, thirdModel, thirdTransport)
+    }
+
+    private func activeGame() async throws -> (host: LocalPlayCoordinator, hostModel: GameViewModel,
+                                                second: LocalPlayCoordinator, secondModel: GameViewModel,
+                                                secondTransport: FakePeerTransport,
+                                                third: LocalPlayCoordinator, thirdModel: GameViewModel,
+                                                thirdTransport: FakePeerTransport) {
+        let game = try await joinedGame()
+        game.hostModel.selectModel(.ryb)
+        XCTAssertTrue(game.host.perform(.startRound))
+        return game
     }
 
     private func input(for host: LocalPlayCoordinator, model: GameViewModel,
@@ -534,8 +543,58 @@ final class LocalPlayCoordinatorTests: XCTestCase {
     }
 
     func testHostDrivesSharedMixRedoFinishAndNewRound() async throws {
-        let game = try await activeGame()
-        await waitUntil { game.secondModel.phase == .playing && game.thirdModel.phase == .playing }
+        let game = try await joinedGame()
+        let mapper = LocalGameSnapshotMapper()
+        func assertConverged(_ phase: GamePhase) async throws {
+            let host = try mapper.makeSnapshot(from: game.hostModel, session: XCTUnwrap(game.host.session))
+            await waitUntil {
+                game.second.latestSnapshot?.snapshotRevision == host.snapshotRevision &&
+                game.third.latestSnapshot?.snapshotRevision == host.snapshotRevision
+            }
+            XCTAssertEqual(host.phase, phase)
+            XCTAssertEqual(game.hostModel.phase, phase)
+            for (client, model, role) in [(game.second, game.secondModel, SessionRole.player2),
+                                          (game.third, game.thirdModel, SessionRole.player3)] {
+                let received = try XCTUnwrap(client.latestSnapshot)
+                XCTAssertEqual(client.role, role)
+                XCTAssertEqual(client.sessionID, host.sessionID)
+                XCTAssertEqual(received.phase, host.phase)
+                XCTAssertEqual(received.roundID, host.roundID)
+                XCTAssertEqual(received.target?.id, host.target?.id)
+                XCTAssertEqual(received.target?.text, host.target?.text)
+                XCTAssertEqual(received.target?.sRGB.red, host.target?.sRGB.red)
+                XCTAssertEqual(received.target?.sRGB.green, host.target?.sRGB.green)
+                XCTAssertEqual(received.target?.sRGB.blue, host.target?.sRGB.blue)
+                XCTAssertEqual(received.timerSecondsRemaining, host.timerSecondsRemaining)
+                XCTAssertEqual(received.mixEntries.map(\.colorID), host.mixEntries.map(\.colorID))
+                XCTAssertEqual(received.mixEntries.map(\.count), host.mixEntries.map(\.count))
+                XCTAssertEqual(received.mixLocked, host.mixLocked)
+                XCTAssertEqual(received.mixResult?.red, host.mixResult?.red)
+                XCTAssertEqual(received.mixResult?.green, host.mixResult?.green)
+                XCTAssertEqual(received.mixResult?.blue, host.mixResult?.blue)
+                XCTAssertEqual(received.score, host.score)
+                XCTAssertEqual(received.seatStatus.map(\.player), host.seatStatus.map(\.player))
+                XCTAssertEqual(received.seatStatus.map(\.status), host.seatStatus.map(\.status))
+                XCTAssertEqual(model.phase, game.hostModel.phase)
+                XCTAssertEqual(model.round?.request.id, game.hostModel.round?.request.id)
+                XCTAssertEqual(model.timerSecondsRemaining, game.hostModel.timerSecondsRemaining)
+                XCTAssertEqual(model.round?.mix.units.map(\.color.id), game.hostModel.round?.mix.units.map(\.color.id))
+                XCTAssertEqual(model.mixResult, game.hostModel.mixResult)
+                XCTAssertEqual(model.score, game.hostModel.score)
+                XCTAssertEqual(client.seatStatus.map(\.status), game.host.seatStatus.map(\.status))
+            }
+        }
+        try await assertConverged(.settings)
+        game.hostModel.selectModel(.ryb)
+        XCTAssertTrue(game.hostModel.addCustomRequest(text: "Session target", hex: "#32A89B"))
+        let customTarget = try XCTUnwrap(game.hostModel.customRequests.last)
+        XCTAssertEqual(game.hostModel.selectedRequestID, customTarget.id)
+        try await assertConverged(.settings)
+        XCTAssertTrue(game.host.perform(.startRound))
+        try await assertConverged(.playing)
+        XCTAssertEqual(game.hostModel.round?.request.id, customTarget.id)
+        game.hostModel.timerTick()
+        try await assertConverged(.playing)
         let sessionID = game.host.sessionID
         let roundID = game.hostModel.roundID
         let target = game.hostModel.round?.request.id
@@ -547,10 +606,16 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         XCTAssertFalse(game.second.perform(.mix))
         XCTAssertFalse(game.third.perform(.finish))
         game.hostModel.addColor(player: .player1, slot: .primary)
+        try await assertConverged(.playing)
         game.secondModel.addColor(player: .player2, slot: .secondary)
         await waitUntil { game.hostModel.round?.mix.units.count == 2 }
+        try await assertConverged(.playing)
+        game.thirdModel.addColor(player: .player3, slot: .primary)
+        await waitUntil { game.hostModel.round?.mix.units.count == 3 }
+        try await assertConverged(.playing)
         XCTAssertTrue(game.host.perform(.mix))
         await waitUntil { game.secondModel.phase == .result && game.thirdModel.phase == .result }
+        try await assertConverged(.result)
         XCTAssertEqual(game.hostModel.phase, .result)
         XCTAssertTrue(game.hostModel.round?.mix.isLocked == true)
         XCTAssertNotNil(game.hostModel.mixResult)
@@ -565,6 +630,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(game.host.perform(.redo))
         await waitUntil { game.secondModel.phase == .playing && game.thirdModel.phase == .playing }
+        try await assertConverged(.playing)
         XCTAssertTrue(game.hostModel.round?.mix.units.isEmpty == true)
         XCTAssertNil(game.hostModel.mixResult)
         XCTAssertTrue(game.secondModel.round?.mix.units.isEmpty == true)
@@ -583,10 +649,13 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         try await game.secondTransport.send(input(for: game.host, model: game.hostModel,
                                                  player: .player2, actionID: reusedActionID), to: hostHandle)
         await waitUntil { game.hostModel.round?.mix.units.count == 1 }
+        try await assertConverged(.playing)
         XCTAssertTrue(game.host.perform(.mix))
         await waitUntil { game.secondModel.phase == .result && game.thirdModel.phase == .result }
+        try await assertConverged(.result)
         XCTAssertTrue(game.host.perform(.finish))
         await waitUntil { game.secondModel.phase == .score && game.thirdModel.phase == .score }
+        try await assertConverged(.score)
         XCTAssertNotNil(game.hostModel.score)
         XCTAssertEqual(game.secondModel.score, game.hostModel.score)
         XCTAssertEqual(game.thirdModel.score, game.hostModel.score)
@@ -596,6 +665,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(game.host.perform(.newRound))
         await waitUntil { game.secondModel.phase == .settings && game.thirdModel.phase == .settings }
+        try await assertConverged(.settings)
         XCTAssertEqual(game.host.sessionID, sessionID)
         XCTAssertEqual(game.host.session?.seats.map(\.clientID), originalSeats)
         XCTAssertEqual(game.hostModel.phase, .settings)
@@ -606,10 +676,12 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         game.hostModel.selectModel(.ryb)
         XCTAssertTrue(game.host.perform(.startRound))
         await waitUntil { game.secondModel.phase == .playing && game.thirdModel.phase == .playing }
+        try await assertConverged(.playing)
         XCTAssertNotEqual(game.hostModel.roundID, roundID)
         try await game.secondTransport.send(input(for: game.host, model: game.hostModel,
                                                  player: .player2, actionID: reusedActionID), to: hostHandle)
         await waitUntil { game.hostModel.round?.mix.units.count == 1 }
+        try await assertConverged(.playing)
     }
 
     func testHostPhaseActionsRequireActiveSeatsAndUnpausedMatchingPhase() async throws {

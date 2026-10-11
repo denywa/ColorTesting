@@ -196,7 +196,7 @@
   - _Requirements: 6.1, 6.3, 6.4, 6.5_
 
 - [ ] 6. Validasi alur, kegagalan, dan regresi
-- [ ] 6.1 Uji satu sesi lengkap dengan tiga peer palsu
+- [x] 6.1 Uji satu sesi lengkap dengan tiga peer palsu
   - Jalankan host dan dua klien melalui gabung, pengaturan, input, Mix, Redo, Finish, dan New Round.
   - Bandingkan fase, target, timer, campuran, hasil, skor, dan kursi pada seluruh peer setelah setiap transisi.
   - Selesai ketika pengujian integrasi membuktikan ketiga peer konvergen dan sesi tetap hidup pada ronde berikutnya.
