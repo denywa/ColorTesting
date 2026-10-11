@@ -621,7 +621,10 @@ final class LocalPlayCoordinatorTests: XCTestCase {
                 XCTAssertEqual(model.phase, game.hostModel.phase)
                 XCTAssertEqual(model.round?.request.id, game.hostModel.round?.request.id)
                 XCTAssertEqual(model.timerSecondsRemaining, game.hostModel.timerSecondsRemaining)
-                XCTAssertEqual(model.round?.mix.units.map(\.color.id), game.hostModel.round?.mix.units.map(\.color.id))
+                let reconstructed = try mapper.makeSnapshot(from: model,
+                                                            session: XCTUnwrap(game.host.session)).mixEntries
+                XCTAssertEqual(reconstructed.map(\.colorID), host.mixEntries.map(\.colorID))
+                XCTAssertEqual(reconstructed.map(\.count), host.mixEntries.map(\.count))
                 XCTAssertEqual(model.mixResult, game.hostModel.mixResult)
                 XCTAssertEqual(model.score, game.hostModel.score)
                 XCTAssertEqual(client.seatStatus.map(\.status), game.host.seatStatus.map(\.status))
@@ -662,8 +665,6 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         XCTAssertEqual(game.hostModel.phase, .result)
         XCTAssertTrue(game.hostModel.round?.mix.isLocked == true)
         XCTAssertNotNil(game.hostModel.mixResult)
-        XCTAssertEqual(game.secondModel.round?.mix.units.map(\.color.id), game.hostModel.round?.mix.units.map(\.color.id))
-        XCTAssertEqual(game.thirdModel.round?.mix.units.map(\.color.id), game.hostModel.round?.mix.units.map(\.color.id))
         XCTAssertEqual(game.secondModel.mixResult, game.hostModel.mixResult)
         XCTAssertEqual(game.thirdModel.mixResult, game.hostModel.mixResult)
         XCTAssertEqual(game.secondModel.timerSecondsRemaining, remaining)
@@ -782,16 +783,33 @@ final class LocalPlayCoordinatorTests: XCTestCase {
 
     func testBackgroundPauseFlushesSnapshotAndRequiresForeground() async throws {
         let game = try await activeGame()
+        await waitUntil { game.secondModel.phase == .playing && game.thirdModel.phase == .playing }
+        game.secondModel.addColor(player: .player2, slot: .primary)
+        await waitUntil { game.hostModel.round?.mix.units.count == 1 && game.thirdModel.round?.mix.units.count == 1 }
+        let roundID = game.hostModel.roundID
+        let mix = game.hostModel.round?.mix.units.map(\.color.id)
         let remaining = game.hostModel.timerSecondsRemaining
         await game.host.hostDidEnterBackground()
         XCTAssertTrue(game.host.paused)
         XCTAssertTrue(game.second.latestSnapshot?.paused == true)
         XCTAssertTrue(game.third.latestSnapshot?.paused == true)
         XCTAssertEqual(game.second.latestSnapshot?.snapshotRevision, game.host.session?.snapshotRevision)
+        XCTAssertEqual(game.second.latestSnapshot?.phase, .playing)
+        XCTAssertEqual(game.second.latestSnapshot?.roundID, roundID)
+        XCTAssertEqual(game.secondModel.round?.mix.units.map(\.color.id), mix)
+        XCTAssertEqual(game.thirdModel.round?.mix.units.map(\.color.id), mix)
+        XCTAssertEqual(game.secondModel.timerSecondsRemaining, remaining)
         game.host.setPaused(false)
         XCTAssertTrue(game.host.paused)
         XCTAssertFalse(game.host.perform(.mix))
+        XCTAssertFalse(game.second.perform(.addColor(slot: .primary,
+            observedColorID: game.secondModel.round!.assignments[.player2]!.primaryColor.id,
+            assignmentEpoch: game.secondModel.assignmentEpoch!)))
         XCTAssertEqual(game.hostModel.timerSecondsRemaining, remaining)
+        let resumesBeforeForeground = game.secondTransport.resumeCount
+        game.second.appDidBecomeActive()
+        XCTAssertEqual(game.secondTransport.resumeCount, resumesBeforeForeground + 1)
+        XCTAssertTrue(game.second.paused)
         game.secondTransport.stop()
         game.second.startBrowsing()
         game.second.join(try XCTUnwrap(game.second.discoveredSessions.first))
@@ -802,6 +820,56 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         await waitUntil { game.second.latestSnapshot?.paused == false && game.third.latestSnapshot?.paused == false }
         XCTAssertFalse(game.host.paused)
         XCTAssertEqual(game.hostModel.timerSecondsRemaining, remaining)
+        XCTAssertEqual(game.secondModel.round?.mix.units.map(\.color.id), mix)
+    }
+
+    func testHostDisconnectPausesClientsUntilTheyLeave() async throws {
+        let network = FakePeerNetwork()
+        let hostModel = GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let hostTransport = network.makePeer()
+        let host = LocalPlayCoordinator(viewModel: hostModel, transport: hostTransport)
+        let secondModel = GameViewModel(requestDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let secondTransport = network.makePeer()
+        let second = LocalPlayCoordinator(viewModel: secondModel, transport: secondTransport)
+        let third = makeCoordinator(network)
+        try host.startHosting()
+        for client in [second, third] {
+            client.startBrowsing()
+            client.join(try XCTUnwrap(client.discoveredSessions.first))
+            await waitUntil { client.role != nil && client.latestSnapshot != nil }
+        }
+        hostModel.selectModel(.ryb)
+        XCTAssertTrue(host.perform(.startRound))
+        await waitUntil { secondModel.phase == .playing && third.latestSnapshot?.phase == .playing }
+        secondModel.addColor(player: .player2, slot: .primary)
+        await waitUntil { hostModel.round?.mix.units.count == 1 && third.latestSnapshot?.mixEntries.count == 1 }
+        let roundID = hostModel.roundID
+        let mix = hostModel.round?.mix.units.map(\.color.id)
+        let remaining = hostModel.timerSecondsRemaining
+
+        hostTransport.stop()
+        XCTAssertTrue(host.paused)
+        XCTAssertEqual(second.connectionStatus, .disconnected)
+        XCTAssertEqual(third.connectionStatus, .disconnected)
+        XCTAssertTrue(second.paused)
+        XCTAssertTrue(third.paused)
+        XCTAssertFalse(host.perform(.mix))
+        XCTAssertFalse(second.perform(.addColor(slot: .primary,
+            observedColorID: secondModel.round!.assignments[.player2]!.primaryColor.id,
+            assignmentEpoch: secondModel.assignmentEpoch!)))
+        let resumeCount = secondTransport.resumeCount
+        second.appDidBecomeActive()
+        XCTAssertEqual(secondTransport.resumeCount, resumeCount + 1)
+        XCTAssertTrue(second.paused)
+        XCTAssertEqual(hostModel.roundID, roundID)
+        XCTAssertEqual(hostModel.round?.mix.units.map(\.color.id), mix)
+        XCTAssertEqual(hostModel.timerSecondsRemaining, remaining)
+
+        await second.leaveSession()
+        XCTAssertEqual(second.mode, .singleDevice)
+        XCTAssertNil(second.sessionID)
+        XCTAssertNil(secondModel.roundID)
+        XCTAssertEqual(hostModel.round?.mix.units.map(\.color.id), mix)
     }
 
     func testReconnectWaitsForFullSnapshotDeliveryBeforeHostResumes() async throws {

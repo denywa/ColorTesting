@@ -210,7 +210,7 @@
   - _Boundary: LocalPlayCoordinatorTests_
   - _Depends: 6.1_
   - _Requirements: 1.6, 3.3, 3.5, 3.6, 4.3, 4.4_
-- [ ] 6.3 Uji jeda dan pemulihan koneksi secara deterministik
+- [x] 6.3 Uji jeda dan pemulihan koneksi secara deterministik
   - Simulasikan tamu atau host terputus, heartbeat habis, host masuk latar belakang, klien kembali ke depan, dan penolakan input serta perpindahan fase selama jeda.
   - Sambungkan kembali kursi yang sama atau pilih Keluar, lalu periksa campuran, fase, dan sisa waktu.
   - Selesai ketika timer tidak maju saat jeda, host mengirim keadaan jeda sebelum ditangguhkan, dan pemulihan tidak kehilangan kontribusi yang sudah diterima host.
