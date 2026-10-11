@@ -217,7 +217,7 @@
   - _Boundary: LocalPlayCoordinatorTests_
   - _Depends: 1.5, 5.4, 6.1_
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.7_
-- [ ] 6.4 Jalankan regresi antarmuka dan build kedua platform
+- [x] 6.4 Jalankan regresi antarmuka dan build kedua platform
   - Periksa pilihan mode, status lobi, kendali host, dua input lokal, serta keterbacaan status jeda.
   - Jalankan suite macOS yang ada dan build target iOS; periksa bahwa mode satu perangkat masih melalui alur lama.
   - Selesai ketika pengujian rendering/flow yang relevan lulus dan kedua target berhasil dibangun dengan konfigurasi jaringan yang benar.
@@ -234,6 +234,7 @@
 
 ## Implementation Notes
 
+- Verifikasi 6.4: 139 tes macOS lulus tanpa kegagalan atau skip, build iOS berhasil, dan plist hasil build kedua platform memuat layanan Bonjour `_colorgame._tcp` serta alasan izin jaringan lokal. Hak sandbox, klien, dan server jaringan macOS tersedia pada berkas entitlement sumber; penandatanganan build uji dinonaktifkan.
 - Jalur input sentuh/keyboard dan Mix sudah terhubung oleh tugas sebelumnya; tes integrasi tiga peer memverifikasi satu campuran host, snapshot klien, batas peran, dan jeda tanpa perubahan kode produksi.
 - Baseline macOS sebelum implementasi: 58 tes lulus dan 3 gagal pada ColorDataTests, GameViewRenderingTests, serta ColorMixerTests. Task 1.1 memulihkan baseline; suite macOS penuh lulus pada verifikasi ulang setelah nilai Lavender C8B4F4 dan tiga tes diselaraskan.
 - NSBonjourServices harus berasal dari plist sumber agar hasil build tetap berupa array; hak jaringan macOS tetap mempertahankan sandbox dan akses baca berkas pilihan pengguna.
