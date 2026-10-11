@@ -187,7 +187,7 @@
   - _Boundary: ContentView, LocalPlayCoordinator, ResultView, ScoreView_
   - _Depends: 3.5, 3.7, 4.5, 4.6, 5.2_
   - _Requirements: 5.3, 5.4, 5.5, 5.6, 6.6, 6.7_
-- [ ] 5.4 Hubungkan siklus hidup aplikasi dengan jeda dan sambung ulang sesi
+- [x] 5.4 Hubungkan siklus hidup aplikasi dengan jeda dan sambung ulang sesi
   - Teruskan perubahan aktif/latar belakang aplikasi ke koordinator: host menjeda sebelum ditangguhkan, sedangkan klien yang kembali ke depan mencoba menyambung ulang.
   - Pertahankan tampilan jeda dan identitas kursi saat aplikasi kembali aktif; lanjutkan ronde hanya setelah host memulihkan tiga kursi.
   - Selesai ketika memindahkan host atau klien ke latar belakang lalu kembali ke depan tidak memajukan timer selama jeda dan seluruh perangkat kembali ke keadaan bersama yang sama.

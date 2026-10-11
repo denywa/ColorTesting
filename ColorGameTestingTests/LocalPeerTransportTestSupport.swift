@@ -64,6 +64,7 @@ final class FakePeerNetwork {
 @MainActor
 final class FakePeerTransport: LocalPeerTransport {
     var onEvent: (@MainActor (TransportEvent) -> Void)?
+    private(set) var resumeCount = 0
     let handle = PeerHandle(id: UUID())
     fileprivate var hostedSession: DiscoveredSession?
     var connected: Set<PeerHandle> = []
@@ -79,7 +80,7 @@ final class FakePeerTransport: LocalPeerTransport {
     }
     func disconnect(_ peer: PeerHandle) { network.disconnect(self, from: peer) }
     func startHeartbeats(sessionID: UUID) {}
-    func resume() {}
+    func resume() { resumeCount += 1 }
     func stop() { network.disconnect(self) }
 }
 

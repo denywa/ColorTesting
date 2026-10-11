@@ -330,9 +330,18 @@ final class LocalPlayCoordinator {
     }
 
     func hostDidEnterBackground() async {
+        hostWillEnterBackground()
+        await flushBackgroundSnapshot()
+    }
+
+    func hostWillEnterBackground() {
         guard role == .host else { return }
         hostIsForeground = false
         refreshPause()
+    }
+
+    func flushBackgroundSnapshot() async {
+        guard role == .host else { return }
         for task in Array(outboundTasks.values) { await task.value }
     }
 

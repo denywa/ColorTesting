@@ -25,6 +25,9 @@ final class ContentViewTests: XCTestCase {
         XCTAssertTrue(transport.connected.isEmpty)
         XCTAssertNil(coordinator.sessionID)
         XCTAssertEqual(model.phase, .settings)
+        content.handleScenePhaseChange(.inactive)
+        content.handleScenePhaseChange(.active)
+        XCTAssertEqual(transport.resumeCount, 0)
     }
 
     func testThreeDeviceRouteShowsLobbyThenHostSettingsAndGuestStatus() async throws {
@@ -112,6 +115,76 @@ final class ContentViewTests: XCTestCase {
         XCTAssertEqual(ContentView(viewModel: guestModel, coordinator: guest,
                                    selectedMode: .threeDevices).localSessionExitTitle,
                        "Leave Session")
+    }
+
+    func testSceneLifecyclePausesHostAndRecoversExistingSeats() async throws {
+        let network = FakePeerNetwork()
+        let hostModel = GameViewModel()
+        let hostTransport = network.makePeer()
+        let host = LocalPlayCoordinator(viewModel: hostModel, transport: hostTransport)
+        let secondModel = GameViewModel()
+        let secondTransport = network.makePeer()
+        let second = LocalPlayCoordinator(viewModel: secondModel, transport: secondTransport)
+        let third = LocalPlayCoordinator(viewModel: GameViewModel(), transport: network.makePeer())
+
+        try host.startHosting()
+        for client in [second, third] {
+            client.startBrowsing()
+            client.join(try XCTUnwrap(client.discoveredSessions.first))
+            for _ in 0..<100 where client.role == nil {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+        }
+        XCTAssertEqual(second.role, .player2)
+        hostModel.selectModel(.ryb)
+        XCTAssertTrue(host.perform(.startRound))
+        let roundID = hostModel.roundID
+        let remaining = hostModel.timerSecondsRemaining
+        let secondSeatID = host.session?.seats.first { $0.role == .player2 }?.clientID
+        let hostContent = ContentView(viewModel: hostModel, coordinator: host,
+                                      selectedMode: .threeDevices)
+        let secondContent = ContentView(viewModel: secondModel, coordinator: second,
+                                        selectedMode: .threeDevices)
+        let hostView = NSHostingView(rootView: hostContent.environment(\.scenePhase, .active))
+        let secondView = NSHostingView(rootView: secondContent.environment(\.scenePhase, .background))
+        hostView.frame = NSRect(x: 0, y: 0, width: 720, height: 600)
+        secondView.frame = hostView.frame
+        hostView.layoutSubtreeIfNeeded()
+        secondView.layoutSubtreeIfNeeded()
+
+        hostView.rootView = hostContent.environment(\.scenePhase, .inactive)
+        hostView.layoutSubtreeIfNeeded()
+        XCTAssertTrue(host.paused, "The host timer must pause before asynchronous snapshot delivery")
+        XCTAssertEqual(hostModel.timerSecondsRemaining, remaining)
+        hostView.rootView = hostContent.environment(\.scenePhase, .background)
+        hostView.layoutSubtreeIfNeeded()
+        for _ in 0..<100 where second.latestSnapshot?.paused != true {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(second.paused)
+
+        secondTransport.stop()
+        hostView.rootView = hostContent.environment(\.scenePhase, .active)
+        hostView.layoutSubtreeIfNeeded()
+        XCTAssertTrue(host.paused, "The host must wait for the disconnected seat")
+        XCTAssertEqual(hostModel.timerSecondsRemaining, remaining)
+        secondView.rootView = secondContent.environment(\.scenePhase, .active)
+        secondView.layoutSubtreeIfNeeded()
+        XCTAssertEqual(secondTransport.resumeCount, 1)
+        XCTAssertEqual(second.role, .player2)
+        second.startBrowsing()
+        second.join(try XCTUnwrap(second.discoveredSessions.first))
+        for _ in 0..<100 where host.paused || second.paused {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(host.paused)
+        XCTAssertFalse(second.paused)
+        XCTAssertEqual(second.role, .player2)
+        XCTAssertEqual(host.session?.seats.first { $0.role == .player2 }?.clientID, secondSeatID)
+        XCTAssertEqual(hostModel.roundID, roundID)
+        XCTAssertEqual(secondModel.roundID, roundID)
+        XCTAssertEqual(hostModel.timerSecondsRemaining, remaining)
+        XCTAssertEqual(secondModel.timerSecondsRemaining, remaining)
     }
 
     private func renderedPixels<Content: View>(of content: Content) throws -> Data {
