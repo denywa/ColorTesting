@@ -415,14 +415,57 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         XCTAssertEqual(game.hostModel.round?.mix.units.count, 1)
     }
 
-    func testEarlierAssignmentEpochUsesColorVisibleBeforeReassignment() async throws {
-        let game = try await activeGame()
-        let old = input(for: game.host, model: game.hostModel, player: .player2)
-        let oldColor = game.hostModel.round!.assignments[.player2]!.primaryColor.id
-        game.hostModel.triggerReassignment()
+    func testInputAtTimerBoundaryUsesObservedAssignmentAndPeerSeat() async throws {
+        let game = try await joinedGame()
+        game.hostModel.selectModel(.ryb)
+        game.hostModel.reassignmentDuration = 1
+        XCTAssertTrue(game.host.perform(.startRound))
+
+        var boundary: (epoch: Int, second: PlayerAssignment, third: PlayerAssignment,
+                       input: WireMessage)?
+        for _ in 0..<20 {
+            let epoch = try XCTUnwrap(game.hostModel.assignmentEpoch)
+            let second = try XCTUnwrap(game.hostModel.round?.assignments[.player2])
+            let third = try XCTUnwrap(game.hostModel.round?.assignments[.player3])
+            let oldInput = input(for: game.host, model: game.hostModel, player: .player2)
+            game.hostModel.timerTick()
+            if game.hostModel.round?.assignments[.player2]?.primaryColor.id != second.primaryColor.id {
+                boundary = (epoch, second, third, oldInput)
+                break
+            }
+        }
+        let changed = try XCTUnwrap(boundary, "Expected a changed primary color within 20 timer boundaries")
+        let oldColor = changed.second.primaryColor.id
         let hostHandle = try XCTUnwrap(game.secondTransport.connected.first)
-        try await game.secondTransport.send(old, to: hostHandle)
+
+        XCTAssertNotEqual(game.hostModel.round?.assignments[.player2]?.primaryColor.id, oldColor)
+        XCTAssertEqual(game.hostModel.assignmentEpoch, changed.epoch + 1)
+        XCTAssertEqual(game.hostModel.timerSecondsRemaining, 1)
+        try await game.secondTransport.send(changed.input, to: hostHandle)
         XCTAssertEqual(game.hostModel.round?.mix.units.map(\.color.id), [oldColor])
+
+        let wrongColor = try XCTUnwrap(ColorData.colors(for: .ryb).first { $0.id != oldColor })
+        try await game.secondTransport.send(input(for: game.host, model: game.hostModel,
+                                                 player: .player2, epoch: changed.epoch,
+                                                 colorID: wrongColor.id), to: hostHandle)
+        let thirdSlot: ColorSlot = changed.third.primaryColor.id == changed.second.primaryColor.id
+            ? .secondary : .primary
+        let thirdColor = thirdSlot == .primary ? changed.third.primaryColor : changed.third.secondaryColor
+        let secondColor = thirdSlot == .primary ? changed.second.primaryColor : changed.second.secondaryColor
+        XCTAssertNotEqual(thirdColor.id, secondColor.id)
+        try await game.secondTransport.send(input(for: game.host, model: game.hostModel,
+                                                 player: .player3, slot: thirdSlot,
+                                                 epoch: changed.epoch,
+                                                 colorID: thirdColor.id), to: hostHandle)
+        XCTAssertEqual(game.hostModel.round?.mix.units.map(\.color.id), [oldColor])
+
+        try await game.secondTransport.send(changed.input, to: hostHandle)
+        XCTAssertEqual(game.hostModel.round?.mix.units.map(\.color.id), [oldColor])
+        let newInput = input(for: game.host, model: game.hostModel, player: .player2)
+        try await game.secondTransport.send(newInput, to: hostHandle)
+        XCTAssertEqual(game.hostModel.round?.mix.units.map(\.color.id), [
+            oldColor, game.hostModel.round!.assignments[.player2]!.primaryColor.id
+        ])
     }
 
     func testLocalInputsAreRestrictedToOwnTwoSlots() async throws {

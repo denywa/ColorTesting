@@ -203,7 +203,7 @@
   - _Boundary: LocalPlayCoordinatorTests_
   - _Depends: 5.3_
   - _Requirements: 1.3, 2.2, 2.3, 3.4, 4.1, 5.2, 5.3, 5.4, 5.5, 7.2_
-- [ ] 6.2 Uji batas input, duplikat, dan pergantian warna
+- [x] 6.2 Uji batas input, duplikat, dan pergantian warna
   - Simulasikan input serentak/duplikat, perubahan warna tepat di batas timer, perangkat keempat, dan snapshot lama.
   - Pastikan identitas kursi dan revisi penugasan mencegah warna atau pemain yang salah mengubah campuran.
   - Selesai ketika tiap kontribusi sah masuk tepat sekali, perangkat keempat ditolak, dan snapshot lama tidak mengganti keadaan terbaru.
