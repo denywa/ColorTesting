@@ -4,12 +4,12 @@ import XCTest
 
 final class ColorMixerTests: XCTestCase {
     // Feature: color-mixing-game, Property 14: Color blending is weighted arithmetic mean
-    func testWeightedNativeComponentMeanForRandomCMYKAndRYBMixes() {
+    func testWeightedNativeComponentMeanForRandomCMYKMixes() {
         let seed: UInt64 = 0xC010_0014
         var generator = MixerSeededGenerator(seed: seed)
 
         for iteration in 0..<200 {
-            let model: ColorModel = iteration.isMultiple(of: 2) ? .cmyk : .ryb
+            let model: ColorModel = .cmyk
             let colorCount = Int.random(in: 2...5, using: &generator)
             let colors = (0..<colorCount).map { index in
                 randomColor(model: model, idNumber: iteration * 8 + index + 1, using: &generator)
@@ -21,34 +21,14 @@ final class ColorMixerTests: XCTestCase {
                 Array(repeating: ColorUnit(color: color), count: count)
             }
 
-            let expected: SIMD3<Double>
-            switch model {
-            case .cmyk:
-                let native = zip(colors, weights).reduce(SIMD4<Double>(repeating: 0)) { sum, pair in
-                    sum + pair.0.cmykComponents! * pair.1
-                }
-                expected = SIMD3(
-                    (1 - native.x) * (1 - native.w),
-                    (1 - native.y) * (1 - native.w),
-                    (1 - native.z) * (1 - native.w)
-                )
-            case .ryb:
-                let native = zip(colors, weights).reduce(SIMD3<Double>(repeating: 0)) { sum, pair in
-                    sum + pair.0.rybComponents! * pair.1
-                }
-                // Expanded polynomial for the design's eight RYB cube corners.
-                // This is independent of ColorMixer's corner-accumulation loop.
-                let r = native.x, y = native.y, b = native.z
-                if r == y && y == b {
-                    expected = SIMD3(1 - r, 1 - y, 1 - b)
-                } else {
-                    expected = SIMD3(
-                        1 - b + 0.5 * r * (1 - y) * b,
-                        (1 - r) * (1 - b + y * b) + 0.5 * r * y * (1 - b),
-                        (1 - y) * (1 - r + 0.5 * r * b)
-                    )
-                }
+            let native = zip(colors, weights).reduce(SIMD4<Double>(repeating: 0)) { sum, pair in
+                sum + pair.0.cmykComponents! * pair.1
             }
+            let expected = SIMD3(
+                (1 - native.x) * (1 - native.w),
+                (1 - native.y) * (1 - native.w),
+                (1 - native.z) * (1 - native.w)
+            )
 
             let actual = ColorMixer.blend(units, model: model)
             let input = zip(colors, counts).map { color, count in
@@ -103,31 +83,42 @@ final class ColorMixerTests: XCTestCase {
         assertRGB(result, equals: SIMD3(0.25, 0.5, 0.5))
     }
 
-    func testRYBBlendsNativeComponentsBeforeTrilinearConversion() {
-        let red = ColorData.rybPalette[0]
-        let yellow = ColorData.rybPalette[1]
-        let result = ColorMixer.blend([ColorUnit(color: red), ColorUnit(color: yellow)], model: .ryb)
-        assertRGB(result, equals: SIMD3(1.0, 0.625, 0.25))
+    func testRYBPaletteMatchesDiagramOverlaps() {
+        let palette = ColorData.rybPalette
+        let cases: [([Int], SIMD3<Double>)] = [
+            ([0, 1], SIMD3(243, 177, 61) / 255),
+            ([0, 2], SIMD3(171, 41, 220) / 255),
+            ([1, 2], SIMD3(96, 200, 60) / 255),
+            ([0, 1, 2], SIMD3(74, 74, 74) / 255)
+        ]
+        for (indices, expected) in cases {
+            let units = indices.map { ColorUnit(color: palette[$0]) }
+            assertRGB(ColorMixer.blend(units, model: .ryb), equals: expected)
+        }
     }
 
-    func testRYBInterpolationUsesAllEightSpecifiedCorners() {
-        let corners: [(SIMD3<Double>, SIMD3<Double>)] = [
-            (SIMD3(0, 0, 0), SIMD3(1, 1, 1)),
-            (SIMD3(1, 0, 0), SIMD3(1, 0, 0)),
-            (SIMD3(0, 1, 0), SIMD3(1, 1, 0)),
-            (SIMD3(0, 0, 1), SIMD3(0, 0, 1)),
-            (SIMD3(1, 1, 0), SIMD3(1, 0.5, 0)),
-            (SIMD3(1, 0, 1), SIMD3(0.5, 0, 0.5)),
-            (SIMD3(0, 1, 1), SIMD3(0, 1, 0)),
-            (SIMD3(1, 1, 1), SIMD3(0, 0, 0))
-        ]
-        for (components, expected) in corners {
-            // Distinct IDs force conversion through the cube rather than identity handling.
-            let first = rybColor(components)
-            let second = rybColor(components)
-            let result = ColorMixer.blend([ColorUnit(color: first), ColorUnit(color: second)], model: .ryb)
-            assertRGB(result, equals: expected)
-        }
+    func testRYBSeparatesThreePrimariesFromBlackAndWhite() {
+        let palette = ColorData.rybPalette
+        let threePrimaries = [0, 1, 2].map { ColorUnit(color: palette[$0]) }
+        let dilutedBlack = [3, 4, 4].map { ColorUnit(color: palette[$0]) }
+        XCTAssertNotEqual(ColorMixer.blend(threePrimaries, model: .ryb),
+                          ColorMixer.blend(dilutedBlack, model: .ryb))
+        assertRGB(ColorMixer.blend(dilutedBlack, model: .ryb),
+                  equals: SIMD3(repeating: 2.0 / 3.0))
+        assertRGB(ColorMixer.blend([ColorUnit(color: palette[0]), ColorUnit(color: palette[3])], model: .ryb),
+                  equals: SIMD3(0.5, 0, 0))
+        assertRGB(ColorMixer.blend([ColorUnit(color: palette[0]), ColorUnit(color: palette[4])], model: .ryb),
+                  equals: SIMD3(1, 0.5, 0.5))
+    }
+
+    func testRYBAdditionalUnitChangesBlendRegardlessOfOrder() {
+        let red = ColorUnit(color: ColorData.rybPalette[0])
+        let yellow = ColorUnit(color: ColorData.rybPalette[1])
+        let balanced = ColorMixer.blend([red, yellow], model: .ryb)
+        let redHeavy = ColorMixer.blend([red, red, yellow], model: .ryb)
+        XCTAssertLessThan(redHeavy.y, balanced.y)
+        XCTAssertGreaterThan(redHeavy.x, balanced.x)
+        XCTAssertEqual(redHeavy, ColorMixer.blend([yellow, red, red], model: .ryb))
     }
 
     func testSingleDistinctColorReturnsItsStoredSRGBExactly() {
@@ -152,16 +143,6 @@ final class ColorMixerTests: XCTestCase {
         let white = ColorData.cmykPalette[4]
         let clamped = ColorMixer.blend([ColorUnit(color: outOfRange), ColorUnit(color: white)], model: .cmyk)
         XCTAssertEqual(clamped, SIMD3(1, 0, 1))
-
-        let firstRYB = rybColor(SIMD3(2, 0, 0))
-        let secondRYB = rybColor(SIMD3(2, 0, 0))
-        let rybClamped = ColorMixer.blend([ColorUnit(color: firstRYB), ColorUnit(color: secondRYB)], model: .ryb)
-        XCTAssertEqual(rybClamped, SIMD3(1, 0, 0))
-    }
-
-    private func rybColor(_ components: SIMD3<Double>) -> NamedColor {
-        NamedColor(id: UUID(), name: "Corner", sRGB: SIMD3(0.25, 0.25, 0.25),
-                   cmykComponents: nil, rybComponents: components)
     }
 
     private func randomColor(

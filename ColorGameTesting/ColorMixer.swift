@@ -25,42 +25,55 @@ enum ColorMixer {
                 (1 - blend.z) * (1 - blend.w)
             )
         case .ryb:
-            var sum = SIMD3<Double>(0, 0, 0)
-            for unit in units {
-                guard let components = unit.color.rybComponents else {
-                    preconditionFailure("RYB mix contains a color without RYB components")
-                }
-                sum += components
-            }
-            let blend = sum / count
-            result = rybToSRGB(blend)
+            result = rybToSRGB(units)
         }
         return SIMD3((0..<3).map { min(1, max(0, result[$0])) })
     }
 
-    private static func rybToSRGB(_ components: SIMD3<Double>) -> SIMD3<Double> {
-        if components.x == components.y && components.y == components.z {
-            return SIMD3(1 - components.x, 1 - components.y, 1 - components.z)
+    private static func rybToSRGB(_ units: [ColorUnit]) -> SIMD3<Double> {
+        var primaries = SIMD3<Double>(repeating: 0)
+        var primaryCount = 0.0
+        var whiteCount = 0.0
+        for unit in units {
+            guard let components = unit.color.rybComponents else {
+                preconditionFailure("RYB mix contains a color without RYB components")
+            }
+            if components == SIMD3(repeating: 0) {
+                whiteCount += 1
+            } else if components != SIMD3(repeating: 1) {
+                primaries += components
+                primaryCount += 1
+            }
         }
 
-        let corners: [(r: Int, y: Int, b: Int, rgb: SIMD3<Double>)] = [
-            (0, 0, 0, SIMD3(1, 1, 1)),
-            (1, 0, 0, SIMD3(1, 0, 0)),
-            (0, 1, 0, SIMD3(1, 1, 0)),
-            (0, 0, 1, SIMD3(0, 0, 1)),
-            (1, 1, 0, SIMD3(1, 0.5, 0)),
-            (1, 0, 1, SIMD3(0.5, 0, 0.5)),
-            (0, 1, 1, SIMD3(0, 1, 0)),
-            (1, 1, 1, SIMD3(0, 0, 0))
-        ]
+        let count = Double(units.count)
+        guard primaryCount > 0 else { return SIMD3(repeating: whiteCount / count) }
 
-        var rgb = SIMD3<Double>(0, 0, 0)
-        for corner in corners {
-            let rWeight = corner.r == 1 ? components.x : 1 - components.x
-            let yWeight = corner.y == 1 ? components.y : 1 - components.y
-            let bWeight = corner.b == 1 ? components.z : 1 - components.z
-            rgb += corner.rgb * (rWeight * yWeight * bWeight)
+        let shares = primaries / (primaries.x + primaries.y + primaries.z)
+        let center = min(shares.x, min(shares.y, shares.z))
+        let centerWeight = 3 * center
+        let residual = shares - SIMD3(repeating: center)
+        let palette = ColorData.rybPalette
+        let red = palette[0].sRGB, yellow = palette[1].sRGB, blue = palette[2].sRGB
+        let first: SIMD3<Double>, middle: SIMD3<Double>, last: SIMD3<Double>, lastWeight: Double
+        // The overlap colors match the reference diagram while palette colors stay unchanged.
+        if shares.z == center {
+            first = red; middle = SIMD3(243, 177, 61) / 255; last = yellow
+            lastWeight = residual.y
+        } else if shares.y == center {
+            first = red; middle = SIMD3(171, 41, 220) / 255; last = blue
+            lastWeight = residual.z
+        } else {
+            first = yellow; middle = SIMD3(96, 200, 60) / 255; last = blue
+            lastWeight = residual.z
         }
-        return rgb
+
+        let edgeTotal = residual.x + residual.y + residual.z
+        let edgeFraction = edgeTotal > 0 ? lastWeight / edgeTotal : 0
+        let edge = edgeFraction <= 0.5
+            ? first + (middle - first) * (2 * edgeFraction)
+            : middle + (last - middle) * (2 * edgeFraction - 1)
+        let color = edge * (1 - centerWeight) + SIMD3(74, 74, 74) / 255 * centerWeight
+        return color * (primaryCount / count) + SIMD3(repeating: whiteCount / count)
     }
 }
