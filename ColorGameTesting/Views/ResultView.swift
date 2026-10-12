@@ -2,6 +2,40 @@ import SwiftUI
 
 struct ResultView: View {
     let viewModel: GameViewModel
+    let coordinator: LocalPlayCoordinator?
+
+    init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil) {
+        self.viewModel = viewModel
+        self.coordinator = coordinator
+    }
+
+    var showsActions: Bool {
+        coordinator == nil || coordinator?.role == .host
+    }
+    var actionsDisabled: Bool { coordinator?.paused == true }
+    var pauseStatus: String? {
+        guard coordinator?.paused == true else { return nil }
+        if let missing = coordinator?.seatStatus.first(where: { $0.status == .disconnected }) {
+            let number = (PlayerID.allCases.firstIndex(of: missing.player) ?? 0) + 1
+            return "Paused — waiting for Player \(number) to reconnect"
+        }
+        return "Paused — waiting for connection"
+    }
+
+    func redo() {
+        if let coordinator {
+            coordinator.perform(.redo)
+        } else {
+            viewModel.selectRedo()
+        }
+    }
+    func finish() {
+        if let coordinator {
+            coordinator.perform(.finish)
+        } else {
+            viewModel.selectFinish()
+        }
+    }
 
     static func breakdown(for mix: Mix) -> [(color: NamedColor, percentage: Double, count: Int)] {
         var colors: [NamedColor] = []
@@ -28,6 +62,12 @@ struct ResultView: View {
                     Text("Your Mix")
                         .font(.largeTitle)
                         .bold()
+
+                    if let pauseStatus {
+                        Text(pauseStatus)
+                            .font(.headline)
+                            .accessibilityLabel(pauseStatus)
+                    }
 
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color(red: result.x, green: result.y, blue: result.z))
@@ -72,15 +112,18 @@ struct ResultView: View {
                     }
                     .font(.body)
 
-                    HStack(spacing: 16) {
-                        Button("Redo", action: viewModel.selectRedo)
-                            .buttonStyle(.bordered)
-                        Button("Finish", action: viewModel.selectFinish)
-                            .buttonStyle(.borderedProminent)
+                    if showsActions {
+                        HStack(spacing: 16) {
+                            Button("Redo", action: redo)
+                                .buttonStyle(.bordered)
+                            Button("Finish", action: finish)
+                                .buttonStyle(.borderedProminent)
+                        }
+                        .font(.headline)
+                        .controlSize(.large)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .disabled(actionsDisabled)
                     }
-                    .font(.headline)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .padding()
                 .frame(maxWidth: 760)

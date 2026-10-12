@@ -1,0 +1,22 @@
+{
+  "feature_name": "color-mixing-and-scoring",
+  "created_at": "2026-10-12T01:35:53+07:00",
+  "updated_at": "2026-10-12T01:50:10+07:00",
+  "language": "en",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": false
+}

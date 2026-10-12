@@ -2,6 +2,51 @@ import SwiftUI
 
 struct GameView: View {
     let viewModel: GameViewModel
+    let coordinator: LocalPlayCoordinator?
+
+    init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil) {
+        self.viewModel = viewModel
+        self.coordinator = coordinator
+    }
+
+    var visiblePlayers: [PlayerID] {
+        guard let coordinator else { return PlayerID.allCases }
+        return coordinator.role.map { [$0.playerID] } ?? []
+    }
+
+    var inputsDisabled: Bool { coordinator?.paused == true }
+    var showsMixButton: Bool { coordinator == nil || coordinator?.role == .host }
+
+    var canMix: Bool {
+        !(viewModel.round?.mix.units.isEmpty ?? true) &&
+        (coordinator == nil || (coordinator?.role == .host && !inputsDisabled))
+    }
+
+    func mix() {
+        if let coordinator {
+            _ = coordinator.perform(.mix)
+        } else {
+            viewModel.pressMixButton()
+        }
+    }
+
+    private var roleTitle: String? {
+        switch coordinator?.role {
+        case .host: "Player 1 (Host)"
+        case .player2: "Player 2"
+        case .player3: "Player 3"
+        case nil: nil
+        }
+    }
+
+    private var pauseStatus: String? {
+        guard coordinator?.paused == true else { return nil }
+        if let missing = coordinator?.seatStatus.first(where: { $0.status == .disconnected }) {
+            let number = (PlayerID.allCases.firstIndex(of: missing.player) ?? 0) + 1
+            return "Paused — waiting for Player \(number) to reconnect"
+        }
+        return "Paused — waiting for connection"
+    }
 
     private var chartSize: CGFloat {
         #if os(iOS)
@@ -39,6 +84,16 @@ struct GameView: View {
         if let round = viewModel.round {
             ScrollView {
                 VStack(alignment: .center, spacing: contentSpacing) {
+                    if let roleTitle {
+                        Text("Your role: \(roleTitle)")
+                            .font(.headline)
+                            .accessibilityLabel("Your role: \(roleTitle)")
+                    }
+                    if let pauseStatus {
+                        Text(pauseStatus)
+                            .font(.headline)
+                            .accessibilityLabel(pauseStatus)
+                    }
                     VStack(alignment: .center, spacing: 8) {
                         Text("Request")
                             .font(.headline)
@@ -63,35 +118,37 @@ struct GameView: View {
                         .frame(width: chartSize, height: chartSize)
                         .padding(.vertical, chartVerticalPadding)
 
-                    #if os(iOS)
-                    VStack(spacing: 10) {
-                        ForEach(PlayerID.allCases, id: \.self) { player in
-                            PlayerAssignmentPanel(viewModel: viewModel, player: player)
-                        }
-                    }
-                    #else
-                    ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .top, spacing: 16) {
-                            ForEach(PlayerID.allCases, id: \.self) { player in
+                    Group {
+                        #if os(iOS)
+                        VStack(spacing: 10) {
+                            ForEach(visiblePlayers, id: \.self) { player in
                                 PlayerAssignmentPanel(viewModel: viewModel, player: player)
                             }
                         }
-
-                        VStack(spacing: 16) {
-                            ForEach(PlayerID.allCases, id: \.self) { player in
-                                PlayerAssignmentPanel(viewModel: viewModel, player: player)
+                        #else
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .top, spacing: 16) {
+                                ForEach(visiblePlayers, id: \.self) { player in
+                                    PlayerAssignmentPanel(viewModel: viewModel, player: player)
+                                }
+                            }
+                            VStack(spacing: 16) {
+                                ForEach(visiblePlayers, id: \.self) { player in
+                                    PlayerAssignmentPanel(viewModel: viewModel, player: player)
+                                }
                             }
                         }
+                        #endif
                     }
-                    #endif
+                    .disabled(inputsDisabled)
+                    .opacity(inputsDisabled ? 0.5 : 1)
 
                     HStack {
                         TimerBadge(secondsRemaining: viewModel.timerSecondsRemaining)
                         Spacer()
-                        MixButton(
-                            isDisabled: viewModel.round?.mix.units.isEmpty ?? true,
-                            action: viewModel.pressMixButton
-                        )
+                        if showsMixButton {
+                            MixButton(isDisabled: !canMix, action: mix)
+                        }
                     }
                 }
                 .padding()

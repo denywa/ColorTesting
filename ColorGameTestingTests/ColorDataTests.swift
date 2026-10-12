@@ -58,13 +58,13 @@ final class ColorDataTests: XCTestCase {
     func testRequestPoolMatchesSuppliedNamesAndHexTargets() {
         let requests = ColorData.requestPool
         let expected: [(String, SIMD3<Double>)] = [
-            ("glossy mocha brown", SIMD3(74.0 / 255, 59.0 / 255, 50.0 / 255)),
-            ("milk tea", SIMD3(200.0 / 255, 177.0 / 255, 154.0 / 255)),
-            ("honey blonde", SIMD3(246.0 / 255, 212.0 / 255, 139.0 / 255)),
-            ("lavender", SIMD3(200.0 / 255, 180.0 / 255, 244.0 / 255)),
-            ("sky blue", SIMD3(135.0 / 255, 206.0 / 255, 250.0 / 255)),
-            ("red blood", SIMD3(178.0 / 255, 34.0 / 255, 34.0 / 255)),
-            ("juicy orange", SIMD3(255.0 / 255, 140.0 / 255, 50.0 / 255))
+            ("Glossy mocha brown", SIMD3(74.0 / 255, 59.0 / 255, 50.0 / 255)),
+            ("Milk tea", SIMD3(200.0 / 255, 177.0 / 255, 154.0 / 255)),
+            ("Honey blonde", SIMD3(246.0 / 255, 212.0 / 255, 139.0 / 255)),
+            ("Lavender", SIMD3(200.0 / 255, 180.0 / 255, 244.0 / 255)),
+            ("Sky blue", SIMD3(135.0 / 255, 206.0 / 255, 250.0 / 255)),
+            ("Red blood", SIMD3(178.0 / 255, 34.0 / 255, 34.0 / 255)),
+            ("Juicy orange", SIMD3(255.0 / 255, 140.0 / 255, 50.0 / 255))
         ]
         XCTAssertEqual(requests.count, expected.count)
         XCTAssertEqual(Set(requests.map(\.text)).count, requests.count)

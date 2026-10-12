@@ -39,11 +39,15 @@ final class ColorMixerTests: XCTestCase {
                 // Expanded polynomial for the design's eight RYB cube corners.
                 // This is independent of ColorMixer's corner-accumulation loop.
                 let r = native.x, y = native.y, b = native.z
-                expected = SIMD3(
-                    (r + y - r * y) * (1 - b) + 0.5 * r * b,
-                    y * (1 - 0.5 * r - 0.2 * r * b),
-                    b * (1 - y) * (1 - 0.5 * r)
-                )
+                if r == y && y == b {
+                    expected = SIMD3(1 - r, 1 - y, 1 - b)
+                } else {
+                    expected = SIMD3(
+                        1 - b + 0.5 * r * (1 - y) * b,
+                        (1 - r) * (1 - b + y * b) + 0.5 * r * y * (1 - b),
+                        (1 - y) * (1 - r + 0.5 * r * b)
+                    )
+                }
             }
 
             let actual = ColorMixer.blend(units, model: model)

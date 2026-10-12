@@ -2,6 +2,33 @@ import SwiftUI
 
 struct ScoreView: View {
     let viewModel: GameViewModel
+    let coordinator: LocalPlayCoordinator?
+
+    init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil) {
+        self.viewModel = viewModel
+        self.coordinator = coordinator
+    }
+
+    var showsNewRound: Bool {
+        coordinator == nil || coordinator?.role == .host
+    }
+    var newRoundDisabled: Bool { coordinator?.paused == true }
+    var pauseStatus: String? {
+        guard coordinator?.paused == true else { return nil }
+        if let missing = coordinator?.seatStatus.first(where: { $0.status == .disconnected }) {
+            let number = (PlayerID.allCases.firstIndex(of: missing.player) ?? 0) + 1
+            return "Paused — waiting for Player \(number) to reconnect"
+        }
+        return "Paused — waiting for connection"
+    }
+
+    func newRound() {
+        if let coordinator {
+            coordinator.perform(.newRound)
+        } else {
+            viewModel.startNewRound()
+        }
+    }
 
     var body: some View {
         if let score = viewModel.score {
@@ -9,6 +36,12 @@ struct ScoreView: View {
                 Text("Color Match")
                     .font(.largeTitle)
                     .bold()
+
+                if let pauseStatus {
+                    Text(pauseStatus)
+                        .font(.headline)
+                        .accessibilityLabel(pauseStatus)
+                }
 
                 Text(score / 100, format: .percent.precision(.fractionLength(2)))
                     .font(.largeTitle)
@@ -49,9 +82,12 @@ struct ScoreView: View {
                     .padding(.bottom, 32)
                 }
 
-                Button("New Round", action: viewModel.startNewRound)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                if showsNewRound {
+                    Button("New Round", action: newRound)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(newRoundDisabled)
+                }
             }
             .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
