@@ -342,6 +342,16 @@ final class GameViewModel {
                      "Each color model must have five distinct palette colors")
         var slots = palette + [palette.randomElement()!]
         slots.shuffle()
+        return Self.assignments(from: slots)
+    }
+
+    static func assignments(from shuffledSlots: [NamedColor]) -> [PlayerID: PlayerAssignment] {
+        var slots = shuffledSlots
+        for index in PlayerID.allCases.indices where slots[2 * index].id == slots[2 * index + 1].id {
+            // Only one color repeats, so this swap cannot create another matching pair.
+            slots.swapAt(2 * index + 1, (2 * index + 2) % slots.count)
+            break
+        }
         var assignments: [PlayerID: PlayerAssignment] = [:]
         for (index, player) in PlayerID.allCases.enumerated() {
             assignments[player] = PlayerAssignment(

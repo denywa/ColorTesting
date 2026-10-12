@@ -95,7 +95,7 @@ These checked tasks record the existing single-device baseline. Source and test 
 
 The checked tasks above record the existing round-flow baseline. Playtesting Part II tasks below extend that shared controller. Complete `color-mixing-and-scoring` tasks 5.1–5.2 first so all callers use the approved RYB-only contract. Task 6 in that spec verifies the live/empty/apply handoff after round task 6.2 and before network protocol work.
 
-- [ ] 5. Add RYB and mix-mode settings to round state
+- [x] 5. Add RYB and mix-mode settings to round state
 - [x] 5.1 Retain a fixed RYB selection and capture the chosen mix mode
   - Remove palette selection and its Start gating; present RYB as the only palette and Manual Mix/Auto Mix as exclusive choices.
   - Default new settings and New Round to Manual; preserve target selection, duration choices/default, hint default, and saved request availability.
@@ -104,7 +104,7 @@ The checked tasks above record the existing round-flow baseline. Playtesting Par
   - _Boundary: GameModels, GameState, GameViewModel settings state, SettingsView_
   - _Depends: color-mixing-and-scoring 5.1, 5.2_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 5.5, 5.6, 6.6_
-- [ ] 5.2 Guarantee a duplicate color never lands within one player's pair
+- [x] 5.2 Guarantee a duplicate color never lands within one player's pair
   - Allocate the five palette colors and one duplicate across all six slots at round start and every reassignment.
   - Correct any generated same-player pair with a bounded swap that preserves palette coverage and exactly one cross-player duplicate.
   - Replace the test that expects a within-player duplicate; cover the correction case and reassignment.
