@@ -146,6 +146,7 @@ struct ResultView: View {
     viewModel.round = Round(
         request: ColorData.requestPool[0],
         colorModel: .ryb,
+        mixMode: .manual,
         assignments: [:],
         mix: Mix(units: units, isLocked: true)
     )

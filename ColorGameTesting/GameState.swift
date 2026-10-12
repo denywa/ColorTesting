@@ -28,12 +28,14 @@ struct Mix {
 struct Round {
     let request: ColorRequest
     let colorModel: ColorModel
+    let mixMode: MixMode
     var assignments: [PlayerID: PlayerAssignment]
     var mix: Mix
 }
 
 struct GameState {
-    var selectedModel: ColorModel? = nil
+    var selectedModel: ColorModel = .ryb
+    var selectedMixMode: MixMode = .manual
     var round: Round? = nil
     var mixResult: SIMD3<Double>? = nil
     var score: Double? = nil

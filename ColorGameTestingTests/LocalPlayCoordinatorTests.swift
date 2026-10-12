@@ -94,8 +94,6 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         third.join(try XCTUnwrap(third.discoveredSessions.first))
         await waitUntil { third.role == .player3 }
         XCTAssertEqual(host.session?.seats.map(\.role), [.host, .player2, .player3])
-        XCTAssertFalse(host.canStartRound)
-        hostModel.selectModel(.ryb)
         XCTAssertTrue(host.canStartRound)
     }
 
@@ -112,7 +110,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         let third = LocalPlayCoordinator(viewModel: thirdModel, transport: network.makePeer())
 
         try host.startHosting()
-        hostModel.selectModel(.ryb)
+
         hostModel.reassignmentDuration = 12
         hostModel.showTargetColor = true
         XCTAssertTrue(hostModel.addCustomRequest(text: "Sea glass green", hex: "#32A89B"))
@@ -130,7 +128,8 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         for client in [secondModel, thirdModel] {
             XCTAssertEqual(client.reassignmentDuration, 12)
             XCTAssertTrue(client.showTargetColor)
-            client.selectedModel = .ryb
+            client.selectMixMode(.auto)
+            XCTAssertEqual(client.selectedMixMode, .manual)
             client.selectedRequestID = ColorData.requestPool[0].id
             client.reassignmentDuration = 90
             client.showTargetColor = false
@@ -144,10 +143,6 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         XCTAssertFalse(second.perform(.startRound))
         XCTAssertFalse(third.perform(.startRound))
 
-        hostModel.selectedModel = nil
-        XCTAssertFalse(host.canStartRound)
-        XCTAssertFalse(host.perform(.startRound))
-        hostModel.selectedModel = .ryb
         hostModel.selectedRequestID = UUID()
         XCTAssertFalse(host.canStartRound)
         XCTAssertFalse(host.perform(.startRound))
@@ -322,7 +317,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
                                                 third: LocalPlayCoordinator, thirdModel: GameViewModel,
                                                 thirdTransport: FakePeerTransport) {
         let game = try await joinedGame()
-        game.hostModel.selectModel(.ryb)
+
         XCTAssertTrue(game.host.perform(.startRound))
         return game
     }
@@ -417,7 +412,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
 
     func testInputAtTimerBoundaryUsesObservedAssignmentAndPeerSeat() async throws {
         let game = try await joinedGame()
-        game.hostModel.selectModel(.ryb)
+
         game.hostModel.reassignmentDuration = 1
         XCTAssertTrue(game.host.perform(.startRound))
 
@@ -631,7 +626,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             }
         }
         try await assertConverged(.settings)
-        game.hostModel.selectModel(.ryb)
+
         XCTAssertTrue(game.hostModel.addCustomRequest(text: "Session target", hex: "#32A89B"))
         let customTarget = try XCTUnwrap(game.hostModel.customRequests.last)
         XCTAssertEqual(game.hostModel.selectedRequestID, customTarget.id)
@@ -717,7 +712,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         XCTAssertNil(game.secondModel.round)
         XCTAssertNil(game.thirdModel.round)
         XCTAssertEqual(game.second.latestSnapshot?.snapshotRevision, game.host.session?.snapshotRevision)
-        game.hostModel.selectModel(.ryb)
+
         XCTAssertTrue(game.host.perform(.startRound))
         await waitUntil { game.secondModel.phase == .playing && game.thirdModel.phase == .playing }
         try await assertConverged(.playing)
@@ -838,7 +833,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             client.join(try XCTUnwrap(client.discoveredSessions.first))
             await waitUntil { client.role != nil && client.latestSnapshot != nil }
         }
-        hostModel.selectModel(.ryb)
+
         XCTAssertTrue(host.perform(.startRound))
         await waitUntil { secondModel.phase == .playing && third.latestSnapshot?.phase == .playing }
         secondModel.addColor(player: .player2, slot: .primary)
@@ -887,7 +882,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             client.join(try XCTUnwrap(client.discoveredSessions.first))
             await waitUntil { client.role != nil }
         }
-        hostModel.selectModel(.ryb)
+
         XCTAssertTrue(host.perform(.startRound))
         hostModel.addColor(player: .player1, slot: .primary)
         await waitUntil { second.latestSnapshot?.snapshotRevision == host.session?.snapshotRevision }
@@ -941,7 +936,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             client.join(try XCTUnwrap(client.discoveredSessions.first))
             await waitUntil { client.role != nil && client.latestSnapshot != nil }
         }
-        hostModel.selectModel(.ryb)
+
         XCTAssertTrue(host.perform(.startRound))
 
         await host.leaveSession()
@@ -998,7 +993,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             client.join(try XCTUnwrap(client.discoveredSessions.first))
             await waitUntil { client.role != nil && client.latestSnapshot != nil }
         }
-        hostModel.selectModel(.ryb)
+
         XCTAssertTrue(host.perform(.startRound))
         hostTransport.holdNextSnapshot(to: secondTransport.handle)
         hostModel.addColor(player: .player1, slot: .primary)

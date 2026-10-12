@@ -3,18 +3,88 @@ import XCTest
 
 @MainActor
 final class GameViewModelTests: XCTestCase {
-    func testRYBModelSelectionGatesConfirmation() {
+    func testDefaultsStartWithoutModelSelection() {
         let viewModel = GameViewModel()
+        defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         XCTAssertEqual(viewModel.phase, .settings)
-        XCTAssertNil(viewModel.selectedModel)
-        XCTAssertFalse(viewModel.canConfirm)
-
-        viewModel.confirmSettings()
-        XCTAssertEqual(viewModel.phase, .settings)
-
-        viewModel.selectModel(.ryb)
         XCTAssertEqual(viewModel.selectedModel, .ryb)
         XCTAssertTrue(viewModel.canConfirm)
+        XCTAssertEqual(viewModel.reassignmentDuration, 45)
+        XCTAssertFalse(viewModel.showTargetColor)
+        viewModel.confirmSettings()
+        XCTAssertEqual(viewModel.phase, .playing)
+        XCTAssertEqual(viewModel.round?.colorModel, .ryb)
+    }
+
+    func testSelectedModeIsCapturedAndCannotChangeDuringRound() {
+        for mode in MixMode.allCases {
+            let viewModel = GameViewModel()
+            defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
+            XCTAssertEqual(viewModel.selectedMixMode, .manual)
+            viewModel.selectMixMode(mode)
+            XCTAssertEqual(viewModel.selectedMixMode, mode)
+            viewModel.confirmSettings()
+            XCTAssertEqual(viewModel.round?.mixMode, mode)
+            viewModel.selectMixMode(mode == .auto ? .manual : .auto)
+            XCTAssertEqual(viewModel.selectedMixMode, mode)
+            XCTAssertEqual(viewModel.round?.mixMode, mode)
+            XCTAssertFalse(viewModel.canConfirm)
+        }
+    }
+
+    func testMixModeSelectionRequiresSettingsAuthorityAndNotifiesOnce() {
+        let host = GameViewModel()
+        host.configureLocalPlay(localPlayer: .player1, isHost: true) { _, _ in }
+        var changes = 0
+        host.didChange = { changes += 1 }
+        host.selectMixMode(.auto)
+        host.selectMixMode(.auto)
+        XCTAssertEqual(host.selectedMixMode, .auto)
+        XCTAssertEqual(changes, 1)
+        host.phase = .score
+        host.selectMixMode(.manual)
+        XCTAssertEqual(host.selectedMixMode, .auto)
+        XCTAssertEqual(changes, 1)
+        let client = GameViewModel()
+        client.configureLocalPlay(localPlayer: .player2, isHost: false) { _, _ in }
+        client.selectMixMode(.auto)
+        XCTAssertEqual(client.selectedMixMode, .manual)
+        XCTAssertFalse(client.canConfirm)
+    }
+
+    func testNewRoundResetsEitherModeAndRetainsSettingsAndCatalog() {
+        let suite = "RoundModeReset-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for mode in MixMode.allCases {
+            let viewModel = GameViewModel(requestDefaults: defaults)
+            defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
+            XCTAssertTrue(viewModel.addCustomRequest(text: "Saved target", hex: "#123456"))
+            let requests = viewModel.availableRequests.map(\.id)
+            viewModel.reassignmentDuration = 90
+            viewModel.showTargetColor = true
+            viewModel.selectMixMode(mode)
+            viewModel.confirmSettings()
+            // Auto scoring arrives in task 6.2; exercise the existing score reset seam.
+            viewModel.phase = .score
+            viewModel.mixResult = SIMD3(0.1, 0.2, 0.3)
+            viewModel.score = 50
+            viewModel.startNewRound()
+            XCTAssertEqual(viewModel.phase, .settings)
+            XCTAssertEqual(viewModel.selectedModel, .ryb)
+            XCTAssertEqual(viewModel.selectedMixMode, .manual)
+            XCTAssertNil(viewModel.round)
+            XCTAssertNil(viewModel.roundID)
+            XCTAssertNil(viewModel.assignmentEpoch)
+            XCTAssertNil(viewModel.selectedRequestID)
+            XCTAssertNil(viewModel.mixResult)
+            XCTAssertNil(viewModel.score)
+            XCTAssertEqual(viewModel.reassignmentDuration, 90)
+            XCTAssertEqual(viewModel.timerSecondsRemaining, 90)
+            XCTAssertTrue(viewModel.showTargetColor)
+            XCTAssertEqual(viewModel.availableRequests.map(\.id), requests)
+            XCTAssertTrue(viewModel.canConfirm)
+        }
     }
 
     func testRoundStartsWithAvailableRequestEmptyMixAndModelPaletteAssignments() {
@@ -22,7 +92,7 @@ final class GameViewModelTests: XCTestCase {
             let viewModel = GameViewModel()
             defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
             XCTAssertNil(viewModel.selectedRequestID)
-            viewModel.selectModel(model)
+
             viewModel.confirmSettings()
 
             XCTAssertEqual(viewModel.phase, .playing)
@@ -44,7 +114,7 @@ final class GameViewModelTests: XCTestCase {
     func testSelectedRequestIsUsedForTheRound() {
         for request in ColorData.requestPool {
             let viewModel = GameViewModel()
-            viewModel.selectModel(.ryb)
+
             viewModel.selectedRequestID = request.id
             viewModel.confirmSettings()
 
@@ -172,7 +242,7 @@ final class GameViewModelTests: XCTestCase {
 
     private func makePlayingViewModel(_ model: ColorModel) -> GameViewModel {
         let viewModel = GameViewModel()
-        viewModel.selectModel(model)
+
         viewModel.confirmSettings()
         return viewModel
     }

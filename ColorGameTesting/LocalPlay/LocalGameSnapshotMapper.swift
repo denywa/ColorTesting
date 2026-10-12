@@ -70,7 +70,7 @@ struct LocalGameSnapshotMapper {
                   snapshot.mixEntries.isEmpty, !snapshot.mixLocked,
                   snapshot.mixResult == nil, snapshot.score == nil,
                   !snapshot.paused else { throw LocalPlayError.invalidMessage }
-            return GameState(selectedModel: snapshot.selectedModel)
+            return GameState()
         }
 
         guard let model = snapshot.selectedModel, let target = snapshot.target,
@@ -128,7 +128,7 @@ struct LocalGameSnapshotMapper {
             }
         }
         let request = ColorRequest(id: target.id, text: target.text, targetSRGB: target.sRGB.vector)
-        let round = Round(request: request, colorModel: model, assignments: assignments,
+        let round = Round(request: request, colorModel: model, mixMode: .manual, assignments: assignments,
                           mix: Mix(units: units, isLocked: snapshot.mixLocked))
         return GameState(selectedModel: model, round: round,
                          mixResult: snapshot.mixResult?.vector, score: snapshot.score)

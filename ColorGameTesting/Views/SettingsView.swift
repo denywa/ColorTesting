@@ -25,11 +25,16 @@ struct SettingsView: View {
                     .bold()
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Choose a color model for this round")
+                    Text("Palette: RYB")
                         .font(.headline)
-                    ColorModelToggle(selectedModel: viewModel.selectedModel) { model in
-                        viewModel.selectModel(model)
+                    Picker("Mix Mode", selection: Binding(
+                        get: { viewModel.selectedMixMode },
+                        set: { viewModel.selectMixMode($0) }
+                    )) {
+                        Text("Manual Mix").tag(MixMode.manual)
+                        Text("Auto Mix").tag(MixMode.auto)
                     }
+                    .pickerStyle(.segmented)
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -149,38 +154,6 @@ private struct AddRequestView: View {
             }
         }
         .frame(minWidth: 320, minHeight: 280)
-    }
-}
-
-struct ColorModelToggle: View {
-    let selectedModel: ColorModel?
-    let onSelect: (ColorModel) -> Void
-
-    var body: some View {
-        HStack {
-            ForEach(ColorModel.allCases, id: \.self) { model in
-                let isSelected = selectedModel == model
-                Button {
-                    onSelect(model)
-                } label: {
-                    Label(model.rawValue, systemImage: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(isSelected ? Color.accentColor.opacity(0.18) : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 10))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 10)
-                                .strokeBorder(isSelected ? Color.accentColor : Color.secondary,
-                                              lineWidth: isSelected ? 2 : 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(model.rawValue)
-                .accessibilityValue(isSelected ? "Selected" : "Not selected")
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-            }
-        }
     }
 }
 

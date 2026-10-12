@@ -30,7 +30,7 @@ final class ScoreViewTests: XCTestCase {
         viewModel.mixResult = SIMD3(0.2, 0.7, 0.4)
         viewModel.round = Round(
             request: ColorRequest(id: UUID(), text: "Changed target", targetSRGB: SIMD3(0.1, 0.2, 0.9)),
-            colorModel: .ryb, assignments: [:], mix: Mix()
+            colorModel: .ryb, mixMode: .manual, assignments: [:], mix: Mix()
         )
         XCTAssertNotEqual(try render(viewModel), original, "The comparison must show the target")
     }
@@ -63,6 +63,7 @@ final class ScoreViewTests: XCTestCase {
         viewModel.score = 87.65
         viewModel.round = Round(
             request: ColorData.requestPool[0], colorModel: .ryb,
+            mixMode: .manual,
             assignments: [:], mix: Mix()
         )
         viewModel.mixResult = SIMD3(0.2, 0.7, 0.4)

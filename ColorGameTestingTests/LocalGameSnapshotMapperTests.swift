@@ -32,7 +32,7 @@ final class LocalGameSnapshotMapperTests: XCTestCase {
         defer { host.pauseTimer(); host.removeKeyMonitor(); client.pauseTimer(); client.removeKeyMonitor() }
 
         XCTAssertTrue(host.addCustomRequest(text: "Ocean dusk", hex: "#1766CC"))
-        host.selectModel(.ryb)
+
         host.reassignmentDuration = 30
         host.showTargetColor = true
         host.confirmSettings()
@@ -88,7 +88,7 @@ final class LocalGameSnapshotMapperTests: XCTestCase {
         let client = GameViewModel()
         client.configureLocalPlay(localPlayer: .player3, isHost: false) { _, _ in }
         defer { host.pauseTimer(); host.removeKeyMonitor(); client.pauseTimer(); client.removeKeyMonitor() }
-        host.selectModel(.ryb)
+
         var snapshot = try mapper.makeSnapshot(from: host, session: session())
         XCTAssertNil(snapshot.roundID)
         XCTAssertNil(snapshot.target)
@@ -122,7 +122,7 @@ final class LocalGameSnapshotMapperTests: XCTestCase {
         let client = GameViewModel()
         client.configureLocalPlay(localPlayer: .player2, isHost: false) { _, _ in }
         defer { host.pauseTimer(); host.removeKeyMonitor(); client.pauseTimer(); client.removeKeyMonitor() }
-        host.selectModel(.ryb)
+
         host.confirmSettings()
         host.pauseTimer()
         let valid = try mapper.makeSnapshot(from: host, session: session())

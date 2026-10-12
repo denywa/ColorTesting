@@ -28,7 +28,7 @@ final class SettingsViewLocalPlayTests: XCTestCase {
 
     private func containsControl(_ value: Any) -> Bool {
         let type = String(describing: Swift.type(of: value))
-        if type.hasPrefix("Picker<") || type.hasPrefix("Toggle<") || type.hasPrefix("ColorModelToggle") ||
+        if type.hasPrefix("Picker<") || type.hasPrefix("Toggle<") ||
             type.hasPrefix("Button<") { return true }
         return Mirror(reflecting: value).children.contains { containsControl($0.value) }
     }
@@ -54,15 +54,12 @@ final class SettingsViewLocalPlayTests: XCTestCase {
                                                    reconnectToken: nil)), from: peer))
     }
 
-    func testHostStartRequiresModelAndThreeConnectedSeats() throws {
+    func testHostStartRequiresThreeConnectedSeats() throws {
         let model = GameViewModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
         var view = SettingsView(viewModel: model, coordinator: coordinator)
 
-        XCTAssertFalse(view.canStartRound)
-        model.selectModel(.ryb)
-        view = SettingsView(viewModel: model, coordinator: coordinator)
         XCTAssertFalse(view.canStartRound)
         try press(startButton(in: view))
         XCTAssertEqual(model.phase, .settings)
@@ -70,9 +67,7 @@ final class SettingsViewLocalPlayTests: XCTestCase {
         joinPeer(coordinator)
         XCTAssertFalse(SettingsView(viewModel: model, coordinator: coordinator).canStartRound)
         joinPeer(coordinator)
-        model.selectedModel = nil
-        XCTAssertFalse(SettingsView(viewModel: model, coordinator: coordinator).canStartRound)
-        model.selectModel(.ryb)
+
         view = SettingsView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.canStartRound)
         try press(startButton(in: view))
@@ -96,12 +91,18 @@ final class SettingsViewLocalPlayTests: XCTestCase {
         XCTAssertFalse(containsControl(view.body))
     }
 
+    func testSoloSettingsExposeFixedRYBAndBothMixModes() {
+        let model = GameViewModel()
+        let labels = texts(in: SettingsView(viewModel: model).body)
+        for label in ["Palette: RYB", "Manual Mix", "Auto Mix", "Random", "15s", "30s", "45s", "60s", "90s", "Show Target Color Hint"] {
+            XCTAssertTrue(labels.contains { $0.contains(label) }, "Missing \(label)")
+        }
+        XCTAssertEqual(model.selectedMixMode, .manual)
+    }
+
     func testSoloSettingsStillStartWithoutCoordinator() throws {
         let model = GameViewModel()
-        var view = SettingsView(viewModel: model)
-        XCTAssertFalse(view.canStartRound)
-        model.selectModel(.ryb)
-        view = SettingsView(viewModel: model)
+        let view = SettingsView(viewModel: model)
         XCTAssertTrue(view.canStartRound)
         try press(startButton(in: view))
         XCTAssertEqual(model.phase, .playing)

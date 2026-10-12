@@ -303,10 +303,10 @@ private struct MixButton: View {
     let viewModel = GameViewModel()
     let colors = ColorData.rybPalette
     viewModel.phase = .playing
-    viewModel.selectedModel = .ryb
     viewModel.round = Round(
         request: ColorData.requestPool[0],
         colorModel: .ryb,
+        mixMode: .manual,
         assignments: [
             .player1: PlayerAssignment(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
             .player2: PlayerAssignment(player: .player2, primaryColor: colors[2], secondaryColor: colors[3]),

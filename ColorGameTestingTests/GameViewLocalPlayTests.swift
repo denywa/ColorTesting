@@ -22,6 +22,7 @@ final class GameViewLocalPlayTests: XCTestCase {
         model.phase = .playing
         model.round = Round(
             request: ColorData.requestPool[0], colorModel: .ryb,
+            mixMode: .manual,
             assignments: [
                 .player1: .init(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
                 .player2: .init(player: .player2, primaryColor: colors[2], secondaryColor: colors[3]),
@@ -75,7 +76,7 @@ final class GameViewLocalPlayTests: XCTestCase {
         try coordinator.startHosting()
         joinPeer(coordinator)
         joinPeer(coordinator)
-        model.selectModel(.ryb)
+
         XCTAssertTrue(coordinator.perform(.startRound))
         let view = GameView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.showsMixButton)

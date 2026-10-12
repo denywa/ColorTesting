@@ -44,7 +44,7 @@ final class LocalPlayCoordinator {
 
     var canStartRound: Bool {
         role == .host && hostIsForeground && connectionStatus == .connected &&
-        viewModel.phase == .settings && viewModel.selectedModel != nil &&
+        viewModel.phase == .settings && viewModel.canConfirm &&
         (1...3600).contains(viewModel.reassignmentDuration) &&
         (viewModel.selectedRequestID == nil ||
          viewModel.availableRequests.contains { $0.id == viewModel.selectedRequestID }) &&

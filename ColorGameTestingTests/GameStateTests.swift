@@ -73,11 +73,13 @@ final class GameStateTests: XCTestCase {
                 text: "Test request",
                 targetSRGB: SIMD3(0.2, 0.3, 0.4)
             ), colorModel: .ryb,
+            mixMode: .manual,
             assignments: [.player1: assignment],
             mix: Mix(units: [ColorUnit(color: red)])
         )
         var state = GameState()
-        XCTAssertNil(state.selectedModel)
+        XCTAssertEqual(state.selectedModel, .ryb)
+        XCTAssertEqual(state.selectedMixMode, .manual)
         XCTAssertNil(state.round)
         XCTAssertNil(state.mixResult)
         XCTAssertNil(state.score)

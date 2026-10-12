@@ -73,6 +73,7 @@ final class ResultViewTests: XCTestCase {
         viewModel.phase = .result
         viewModel.round = Round(
             request: ColorData.requestPool[0], colorModel: .ryb,
+            mixMode: .manual,
             assignments: [:],
             mix: Mix(units: [ColorUnit(color: red), ColorUnit(color: yellow)], isLocked: true)
         )

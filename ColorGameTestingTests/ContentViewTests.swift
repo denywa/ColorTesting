@@ -136,7 +136,7 @@ final class ContentViewTests: XCTestCase {
             }
         }
         XCTAssertEqual(second.role, .player2)
-        hostModel.selectModel(.ryb)
+
         XCTAssertTrue(host.perform(.startRound))
         let roundID = hostModel.roundID
         let remaining = hostModel.timerSecondsRemaining

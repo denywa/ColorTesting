@@ -15,6 +15,7 @@ final class GameViewRenderingTests: XCTestCase {
                 id: UUID(), text: "Paint a forest at dusk", targetSRGB: SIMD3(0.2, 0.4, 0.3)
             ),
             colorModel: originalRound.colorModel,
+            mixMode: originalRound.mixMode,
             assignments: originalRound.assignments,
             mix: originalRound.mix
         )
@@ -123,6 +124,7 @@ final class GameViewRenderingTests: XCTestCase {
         viewModel.round = Round(
             request: ColorData.requestPool[0],
             colorModel: .ryb,
+            mixMode: .manual,
             assignments: [
                 .player1: PlayerAssignment(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
                 .player2: PlayerAssignment(player: .player2, primaryColor: colors[1], secondaryColor: colors[2]),

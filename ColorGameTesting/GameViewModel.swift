@@ -22,14 +22,8 @@ final class GameViewModel {
     }
     private var storedPhase: GamePhase = .settings
     private(set) var gameState = GameState()
-    var selectedModel: ColorModel? {
-        get { gameState.selectedModel }
-        set {
-            guard canMutateRules else { return }
-            gameState.selectedModel = newValue
-            notifyHostChange()
-        }
-    }
+    var selectedModel: ColorModel { gameState.selectedModel }
+    var selectedMixMode: MixMode { gameState.selectedMixMode }
     var round: Round? {
         get { gameState.round }
         set {
@@ -104,7 +98,7 @@ final class GameViewModel {
     }
 
     var availableRequests: [ColorRequest] { ColorData.requestPool + customRequests }
-    var canConfirm: Bool { selectedModel != nil }
+    var canConfirm: Bool { canMutateRules && phase == .settings && !availableRequests.isEmpty }
     var isLocalClient: Bool {
         if case .client = controlMode { return true }
         return false
@@ -175,24 +169,28 @@ final class GameViewModel {
         return true
     }
 
-    func selectModel(_ model: ColorModel) {
+    func selectMixMode(_ mode: MixMode) {
         guard canMutateRules, phase == .settings else { return }
-        selectedModel = model
+        guard selectedMixMode != mode else { return }
+        gameState.selectedMixMode = mode
+        notifyHostChange()
     }
 
     func confirmSettings() {
-        guard canMutateRules, phase == .settings, let selectedModel else { return }
+        guard canConfirm else { return }
         assert(!ColorData.requestPool.isEmpty, "The color request pool must not be empty")
         let request = availableRequests.first { $0.id == selectedRequestID }
             ?? availableRequests.randomElement()
             ?? ColorRequest(id: UUID(), text: "Mix a warm sunset",
                             targetSRGB: SIMD3(0.96, 0.51, 0.32))
         gameState = GameState(
-            selectedModel: selectedModel,
+            selectedModel: .ryb,
+            selectedMixMode: selectedMixMode,
             round: Round(
                 request: request,
-                colorModel: selectedModel,
-                assignments: randomAssignments(for: selectedModel),
+                colorModel: .ryb,
+                mixMode: selectedMixMode,
+                assignments: randomAssignments(for: .ryb),
                 mix: Mix()
             ),
             mixResult: nil,

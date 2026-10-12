@@ -21,7 +21,7 @@ final class ResultViewLocalPlayTests: XCTestCase {
         let colors = ColorData.rybPalette
         model.phase = .result
         model.round = Round(
-            request: ColorData.requestPool[0], colorModel: .ryb, assignments: [:],
+            request: ColorData.requestPool[0], colorModel: .ryb, mixMode: .manual, assignments: [:],
             mix: Mix(units: [ColorUnit(color: colors[0]), ColorUnit(color: colors[1])], isLocked: true)
         )
         model.mixResult = SIMD3(0.2, 0.7, 0.4)
@@ -76,7 +76,7 @@ final class ResultViewLocalPlayTests: XCTestCase {
         try coordinator.startHosting()
         joinPeer(coordinator)
         joinPeer(coordinator)
-        model.selectModel(.ryb)
+
         XCTAssertTrue(coordinator.perform(.startRound))
         model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
         XCTAssertTrue(coordinator.perform(.mix))

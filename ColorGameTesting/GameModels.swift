@@ -4,6 +4,10 @@ enum ColorModel: String, CaseIterable {
     case ryb = "RYB"
 }
 
+enum MixMode: String, CaseIterable {
+    case manual, auto
+}
+
 enum PlayerID: CaseIterable {
     case player1, player2, player3
 

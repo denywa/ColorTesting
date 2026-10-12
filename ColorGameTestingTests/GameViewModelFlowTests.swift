@@ -8,7 +8,6 @@ final class GameViewModelFlowTests: XCTestCase {
         viewModel.addColor(player: .player1, slot: .primary)
         XCTAssertNil(viewModel.round)
 
-        viewModel.selectModel(.ryb)
         viewModel.confirmSettings()
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
 
@@ -93,7 +92,7 @@ final class GameViewModelFlowTests: XCTestCase {
 
     func testFinishComputesMatchPercentageAndNewRoundResetsAllState() {
         let viewModel = GameViewModel()
-        viewModel.selectModel(.ryb)
+
         viewModel.selectedRequestID = ColorData.requestPool[0].id
         viewModel.confirmSettings()
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
@@ -115,16 +114,17 @@ final class GameViewModelFlowTests: XCTestCase {
 
         viewModel.startNewRound()
         XCTAssertEqual(viewModel.phase, .settings)
-        XCTAssertNil(viewModel.selectedModel)
+        XCTAssertEqual(viewModel.selectedModel, .ryb)
+        XCTAssertEqual(viewModel.selectedMixMode, .manual)
         XCTAssertNil(viewModel.selectedRequestID)
         XCTAssertNil(viewModel.round)
         XCTAssertNil(viewModel.mixResult)
         XCTAssertNil(viewModel.score)
         XCTAssertEqual(viewModel.timerSecondsRemaining, viewModel.reassignmentDuration)
-        XCTAssertFalse(viewModel.canConfirm)
+        XCTAssertTrue(viewModel.canConfirm)
         RunLoop.main.run(until: Date().addingTimeInterval(1.1))
         XCTAssertEqual(viewModel.timerSecondsRemaining, viewModel.reassignmentDuration)
-        viewModel.selectModel(.ryb)
+
         viewModel.confirmSettings()
         XCTAssertEqual(viewModel.phase, .playing)
         XCTAssertEqual(viewModel.round?.colorModel, .ryb)
@@ -140,7 +140,6 @@ final class GameViewModelFlowTests: XCTestCase {
         XCTAssertEqual(viewModel.phase, .settings)
         XCTAssertNil(viewModel.round)
 
-        viewModel.selectModel(.ryb)
         viewModel.confirmSettings()
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         viewModel.selectRedo()
@@ -159,7 +158,7 @@ final class GameViewModelFlowTests: XCTestCase {
 
     private func makePlayingViewModel(_ model: ColorModel) -> GameViewModel {
         let viewModel = GameViewModel()
-        viewModel.selectModel(model)
+
         viewModel.confirmSettings()
         return viewModel
     }
