@@ -114,7 +114,7 @@ The checked tasks above record the existing round-flow baseline. Playtesting Par
   - _Requirements: 2.1, 2.2, 2.6, 2.7, 4.3_
 
 - [ ] 6. Support mode-specific round actions and live Auto color
-- [ ] 6.1 Update live color for every accepted Auto contribution
+- [x] 6.1 Update live color for every accepted Auto contribution
   - Maintain an optional live color separately from the frozen result; empty, Manual and scored states have no live color.
   - Recalculate from all accepted units after both solo input and host-accepted network input using the shared RYB mixer; client snapshot application accepts the host color without calculating it.
   - Keep current assignments, countdown, keyboard/touch mapping and contribution acceptance rules intact.

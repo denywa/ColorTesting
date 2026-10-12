@@ -37,6 +37,7 @@ struct GameState {
     var selectedModel: ColorModel = .ryb
     var selectedMixMode: MixMode = .manual
     var round: Round? = nil
+    var currentBlend: SIMD3<Double>? = nil
     var mixResult: SIMD3<Double>? = nil
     var score: Double? = nil
 }

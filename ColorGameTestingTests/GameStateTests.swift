@@ -81,12 +81,14 @@ final class GameStateTests: XCTestCase {
         XCTAssertEqual(state.selectedModel, .ryb)
         XCTAssertEqual(state.selectedMixMode, .manual)
         XCTAssertNil(state.round)
+        XCTAssertNil(state.currentBlend)
         XCTAssertNil(state.mixResult)
         XCTAssertNil(state.score)
 
         state.selectedModel = .ryb
         state.round = round
         state.mixResult = SIMD3(0.2, 0.3, 0.4)
+        state.currentBlend = SIMD3(0.5, 0.6, 0.7)
         state.score = 12.5
         var copy = state
         copy.round!.assignments[.player1]!.secondaryColor = red
@@ -94,6 +96,7 @@ final class GameStateTests: XCTestCase {
         copy.round!.mix.units.append(ColorUnit(color: yellow))
         copy.round!.mix.isLocked = true
         copy.score = 0
+        copy.currentBlend = nil
 
         XCTAssertEqual(state.selectedModel, .ryb)
         XCTAssertEqual(state.round?.colorModel, .ryb)
@@ -101,6 +104,7 @@ final class GameStateTests: XCTestCase {
         XCTAssertEqual(state.round?.mix.units.count, 1)
         XCTAssertFalse(state.round!.mix.isLocked)
         XCTAssertEqual(state.mixResult, SIMD3(0.2, 0.3, 0.4))
+        XCTAssertEqual(state.currentBlend, SIMD3(0.5, 0.6, 0.7))
         XCTAssertEqual(state.score, 12.5)
         XCTAssertEqual(copy.round?.mix.units.count, 2)
         XCTAssertEqual(copy.score, 0)

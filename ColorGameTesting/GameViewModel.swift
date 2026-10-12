@@ -18,10 +18,12 @@ final class GameViewModel {
         set {
             guard canMutateRules else { return }
             storedPhase = newValue
+            if newValue != .playing { gameState.currentBlend = nil }
         }
     }
     private var storedPhase: GamePhase = .settings
     private(set) var gameState = GameState()
+    var currentBlend: SIMD3<Double>? { gameState.currentBlend }
     var selectedModel: ColorModel { gameState.selectedModel }
     var selectedMixMode: MixMode { gameState.selectedMixMode }
     var round: Round? {
@@ -29,6 +31,9 @@ final class GameViewModel {
         set {
             guard canMutateRules else { return }
             gameState.round = newValue
+            if newValue?.mixMode != .auto || newValue?.mix.units.isEmpty != false {
+                gameState.currentBlend = nil
+            }
         }
     }
     var mixResult: SIMD3<Double>? {
@@ -151,8 +156,7 @@ final class GameViewModel {
               round?.mix.isLocked == false, let model = round?.colorModel,
               let paletteColor = ColorData.colors(for: model).first(where: { $0.id == color.id }),
               round?.assignments[player] != nil else { return false }
-        round?.mix.units.append(ColorUnit(color: paletteColor))
-        notifyHostChange()
+        appendAcceptedColor(paletteColor)
         return true
     }
 
@@ -225,7 +229,15 @@ final class GameViewModel {
             return
         }
         let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
+        appendAcceptedColor(color)
+    }
+
+    private func appendAcceptedColor(_ color: NamedColor) {
         round?.mix.units.append(ColorUnit(color: color))
+        if let round, round.mixMode == .auto {
+            gameState.currentBlend = ColorMixer.blend(round.mix.units, model: round.colorModel)
+        }
+        notifyHostChange()
     }
 
     func timerTick() {
