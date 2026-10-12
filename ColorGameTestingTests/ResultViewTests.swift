@@ -53,6 +53,19 @@ final class ResultViewTests: XCTestCase {
         XCTAssertNotEqual(original, changedBreakdown, "The table must show updated counts and ratios")
     }
 
+    func testMissingResultOrRoundShowsNoMixResultInsteadOfBreakdown() throws {
+        let fallback = try render(ContentUnavailableView("No Mix Result", systemImage: "paintpalette"))
+        let viewModel = fixture()
+        XCTAssertNotEqual(try render(viewModel), fallback)
+
+        viewModel.mixResult = nil
+        XCTAssertEqual(try render(viewModel), fallback)
+
+        viewModel.mixResult = SIMD3(0.2, 0.7, 0.4)
+        viewModel.round = nil
+        XCTAssertEqual(try render(viewModel), fallback)
+    }
+
     private func fixture() -> GameViewModel {
         let viewModel = GameViewModel()
         let red = ColorData.rybPalette[0]
@@ -68,7 +81,11 @@ final class ResultViewTests: XCTestCase {
     }
 
     private func render(_ viewModel: GameViewModel) throws -> Data {
-        let hostingView = NSHostingView(rootView: ResultView(viewModel: viewModel))
+        try render(ResultView(viewModel: viewModel))
+    }
+
+    private func render<V: View>(_ view: V) throws -> Data {
+        let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(x: 0, y: 0, width: 720, height: 760)
         hostingView.layoutSubtreeIfNeeded()
         let bitmap = try XCTUnwrap(hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds))

@@ -62,7 +62,7 @@ These checked tasks record the existing baseline. They do not request new implem
 
 The checked tasks above establish the pre-Part-II baseline. The tasks below add the approved RYB-only and Auto Mix calculation contract; existing history is retained.
 
-- [ ] 5. Remove CMYK while preserving the calibrated RYB calculation
+- [x] 5. Remove CMYK while preserving the calibrated RYB calculation
 - [x] 5.1 Keep the palette and blend helper RYB-only
   - Remove CMYK from the model, named-color components, palette data and mixer branch while retaining the existing five RYB palette IDs, names, components and display values.
   - Preserve single-color identity, the current primary-share/overlap calibration, black and white dilution, and output clamping; do not substitute a component mean formula.
@@ -71,7 +71,7 @@ The checked tasks above establish the pre-Part-II baseline. The tasks below add 
   - Done when all production color values carry RYB components only and mixer tests prove the same calibrated output for existing RYB cases.
   - _Boundary: ColorModel, NamedColor, ColorData, ColorMixer_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.1, 5.2_
-- [ ] 5.2 Preserve ratio, result and score feedback contracts
+- [x] 5.2 Preserve ratio, result and score feedback contracts
   - Keep ratios empty for an empty mix and count/total for accepted units; preserve first-contribution order and one-decimal result breakdown.
   - Retain the current Lab conversion and nonlinear Delta E score endpoints/calibration; keep two-decimal feedback and the mix/target comparison.
   - Remove CMYK preview/test fixtures and keep no-result/no-score fallbacks intact.
