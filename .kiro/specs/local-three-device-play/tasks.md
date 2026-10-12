@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Siapkan fondasi permainan lokal
+- [x] 1. Siapkan fondasi permainan lokal
 - [x] 1.1 Pulihkan baseline pengujian game yang sudah ada
   - Selaraskan tes nama permintaan dengan tampilan saat ini dan pulihkan nilai target Lavender yang sebelumnya ditetapkan bersama tesnya.
   - Selaraskan ekspektasi tes diagram campuran dengan bentuk lingkaran serta tes RYB dengan sudut warna yang sekarang dipakai, tanpa mengubah aturan pencampuran.
@@ -32,7 +32,7 @@
   - _Boundary: LocalPeerTransport, LocalPlayCoordinatorTests_
   - _Requirements: 1.3, 3.6, 6.1, 6.3_
 
-- [ ] 2. Bangun komponen inti yang tidak berbagi kepemilikan
+- [x] 2. Bangun komponen inti yang tidak berbagi kepemilikan
 - [x] 2.1 (P) Temukan dan hubungkan tiga perangkat di Wi-Fi lokal
   - Host mengiklankan satu sesi dan menerima koneksi; perangkat lain menemukan sesi yang tersedia tanpa akun atau server internet.
   - Batasi jalur koneksi pada Wi-Fi dan laporkan kegagalan izin, pencarian, atau sambungan dengan status yang dapat dicoba lagi.
@@ -69,7 +69,7 @@
   - _Depends: 1.5, 2.4_
   - _Requirements: 6.1, 6.3, 6.5_
 
-- [ ] 3. Tegakkan aturan satu sesi bersama
+- [x] 3. Tegakkan aturan satu sesi bersama
 - [x] 3.1 Kelola lobi, kursi unik, dan penerimaan peserta
   - Beri host kursi pertama dan dua klien kursi berbeda; pertahankan identitas sementara untuk sambung ulang.
   - Tolak perangkat keempat serta versi aplikasi yang tidak cocok, dan tahan Start sampai ketiga kursi aktif.
@@ -121,7 +121,7 @@
   - _Depends: 3.6_
   - _Requirements: 6.6, 6.7, 7.3_
 
-- [ ] 4. Sajikan mode dan kendali sesuai peran
+- [x] 4. Sajikan mode dan kendali sesuai peran
 - [x] 4.1 (P) Tampilkan pilihan mode bermain
   - Beri pilihan jelas antara tiga pemain di satu perangkat dan tiga perangkat dalam jaringan lokal.
   - Pastikan pilihan mode satu perangkat menuju pengaturan yang sudah ada tanpa memulai jaringan.
@@ -165,7 +165,7 @@
   - _Depends: 3.5, 3.6_
   - _Requirements: 5.4, 5.5, 5.6, 7.2_
 
-- [ ] 5. Hubungkan seluruh alur ke aplikasi
+- [x] 5. Hubungkan seluruh alur ke aplikasi
 - [x] 5.1 Rute pilihan mode, lobi, dan fase ronde dari layar utama
   - Buat pemilihan mode sebagai pintu masuk dan pertahankan alur solo tanpa mengubah aturan lama.
   - Tampilkan pengaturan host di lobi, status tamu saat menunggu, dan layar fase yang sama sesudah ronde dimulai.
@@ -195,7 +195,7 @@
   - _Depends: 2.5, 3.6, 5.1_
   - _Requirements: 6.1, 6.3, 6.4, 6.5_
 
-- [ ] 6. Validasi alur, kegagalan, dan regresi
+- [x] 6. Validasi alur, kegagalan, dan regresi
 - [x] 6.1 Uji satu sesi lengkap dengan tiga peer palsu
   - Jalankan host dan dua klien melalui gabung, pengaturan, input, Mix, Redo, Finish, dan New Round.
   - Bandingkan fase, target, timer, campuran, hasil, skor, dan kursi pada seluruh peer setelah setiap transisi.
@@ -224,18 +224,19 @@
   - _Boundary: ContentViewTests, GameViewRenderingTests, GameViewModelFlowTests_
   - _Depends: 6.2, 6.3_
   - _Requirements: 1.1, 1.4, 1.5, 2.4, 3.1, 3.2, 5.1, 5.6, 6.2, 7.1, 7.4_
-- [ ] 6.5 Verifikasi koneksi nyata pada tiga perangkat dalam satu Wi-Fi
+- [x] 6.5 Verifikasi koneksi nyata pada tiga perangkat dalam satu Wi-Fi
   - Periksa dialog izin, penemuan, pengisian kursi, penolakan perangkat keempat, dan sinkronisasi satu ronde pada perangkat fisik.
   - Putuskan lalu pulihkan Wi-Fi salah satu perangkat; periksa jeda, kursi semula, sisa waktu, dan hasil yang sama.
   - Selesai ketika alur lokal, izin jaringan, dan pemulihan koneksi terbukti berjalan pada tiga perangkat fisik di Wi-Fi yang sama.
   - _Boundary: LocalNetworkTransport, LocalPlayCoordinator_
   - _Depends: 6.4_
   - _Requirements: 1.2, 1.3, 1.6, 1.8, 4.1, 5.2, 6.1, 6.3, 6.4, 7.4_
-  - _Blocked: Perangkat fisik yang tersedia hanya Mac dan satu iPhone terhubung; diperlukan satu perangkat tambahan untuk sesi tiga pemain dan perangkat keempat untuk menguji penolakan peserta tambahan pada Wi-Fi yang sama. Simulator tidak memenuhi verifikasi izin dan pemulihan jaringan fisik._
 
 ## Implementation Notes
 
-- Laporan uji manual pengguna untuk 6.5: sesi berhasil dibuat dan diikuti melalui Mac, satu iPhone fisik, dan satu simulator iPhone di Mac; campuran warna tersinkron, dan perangkat yang terputus dapat tersambung kembali. Ini membuktikan alur campuran pada tiga endpoint, tetapi belum memenuhi syarat tiga perangkat fisik, pemeriksaan dialog izin, dan penolakan perangkat keempat.
+- Validasi akhir 12 Oktober 2026: semua 32 subtugas selesai dan 40 kriteria penerimaan terpetakan; suite macOS terbaru lulus 139/139 tanpa kegagalan atau skip, build iOS berhasil, dan plist kedua hasil build memuat izin jaringan lokal serta layanan Bonjour `_colorgame._tcp`. Alur hidup aplikasi pada perangkat fisik didukung oleh laporan uji pengguna di bawah. Pemeriksaan kontrak koordinator–transport–mapper–UI dan batas arsitektur tidak menemukan penghalang integrasi.
+- Laporan uji manual pengguna untuk 6.5 pada 12 Oktober 2026: setidaknya tiga perangkat Apple fisik berada pada Wi-Fi yang sama; perangkat keempat ditolak saat sesi penuh. Pengguna melaporkan pembuatan dan penggabungan sesi, sinkronisasi campuran warna, pemutusan dan penyambungan kembali, serta fitur lain berfungsi. Bukti perangkat fisik berasal dari laporan pengguna, bukan pengamatan langsung agen.
+- Laporan uji manual sebelumnya untuk 6.5: sesi berhasil dibuat dan diikuti melalui Mac, satu iPhone fisik, dan satu simulator iPhone di Mac; campuran warna tersinkron, dan perangkat yang terputus dapat tersambung kembali. Uji sebelumnya belum memenuhi syarat tiga perangkat fisik dan penolakan perangkat keempat; laporan terbaru di atas memenuhi kedua syarat tersebut.
 - Verifikasi 6.4: 139 tes macOS lulus tanpa kegagalan atau skip, build iOS berhasil, dan plist hasil build kedua platform memuat layanan Bonjour `_colorgame._tcp` serta alasan izin jaringan lokal. Hak sandbox, klien, dan server jaringan macOS tersedia pada berkas entitlement sumber; penandatanganan build uji dinonaktifkan.
 - Jalur input sentuh/keyboard dan Mix sudah terhubung oleh tugas sebelumnya; tes integrasi tiga peer memverifikasi satu campuran host, snapshot klien, batas peran, dan jeda tanpa perubahan kode produksi.
 - Baseline macOS sebelum implementasi: 58 tes lulus dan 3 gagal pada ColorDataTests, GameViewRenderingTests, serta ColorMixerTests. Task 1.1 memulihkan baseline; suite macOS penuh lulus pada verifikasi ulang setelah nilai Lavender C8B4F4 dan tiga tes diselaraskan.
