@@ -269,7 +269,7 @@ Snapshot adalah pengganti keadaan penuh, bukan delta. Host menyiarkannya setelah
 
 ### Domain Model
 
-Satu SessionState memuat sessionID, host, tiga Seat, status koneksi, status paused, dan snapshotRevision. Seat mengikat PlayerID ke clientID/token sementara. Satu RoundState tetap dimiliki GameViewModel host. AssignmentEpoch bertambah tiap pengacakan dalam ronde; RoundID baru pada setiap Start Round. AcceptedActionIDs adalah himpunan per ronde untuk deduplikasi; AssignmentHistory memetakan epoch ke dua warna per pemain. Tidak ada data sesi yang dipersistenkan.
+Satu SessionState memuat sessionID, host, tiga Seat, status koneksi, status paused, dan snapshotRevision. Seat mengikat PlayerID ke clientID/token sementara. Satu `Round` tetap dimiliki GameViewModel host. AssignmentEpoch bertambah tiap pengacakan dalam ronde; RoundID baru pada setiap Start Round. AcceptedActionIDs adalah himpunan per ronde untuk deduplikasi; AssignmentHistory memetakan epoch ke dua warna per pemain. Tidak ada data sesi yang dipersistenkan.
 
 ### Logical Data Model
 

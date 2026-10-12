@@ -39,6 +39,10 @@ enum ColorMixer {
     }
 
     private static func rybToSRGB(_ components: SIMD3<Double>) -> SIMD3<Double> {
+        if components.x == components.y && components.y == components.z {
+            return SIMD3(1 - components.x, 1 - components.y, 1 - components.z)
+        }
+
         let corners: [(r: Int, y: Int, b: Int, rgb: SIMD3<Double>)] = [
             (0, 0, 0, SIMD3(1, 1, 1)),
             (1, 0, 0, SIMD3(1, 0, 0)),
