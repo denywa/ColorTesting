@@ -88,7 +88,7 @@ final class LocalGameSnapshotMapperTests: XCTestCase {
         let client = GameViewModel()
         client.configureLocalPlay(localPlayer: .player3, isHost: false) { _, _ in }
         defer { host.pauseTimer(); host.removeKeyMonitor(); client.pauseTimer(); client.removeKeyMonitor() }
-        host.selectModel(.cmyk)
+        host.selectModel(.ryb)
         var snapshot = try mapper.makeSnapshot(from: host, session: session())
         XCTAssertNil(snapshot.roundID)
         XCTAssertNil(snapshot.target)
@@ -96,7 +96,7 @@ final class LocalGameSnapshotMapperTests: XCTestCase {
         XCTAssertTrue(snapshot.assignments.isEmpty)
         try mapper.apply(snapshot, to: client)
         XCTAssertEqual(client.phase, .settings)
-        XCTAssertEqual(client.selectedModel, .cmyk)
+        XCTAssertEqual(client.selectedModel, .ryb)
 
         host.confirmSettings()
         let firstRoundID = try XCTUnwrap(host.roundID)

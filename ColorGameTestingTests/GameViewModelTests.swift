@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class GameViewModelTests: XCTestCase {
-    func testModelSelectionGatesConfirmationAndIsMutuallyExclusive() {
+    func testRYBModelSelectionGatesConfirmation() {
         let viewModel = GameViewModel()
         XCTAssertEqual(viewModel.phase, .settings)
         XCTAssertNil(viewModel.selectedModel)
@@ -12,9 +12,6 @@ final class GameViewModelTests: XCTestCase {
         viewModel.confirmSettings()
         XCTAssertEqual(viewModel.phase, .settings)
 
-        viewModel.selectModel(.cmyk)
-        XCTAssertEqual(viewModel.selectedModel, .cmyk)
-        XCTAssertTrue(viewModel.canConfirm)
         viewModel.selectModel(.ryb)
         XCTAssertEqual(viewModel.selectedModel, .ryb)
         XCTAssertTrue(viewModel.canConfirm)
@@ -47,7 +44,7 @@ final class GameViewModelTests: XCTestCase {
     func testSelectedRequestIsUsedForTheRound() {
         for request in ColorData.requestPool {
             let viewModel = GameViewModel()
-            viewModel.selectModel(.cmyk)
+            viewModel.selectModel(.ryb)
             viewModel.selectedRequestID = request.id
             viewModel.confirmSettings()
 
@@ -72,7 +69,7 @@ final class GameViewModelTests: XCTestCase {
     }
 
     func testDuplicateCanLandWithinOnePlayerOrAcrossTwoPlayers() {
-        let viewModel = makePlayingViewModel(.cmyk)
+        let viewModel = makePlayingViewModel(.ryb)
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         var sawWithinPlayer = false
         var sawAcrossPlayers = false
@@ -92,7 +89,7 @@ final class GameViewModelTests: XCTestCase {
         }
         XCTAssertTrue(sawWithinPlayer, "The duplicate must be able to occupy one player's pair")
         XCTAssertTrue(sawAcrossPlayers, "The duplicate must be able to occupy two players' slots")
-        XCTAssertEqual(duplicatedColors, Set(ColorData.cmykPalette.map(\.id)),
+        XCTAssertEqual(duplicatedColors, Set(ColorData.rybPalette.map(\.id)),
                        "Each palette color must be eligible as the extra color")
     }
 
@@ -129,7 +126,7 @@ final class GameViewModelTests: XCTestCase {
     }
 
     func testTimerReassignsAtZeroAndPreservesMixAndResetsCountdown() {
-        let viewModel = makePlayingViewModel(.cmyk)
+        let viewModel = makePlayingViewModel(.ryb)
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         viewModel.pauseTimer()
         viewModel.pressKey(KeyCode.q.rawValue)
@@ -166,7 +163,7 @@ final class GameViewModelTests: XCTestCase {
     func testDeinitReleasesViewModelWithActiveTimerAndKeyMonitor() {
         weak var releasedViewModel: GameViewModel?
         do {
-            let viewModel = makePlayingViewModel(.cmyk)
+            let viewModel = makePlayingViewModel(.ryb)
             releasedViewModel = viewModel
             XCTAssertNotNil(releasedViewModel)
         }

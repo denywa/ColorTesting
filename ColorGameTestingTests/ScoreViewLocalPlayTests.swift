@@ -62,9 +62,9 @@ final class ScoreViewLocalPlayTests: XCTestCase {
         try coordinator.startHosting()
         joinPeer(coordinator)
         joinPeer(coordinator)
-        model.selectModel(.cmyk)
+        model.selectModel(.ryb)
         XCTAssertTrue(coordinator.perform(.startRound))
-        model.round?.mix.units = [ColorUnit(color: ColorData.cmykPalette[0])]
+        model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
         XCTAssertTrue(coordinator.perform(.mix))
         XCTAssertTrue(coordinator.perform(.finish))
         let view = ScoreView(viewModel: model, coordinator: coordinator)

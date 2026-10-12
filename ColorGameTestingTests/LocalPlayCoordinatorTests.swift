@@ -112,7 +112,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         let third = LocalPlayCoordinator(viewModel: thirdModel, transport: network.makePeer())
 
         try host.startHosting()
-        hostModel.selectModel(.cmyk)
+        hostModel.selectModel(.ryb)
         hostModel.reassignmentDuration = 12
         hostModel.showTargetColor = true
         XCTAssertTrue(hostModel.addCustomRequest(text: "Sea glass green", hex: "#32A89B"))
@@ -125,7 +125,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         third.startBrowsing()
         third.join(try XCTUnwrap(third.discoveredSessions.first))
         await waitUntil { third.role == .player3 }
-        await waitUntil { secondModel.selectedModel == .cmyk && thirdModel.selectedModel == .cmyk }
+        await waitUntil { secondModel.selectedModel == .ryb && thirdModel.selectedModel == .ryb }
 
         for client in [secondModel, thirdModel] {
             XCTAssertEqual(client.reassignmentDuration, 12)
@@ -135,7 +135,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             client.reassignmentDuration = 90
             client.showTargetColor = false
             client.confirmSettings()
-            XCTAssertEqual(client.selectedModel, .cmyk)
+            XCTAssertEqual(client.selectedModel, .ryb)
             XCTAssertNil(client.selectedRequestID)
             XCTAssertEqual(client.reassignmentDuration, 12)
             XCTAssertTrue(client.showTargetColor)
@@ -147,7 +147,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         hostModel.selectedModel = nil
         XCTAssertFalse(host.canStartRound)
         XCTAssertFalse(host.perform(.startRound))
-        hostModel.selectedModel = .cmyk
+        hostModel.selectedModel = .ryb
         hostModel.selectedRequestID = UUID()
         XCTAssertFalse(host.canStartRound)
         XCTAssertFalse(host.perform(.startRound))
@@ -168,7 +168,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
             XCTAssertEqual(client.latestSnapshot?.target?.text, request.text)
             XCTAssertEqual(model.round?.request.text, "Sea glass green")
             XCTAssertEqual(model.round?.request.targetSRGB, request.targetSRGB)
-            XCTAssertEqual(model.selectedModel, .cmyk)
+            XCTAssertEqual(model.selectedModel, .ryb)
             XCTAssertEqual(model.reassignmentDuration, 12)
             XCTAssertTrue(model.showTargetColor)
             XCTAssertTrue(model.customRequests.isEmpty)

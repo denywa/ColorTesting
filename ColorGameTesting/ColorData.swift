@@ -7,40 +7,22 @@ struct ColorRequest: Identifiable {
 }
 
 enum ColorData {
-    static let cmykPalette: [NamedColor] = [
-        NamedColor(id: UUID(uuidString: "A0000000-0000-0000-0000-000000000001")!,
-                   name: "Cyan", sRGB: SIMD3(0, 1, 1),
-                   cmykComponents: SIMD4(1, 0, 0, 0), rybComponents: nil),
-        NamedColor(id: UUID(uuidString: "A0000000-0000-0000-0000-000000000002")!,
-                   name: "Magenta", sRGB: SIMD3(1, 0, 1),
-                   cmykComponents: SIMD4(0, 1, 0, 0), rybComponents: nil),
-        NamedColor(id: UUID(uuidString: "A0000000-0000-0000-0000-000000000003")!,
-                   name: "Yellow", sRGB: SIMD3(1, 1, 0),
-                   cmykComponents: SIMD4(0, 0, 1, 0), rybComponents: nil),
-        NamedColor(id: UUID(uuidString: "A0000000-0000-0000-0000-000000000004")!,
-                   name: "Black", sRGB: SIMD3(0, 0, 0),
-                   cmykComponents: SIMD4(0, 0, 0, 1), rybComponents: nil),
-        NamedColor(id: UUID(uuidString: "A0000000-0000-0000-0000-000000000005")!,
-                   name: "White", sRGB: SIMD3(1, 1, 1),
-                   cmykComponents: SIMD4(0, 0, 0, 0), rybComponents: nil)
-    ]
-
     static let rybPalette: [NamedColor] = [
         NamedColor(id: UUID(uuidString: "B0000000-0000-0000-0000-000000000001")!,
                    name: "Red", sRGB: SIMD3(1, 0, 0),
-                   cmykComponents: nil, rybComponents: SIMD3(1, 0, 0)),
+                   rybComponents: SIMD3(1, 0, 0)),
         NamedColor(id: UUID(uuidString: "B0000000-0000-0000-0000-000000000002")!,
                    name: "Yellow", sRGB: SIMD3(1, 1, 0),
-                   cmykComponents: nil, rybComponents: SIMD3(0, 1, 0)),
+                   rybComponents: SIMD3(0, 1, 0)),
         NamedColor(id: UUID(uuidString: "B0000000-0000-0000-0000-000000000003")!,
                    name: "Blue", sRGB: SIMD3(0, 0, 1),
-                   cmykComponents: nil, rybComponents: SIMD3(0, 0, 1)),
+                   rybComponents: SIMD3(0, 0, 1)),
         NamedColor(id: UUID(uuidString: "B0000000-0000-0000-0000-000000000004")!,
                    name: "Black", sRGB: SIMD3(0, 0, 0),
-                   cmykComponents: nil, rybComponents: SIMD3(1, 1, 1)),
+                   rybComponents: SIMD3(1, 1, 1)),
         NamedColor(id: UUID(uuidString: "B0000000-0000-0000-0000-000000000005")!,
                    name: "White", sRGB: SIMD3(1, 1, 1),
-                   cmykComponents: nil, rybComponents: SIMD3(0, 0, 0))
+                   rybComponents: SIMD3(0, 0, 0))
     ]
 
     static let requestPool: [ColorRequest] = [
@@ -70,7 +52,6 @@ enum ColorData {
 
     static func colors(for model: ColorModel) -> [NamedColor] {
         switch model {
-        case .cmyk: return cmykPalette
         case .ryb: return rybPalette
         }
     }

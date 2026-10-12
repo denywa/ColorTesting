@@ -18,10 +18,10 @@ final class ResultViewLocalPlayTests: XCTestCase {
 
     private func resultModel() -> GameViewModel {
         let model = GameViewModel()
-        let colors = ColorData.cmykPalette
+        let colors = ColorData.rybPalette
         model.phase = .result
         model.round = Round(
-            request: ColorData.requestPool[0], colorModel: .cmyk, assignments: [:],
+            request: ColorData.requestPool[0], colorModel: .ryb, assignments: [:],
             mix: Mix(units: [ColorUnit(color: colors[0]), ColorUnit(color: colors[1])], isLocked: true)
         )
         model.mixResult = SIMD3(0.2, 0.7, 0.4)
@@ -76,9 +76,9 @@ final class ResultViewLocalPlayTests: XCTestCase {
         try coordinator.startHosting()
         joinPeer(coordinator)
         joinPeer(coordinator)
-        model.selectModel(.cmyk)
+        model.selectModel(.ryb)
         XCTAssertTrue(coordinator.perform(.startRound))
-        model.round?.mix.units = [ColorUnit(color: ColorData.cmykPalette[0])]
+        model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
         XCTAssertTrue(coordinator.perform(.mix))
         let view = ResultView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.showsActions)
@@ -98,7 +98,7 @@ final class ResultViewLocalPlayTests: XCTestCase {
         view.redo()
         XCTAssertEqual(model.phase, .playing)
         XCTAssertTrue(model.round?.mix.units.isEmpty == true)
-        model.round?.mix.units = [ColorUnit(color: ColorData.cmykPalette[1])]
+        model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[1])]
         XCTAssertTrue(coordinator.perform(.mix))
         view.finish()
         XCTAssertEqual(model.phase, .score)

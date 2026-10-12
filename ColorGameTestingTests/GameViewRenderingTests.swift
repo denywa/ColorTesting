@@ -25,8 +25,8 @@ final class GameViewRenderingTests: XCTestCase {
         var changedAssignments = originalRound.assignments
         changedAssignments[.player1] = PlayerAssignment(
             player: .player1,
-            primaryColor: ColorData.cmykPalette[3],
-            secondaryColor: ColorData.cmykPalette[4]
+            primaryColor: ColorData.rybPalette[3],
+            secondaryColor: ColorData.rybPalette[4]
         )
         viewModel.round?.assignments = changedAssignments
         let changedColors = try renderedPixels(of: viewModel)
@@ -44,7 +44,7 @@ final class GameViewRenderingTests: XCTestCase {
     }
 
     func testColorPieRendersEmptySingleAndMultipleColorRatios() throws {
-        let colors = ColorData.cmykPalette
+        let colors = ColorData.rybPalette
 
         let empty = try renderedPiePixels(of: Mix())
         XCTAssertEqual(try rgb(at: 40, 40, in: empty), try rgb(at: 120, 120, in: empty),
@@ -76,7 +76,7 @@ final class GameViewRenderingTests: XCTestCase {
 
     func testGameViewUpdatesPieWhenMixRatiosChange() throws {
         let viewModel = makeFixture()
-        let colors = ColorData.cmykPalette
+        let colors = ColorData.rybPalette
         viewModel.round?.mix.units = [
             ColorUnit(color: colors[0]), ColorUnit(color: colors[0]), ColorUnit(color: colors[1])
         ]
@@ -117,12 +117,12 @@ final class GameViewRenderingTests: XCTestCase {
     }
 
     private func makeFixture() -> GameViewModel {
-        let colors = ColorData.cmykPalette
+        let colors = ColorData.rybPalette
         let viewModel = GameViewModel()
         viewModel.phase = .playing
         viewModel.round = Round(
             request: ColorData.requestPool[0],
-            colorModel: .cmyk,
+            colorModel: .ryb,
             assignments: [
                 .player1: PlayerAssignment(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
                 .player2: PlayerAssignment(player: .player2, primaryColor: colors[1], secondaryColor: colors[2]),

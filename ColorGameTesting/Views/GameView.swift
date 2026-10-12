@@ -301,12 +301,12 @@ private struct MixButton: View {
 
 #Preview {
     let viewModel = GameViewModel()
-    let colors = ColorData.cmykPalette
+    let colors = ColorData.rybPalette
     viewModel.phase = .playing
-    viewModel.selectedModel = .cmyk
+    viewModel.selectedModel = .ryb
     viewModel.round = Round(
         request: ColorData.requestPool[0],
-        colorModel: .cmyk,
+        colorModel: .ryb,
         assignments: [
             .player1: PlayerAssignment(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
             .player2: PlayerAssignment(player: .player2, primaryColor: colors[2], secondaryColor: colors[3]),

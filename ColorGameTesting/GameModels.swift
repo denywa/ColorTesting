@@ -1,7 +1,6 @@
 import Foundation
 
 enum ColorModel: String, CaseIterable {
-    case cmyk = "CMYK"
     case ryb = "RYB"
 }
 
@@ -42,11 +41,10 @@ enum ColorSlot {
     case primary, secondary
 }
 
-/// A named color defined in a specific color model's component space.
+/// A named color defined in RYB component space.
 struct NamedColor: Identifiable, Hashable {
     let id: UUID
     let name: String
     let sRGB: SIMD3<Double>
-    let cmykComponents: SIMD4<Double>?
-    let rybComponents: SIMD3<Double>?
+    let rybComponents: SIMD3<Double>
 }

@@ -6,27 +6,27 @@ import XCTest
 @MainActor
 final class ResultViewTests: XCTestCase {
     func testBreakdownUsesFirstContributionOrderExactCountsAndOneDecimalPercentages() {
-        let cyan = ColorData.cmykPalette[0]
-        let magenta = ColorData.cmykPalette[1]
+        let red = ColorData.rybPalette[0]
+        let yellow = ColorData.rybPalette[1]
         let mix = Mix(units: [
-            ColorUnit(color: magenta), ColorUnit(color: cyan),
-            ColorUnit(color: magenta), ColorUnit(color: magenta)
+            ColorUnit(color: yellow), ColorUnit(color: red),
+            ColorUnit(color: yellow), ColorUnit(color: yellow)
         ])
 
         let rows = ResultView.breakdown(for: mix)
 
-        XCTAssertEqual(rows.map(\.color.id), [magenta.id, cyan.id])
+        XCTAssertEqual(rows.map(\.color.id), [yellow.id, red.id])
         XCTAssertEqual(rows.map(\.count), [3, 1])
         XCTAssertEqual(rows.map(\.percentage), [75.0, 25.0])
 
         let thirds = ResultView.breakdown(for: Mix(units: [
-            ColorUnit(color: cyan), ColorUnit(color: magenta), ColorUnit(color: cyan)
+            ColorUnit(color: red), ColorUnit(color: yellow), ColorUnit(color: red)
         ]))
         XCTAssertEqual(thirds.map(\.percentage), [66.7, 33.3])
     }
 
     func testDisplayedPercentagesRoundEachColorIndependently() {
-        let colors = ColorData.cmykPalette
+        let colors = ColorData.rybPalette
         let counts = [1, 1, 3, 8, 1]
         let units = zip(colors, counts).flatMap { color, count in
             Array(repeating: ColorUnit(color: color), count: count)
@@ -48,20 +48,20 @@ final class ResultViewTests: XCTestCase {
         XCTAssertNotEqual(original, changedSwatch, "The swatch must use the current mix result")
 
         viewModel.mixResult = SIMD3(0.2, 0.7, 0.4)
-        viewModel.round?.mix.units.append(ColorUnit(color: ColorData.cmykPalette[1]))
+        viewModel.round?.mix.units.append(ColorUnit(color: ColorData.rybPalette[1]))
         let changedBreakdown = try render(viewModel)
         XCTAssertNotEqual(original, changedBreakdown, "The table must show updated counts and ratios")
     }
 
     private func fixture() -> GameViewModel {
         let viewModel = GameViewModel()
-        let cyan = ColorData.cmykPalette[0]
-        let magenta = ColorData.cmykPalette[1]
+        let red = ColorData.rybPalette[0]
+        let yellow = ColorData.rybPalette[1]
         viewModel.phase = .result
         viewModel.round = Round(
-            request: ColorData.requestPool[0], colorModel: .cmyk,
+            request: ColorData.requestPool[0], colorModel: .ryb,
             assignments: [:],
-            mix: Mix(units: [ColorUnit(color: cyan), ColorUnit(color: magenta)], isLocked: true)
+            mix: Mix(units: [ColorUnit(color: red), ColorUnit(color: yellow)], isLocked: true)
         )
         viewModel.mixResult = SIMD3(0.2, 0.7, 0.4)
         return viewModel

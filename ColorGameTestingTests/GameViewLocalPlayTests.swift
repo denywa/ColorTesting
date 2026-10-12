@@ -17,11 +17,11 @@ final class GameViewLocalPlayTests: XCTestCase {
     }
 
     private func makeModel() -> GameViewModel {
-        let colors = ColorData.cmykPalette
+        let colors = ColorData.rybPalette
         let model = GameViewModel()
         model.phase = .playing
         model.round = Round(
-            request: ColorData.requestPool[0], colorModel: .cmyk,
+            request: ColorData.requestPool[0], colorModel: .ryb,
             assignments: [
                 .player1: .init(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
                 .player2: .init(player: .player2, primaryColor: colors[2], secondaryColor: colors[3]),
@@ -75,7 +75,7 @@ final class GameViewLocalPlayTests: XCTestCase {
         try coordinator.startHosting()
         joinPeer(coordinator)
         joinPeer(coordinator)
-        model.selectModel(.cmyk)
+        model.selectModel(.ryb)
         XCTAssertTrue(coordinator.perform(.startRound))
         let view = GameView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.showsMixButton)
@@ -83,7 +83,7 @@ final class GameViewLocalPlayTests: XCTestCase {
         view.mix()
         XCTAssertEqual(model.phase, .playing)
 
-        model.round?.mix.units = [ColorUnit(color: ColorData.cmykPalette[0])]
+        model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
         XCTAssertTrue(view.canMix)
         coordinator.setPaused(true)
         XCTAssertTrue(view.inputsDisabled)

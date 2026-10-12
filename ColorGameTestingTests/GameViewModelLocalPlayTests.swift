@@ -14,7 +14,7 @@ final class GameViewModelLocalPlayTests: XCTestCase {
                                 reassignmentDuration: 30, showTargetColor: true)
         defer { client.pauseTimer(); client.removeKeyMonitor() }
 
-        client.selectedModel = .cmyk
+        client.selectedModel = .ryb
         client.selectedRequestID = ColorData.requestPool[0].id
         client.reassignmentDuration = 90
         client.showTargetColor = false
@@ -51,7 +51,7 @@ final class GameViewModelLocalPlayTests: XCTestCase {
         var inputs: [(PlayerID, ColorSlot)] = []
         viewModel.configureLocalPlay(localPlayer: .player1, isHost: true) { inputs.append(($0, $1)) }
         viewModel.didChange = { changes += 1 }
-        viewModel.selectModel(.cmyk)
+        viewModel.selectModel(.ryb)
         viewModel.confirmSettings()
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         XCTAssertEqual(changes, 2)

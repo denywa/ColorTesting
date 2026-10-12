@@ -137,7 +137,7 @@ struct ResultView: View {
 
 #Preview {
     let viewModel = GameViewModel()
-    let colors = ColorData.cmykPalette
+    let colors = ColorData.rybPalette
     let units = [
         ColorUnit(color: colors[0]), ColorUnit(color: colors[1]),
         ColorUnit(color: colors[1]), ColorUnit(color: colors[2])
@@ -145,10 +145,10 @@ struct ResultView: View {
     viewModel.phase = .result
     viewModel.round = Round(
         request: ColorData.requestPool[0],
-        colorModel: .cmyk,
+        colorModel: .ryb,
         assignments: [:],
         mix: Mix(units: units, isLocked: true)
     )
-    viewModel.mixResult = ColorMixer.blend(units, model: .cmyk)
+    viewModel.mixResult = ColorMixer.blend(units, model: .ryb)
     return ResultView(viewModel: viewModel)
 }

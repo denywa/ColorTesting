@@ -61,7 +61,7 @@ final class SettingsViewLocalPlayTests: XCTestCase {
         var view = SettingsView(viewModel: model, coordinator: coordinator)
 
         XCTAssertFalse(view.canStartRound)
-        model.selectModel(.cmyk)
+        model.selectModel(.ryb)
         view = SettingsView(viewModel: model, coordinator: coordinator)
         XCTAssertFalse(view.canStartRound)
         try press(startButton(in: view))
@@ -72,7 +72,7 @@ final class SettingsViewLocalPlayTests: XCTestCase {
         joinPeer(coordinator)
         model.selectedModel = nil
         XCTAssertFalse(SettingsView(viewModel: model, coordinator: coordinator).canStartRound)
-        model.selectModel(.cmyk)
+        model.selectModel(.ryb)
         view = SettingsView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.canStartRound)
         try press(startButton(in: view))

@@ -25,7 +25,7 @@ final class LocalPlayInputIntegrationTests: XCTestCase {
             peers[index].join(try XCTUnwrap(peers[index].discoveredSessions.first))
             await waitUntil { peers[index].role != nil && peers[index].latestSnapshot != nil }
         }
-        models[0].selectModel(.cmyk)
+        models[0].selectModel(.ryb)
         XCTAssertTrue(peers[0].perform(.startRound))
         await waitUntil { models[1].phase == .playing && models[2].phase == .playing }
 

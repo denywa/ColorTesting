@@ -8,7 +8,7 @@ final class GameViewModelFlowTests: XCTestCase {
         viewModel.addColor(player: .player1, slot: .primary)
         XCTAssertNil(viewModel.round)
 
-        viewModel.selectModel(.cmyk)
+        viewModel.selectModel(.ryb)
         viewModel.confirmSettings()
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
 
@@ -28,7 +28,7 @@ final class GameViewModelFlowTests: XCTestCase {
     }
 
     func testMixRequiresNonemptyUnlockedPlayingMixAndFreezesRound() {
-        let viewModel = makePlayingViewModel(.cmyk)
+        let viewModel = makePlayingViewModel(.ryb)
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         viewModel.pressMixButton()
         XCTAssertEqual(viewModel.phase, .playing)
@@ -43,7 +43,7 @@ final class GameViewModelFlowTests: XCTestCase {
         viewModel.round?.mix.isLocked = false
         viewModel.pressKey(KeyCode.w.rawValue)
         let units = viewModel.round!.mix.units
-        let expected = ColorMixer.blend(units, model: .cmyk)
+        let expected = ColorMixer.blend(units, model: .ryb)
         let originalAssignmentIDs = assignmentIDs(in: viewModel)
         viewModel.timerTick()
         let remaining = viewModel.timerSecondsRemaining
@@ -93,7 +93,7 @@ final class GameViewModelFlowTests: XCTestCase {
 
     func testFinishComputesMatchPercentageAndNewRoundResetsAllState() {
         let viewModel = GameViewModel()
-        viewModel.selectModel(.cmyk)
+        viewModel.selectModel(.ryb)
         viewModel.selectedRequestID = ColorData.requestPool[0].id
         viewModel.confirmSettings()
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
