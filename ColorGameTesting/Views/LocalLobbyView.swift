@@ -2,22 +2,24 @@ import SwiftUI
 
 struct LocalLobbyView: View {
     let coordinator: LocalPlayCoordinator
+    var embedded = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Local Wi-Fi Lobby")
-                    .font(.largeTitle)
-                    .bold()
+        Group {
+            if embedded { lobbyContent }
+            else { ScrollView(.vertical) { lobbyContent } }
+        }
+    }
 
-                if let role = coordinator.role {
-                    Text("Your role: \(role.name)")
-                        .accessibilityLabel("Your role: \(role.name)")
-                }
+    private var lobbyContent: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                PlaytestHeading(title: "Local Wi-Fi Lobby", subtitle: "One host. Two guests. The same Wi-Fi.")
 
                 if coordinator.role == nil {
                     Button("Create Session") { try? coordinator.startHosting() }
+                        .buttonStyle(PlaytestButtonStyle())
                     Button("Find Sessions") { coordinator.startBrowsing() }
+                        .buttonStyle(PlaytestButtonStyle(primary: false))
 
                     if coordinator.discoveredSessions.isEmpty {
                         Text("No sessions found yet")
@@ -29,9 +31,21 @@ struct LocalLobbyView: View {
                 } else {
                     Text("Players")
                         .font(.headline)
-                    seatRow(.host)
-                    seatRow(.player2)
-                    seatRow(.player3)
+                    HStack(spacing: 8) {
+                        ForEach(SessionRole.allCases, id: \.self) { role in
+                            VStack(spacing: 4) {
+                                Label(role == .host ? "P1" : role == .player2 ? "P2" : "P3",
+                                      systemImage: status(for: role) == .connected ? "checkmark.circle.fill" : "person.crop.circle.badge.clock")
+                                    .font(.subheadline.bold())
+                                Text(status(for: role).name).font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .playtestCard()
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(role.name)
+                            .accessibilityValue(status(for: role).name)
+                        }
+                    }
 
                     if coordinator.role != .host {
                         Text("Waiting for the host to start the round")
@@ -43,6 +57,8 @@ struct LocalLobbyView: View {
 
                 if let error = coordinator.error {
                     Text(error.message)
+                        .font(.callout)
+                        .foregroundStyle(PlaytestStyle.accent)
                         .accessibilityLabel(error.message)
                     Button("Try Again") {
                         if coordinator.role != nil {
@@ -56,13 +72,13 @@ struct LocalLobbyView: View {
                 Button(coordinator.role == .host ? "End Session" : "Leave Session") {
                     Task { await coordinator.leaveSession() }
                 }
+                .buttonStyle(PlaytestButtonStyle(primary: false))
             }
-            .padding()
+            .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
     }
 
-    private func status(for role: SessionRole) -> SessionStatus {
+    func status(for role: SessionRole) -> SessionStatus {
         if role == .host, coordinator.role != .host, coordinator.role != nil {
             return coordinator.connectionStatus == .disconnected ? .disconnected :
                 (coordinator.seatStatus.first { $0.player == .player1 }?.status ?? .connected)
@@ -75,10 +91,7 @@ struct LocalLobbyView: View {
         Button("Join \(session.name)") { coordinator.join(session) }
     }
 
-    private func seatRow(_ role: SessionRole) -> some View {
-        Text("\(role.name): \(status(for: role).name)")
-            .accessibilityLabel("\(role.name): \(status(for: role).name)")
-    }
+
 }
 
 private extension SessionRole {

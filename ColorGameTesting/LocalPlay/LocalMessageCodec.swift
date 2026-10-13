@@ -5,7 +5,7 @@ struct LocalMessageCodec {
     private var buffer = Data()
 
     func encode(_ message: WireMessage) throws -> Data {
-        try Self.checkVersion(message)
+        try Self.checkMessage(message)
         let payload = try JSONEncoder().encode(message)
         guard !payload.isEmpty, payload.count <= Self.maximumPayloadLength else {
             throw LocalPlayError.invalidMessage
@@ -31,18 +31,27 @@ struct LocalMessageCodec {
             let payload = Data(buffer.dropFirst(4).prefix(length))
             let message: WireMessage
             do {
+                if let json = try JSONSerialization.jsonObject(with: payload) as? [String: Any],
+                   let snapshot = json["snapshot"] as? [String: Any],
+                   let fields = snapshot["_0"] as? [String: Any],
+                   let version = fields["protocolVersion"] as? Int,
+                   version != LocalPlayProtocol.version {
+                    throw LocalPlayError.versionMismatch
+                }
                 message = try JSONDecoder().decode(WireMessage.self, from: payload)
+            } catch LocalPlayError.versionMismatch {
+                throw LocalPlayError.versionMismatch
             } catch {
                 throw LocalPlayError.invalidMessage
             }
-            try Self.checkVersion(message)
+            try Self.checkMessage(message)
             messages.append(message)
             buffer.removeFirst(4 + length)
         }
         return messages
     }
 
-    private static func checkVersion(_ message: WireMessage) throws {
+    private static func checkMessage(_ message: WireMessage) throws {
         switch message {
         case .snapshot(let snapshot) where snapshot.protocolVersion != LocalPlayProtocol.version:
             throw LocalPlayError.versionMismatch

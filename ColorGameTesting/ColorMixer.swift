@@ -7,26 +7,7 @@ enum ColorMixer {
             return first.color.sRGB
         }
 
-        let count = Double(units.count)
-        let result: SIMD3<Double>
-        switch model {
-        case .cmyk:
-            var sum = SIMD4<Double>(0, 0, 0, 0)
-            for unit in units {
-                guard let components = unit.color.cmykComponents else {
-                    preconditionFailure("CMYK mix contains a color without CMYK components")
-                }
-                sum += components
-            }
-            let blend = sum / count
-            result = SIMD3(
-                (1 - blend.x) * (1 - blend.w),
-                (1 - blend.y) * (1 - blend.w),
-                (1 - blend.z) * (1 - blend.w)
-            )
-        case .ryb:
-            result = rybToSRGB(units)
-        }
+        let result = rybToSRGB(units)
         return SIMD3((0..<3).map { min(1, max(0, result[$0])) })
     }
 
@@ -35,9 +16,7 @@ enum ColorMixer {
         var primaryCount = 0.0
         var whiteCount = 0.0
         for unit in units {
-            guard let components = unit.color.rybComponents else {
-                preconditionFailure("RYB mix contains a color without RYB components")
-            }
+            let components = unit.color.rybComponents
             if components == SIMD3(repeating: 0) {
                 whiteCount += 1
             } else if components != SIMD3(repeating: 1) {

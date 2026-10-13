@@ -1,3 +1,68 @@
+# Riset dan Keputusan Desain: Playtesting Part II
+
+## Ringkasan
+
+- **Fitur:** local-three-device-play
+- **Jenis penelusuran:** Ekstensi; penelusuran ringan terfokus pada protokol/mapper/koordinator yang sudah diimplementasikan.
+- **Temuan utama:** Transport, kursi, deduplikasi, riwayat penugasan dan reconnect dapat dipakai kembali. Mayoritas membutuhkan votingID tersendiri; snapshotRevision/epoch berubah saat warna/tick, sedangkan roundID/fase tidak berubah saat Auto Redo. Mode/live color/suara memerlukan protokol 2.
+
+## Catatan Penelusuran
+
+### Kontrak dan sumber otoritas
+
+- **Konteks:** Suara final, dua cocok segera berlaku, input tetap diterima, campuran terbaru digunakan.
+- **Sumber:** LocalPlayModels.swift, LocalPlayCoordinator.swift, LocalGameSnapshotMapper.swift, LocalMessageCodec.swift, LocalPeerTransport.swift dan pengujian terkait.
+- **Temuan:** Host sekarang menjalankan tindakan fase langsung; peer hanya mengirim warna. Hook didChange menerbitkan snapshot. acceptedActionIDs direset ketika roundID berubah dan harus dipertahankan saat Redo/reconnect.
+- **Dampak:** Vote bertipe melalui Input.action, seat diturunkan dari koneksi, satu jalur MainActor untuk semua peran. Ganti ballot sebelum mutasi domain agar snapshot hasil tidak memuat suara lama. Jangan await di antara mayoritas dan tindakan.
+
+### Warna live, validasi dan pemulihan
+
+- **Sumber:** GameViewModel.swift, mapper, LocalPlayCoordinatorTests.swift, LocalPlayInputIntegrationTests.swift dan laporan riset round-flow.
+- **Temuan:** Mapper belum memvalidasi pasangan berbeda dan menolak hasil saat playing. Klien memakai applyRemoteState tanpa timer/mixer. Recovery sudah mengirim snapshot penuh sebelum resume.
+- **Dampak:** Pakai currentBlend terpisah dari mixResult, hitung hanya host/solo. Mapper memvalidasi mode/fase/warna/assignment/ballot secara utuh sebelum apply. Reconnect mempertahankan votingID/records, menolak vote selama pause, dan tidak menjalankan keputusan baru sendiri.
+
+### Kompatibilitas dan transport
+
+- **Sumber:** LocalPlayProtocol.version, WireMessage.Hello/Reject, codec/tests, transport/config yang sudah ada.
+- **Temuan:** Versi 1 tidak mempunyai mode atau suara; schema baru tidak kompatibel. Framing, Bonjour/TCP, heartbeat dan izin sudah tersedia.
+- **Dampak:** Naikkan ke versi 2, pertahankan bentuk Hello/Reject agar handshake menolak build berbeda sebelum snapshot. Tidak membangun ulang transport atau menambah pustaka. Riset API eksternal baru tidak diperlukan; dokumen Apple pada catatan historis menjelaskan keputusan transport awal.
+
+## Evaluasi Pola Arsitektur
+
+| Opsi | Kelebihan | Batas | Keputusan |
+| --- | --- | --- | --- |
+| Host otoritatif + snapshot penuh | Satu urutan aksi, pemulihan tersedia | Host tetap titik kegagalan | Dipertahankan |
+| Konsensus peer atau service voting baru | Pemisahan tambahan | Otoritas ganda dan migrasi rumit | Ditolak |
+
+## Keputusan Desain
+
+- **Generalisasi:** Satu ballot tiga kursi mendukung empat tindakan yang dibatasi eligibility mode/fase; tidak membuat aturan mayoritas generik untuk jumlah pemain lain.
+- **Bangun vs adopsi:** Gunakan transport/codec/mapper/koordinator yang ada; tambah hanya payload dan state suara game.
+- **Penyederhanaan:** LocalVotingState kecil berada dalam file model yang ada. Mode berasal dari domain; tidak ada enum mode jaringan kedua, log kejadian, layanan voting terpisah atau persistence.
+- **Batas:** Koordinator memiliki ballot/seat/authority; domain memiliki eligibility/transisi; mapper memvalidasi snapshot; UI mempresentasikan final choice/status. Perubahan file bersama bertahap setelah kontrak warna/ronde.
+- **Skill:** kiro-spec-design light discovery/synthesis/review dan Ponytail full memandu pemakaian komponen yang ada. kiro-verify-completion membatasi klaim hasil pada bukti aktual.
+
+## Risiko dan Mitigasi
+
+- Suara reset setiap kontribusi: gunakan votingID yang tetap sepanjang keputusan, independen dari snapshotRevision/assignmentEpoch.
+- Suara terlambat memicu Auto Redo ulang: tolak votingID lama dan pertahankan deduplikasi actionID sepanjang ronde.
+- Snapshot tidak konsisten saat mayoritas: kosongkan/ganti ballot sebelum domain didChange; mapper menolak snapshot tertunda yang sudah mayoritas.
+- Koneksi putus: records sah dipertahankan, input/suara baru ditolak, full snapshot terkirim sebelum resume.
+- Izin/jaringan nyata: fake/simulator tidak membuktikan operasi tiga perangkat; pengujian fisik wajib sebelum GO.
+
+## Gate Tinjauan
+
+Semua 59 kriteria numerik tercakup dalam traceability. Pemeriksaan mekanis memastikan section/batas terisi, path Swift tersedia, tanpa placeholder dan requirements disetujui. Perbaikan lokal menyelaraskan lokasi FakePeerNetwork dan kontrak lintas spesifikasi. Tinjauan semantik memeriksa identitas ballot, dua suara final, continued input/latest bowl, atomic publish, penolakan versi dan recovery. Tidak ada implementasi atau tes runtime pada tahap desain ini.
+
+## Referensi
+
+Berkas produksi/pengujian dan core steering di atas menjadi sumber lokal. Desain color/round/UI menjelaskan batas terkait. Catatan historis berikut berasal dari pengembangan transport awal; pernyataan belum adanya jaringan di sana bukan keadaan kode saat ini.
+
+
+---
+
+## Catatan Riset Historis (cakupan baseline terdahulu)
+
 # Riset dan Keputusan Desain: Permainan Lokal Tiga Perangkat
 
 ## Ringkasan

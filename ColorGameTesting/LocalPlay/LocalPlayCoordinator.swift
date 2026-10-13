@@ -12,6 +12,7 @@ final class LocalPlayCoordinator {
     private(set) var connectionStatus: SessionStatus = .waiting
     private(set) var error: LocalPlayError?
     private(set) var latestSnapshot: GameSnapshot?
+    private(set) var voting: LocalVotingState?
 
     private let viewModel: GameViewModel
     private let transport: any LocalPeerTransport
@@ -44,10 +45,17 @@ final class LocalPlayCoordinator {
 
     var canStartRound: Bool {
         role == .host && hostIsForeground && connectionStatus == .connected &&
-        viewModel.phase == .settings && viewModel.selectedModel != nil &&
+        viewModel.phase == .settings && viewModel.canConfirm &&
         (1...3600).contains(viewModel.reassignmentDuration) &&
         (viewModel.selectedRequestID == nil ||
          viewModel.availableRequests.contains { $0.id == viewModel.selectedRequestID }) &&
+        session?.paused == false && session?.seats.count == 3 &&
+        session?.seats.allSatisfy { $0.status == .connected } == true
+    }
+
+    var canStartRun: Bool {
+        role == .host && hostIsForeground && connectionStatus == .connected &&
+        recoveringPeers.isEmpty && viewModel.canStartRun && (1...3600).contains(viewModel.reassignmentDuration) &&
         session?.paused == false && session?.seats.count == 3 &&
         session?.seats.allSatisfy { $0.status == .connected } == true
     }
@@ -69,7 +77,7 @@ final class LocalPlayCoordinator {
     func leaveSession() async {
         guard !endingSession else { return }
         endingSession = true
-        viewModel.pauseTimer()
+        viewModel.pauseSessionClocks()
         viewModel.didChange = nil
         if role == .host, let sessionID {
             for task in Array(outboundTasks.values) { await task.value }
@@ -99,6 +107,7 @@ final class LocalPlayCoordinator {
         connectionStatus = .waiting
         error = nil
         latestSnapshot = nil
+        voting = nil
         clientID = UUID()
         reconnectToken = nil
         hostPeer = nil
@@ -135,6 +144,7 @@ final class LocalPlayCoordinator {
         welcomedPeers.removeAll()
         outboundTasks.removeAll()
         latestSnapshot = nil
+        voting = nil
         hostIsForeground = true
         pauseRequested = false
         recoveringPeers.removeAll()
@@ -252,6 +262,7 @@ final class LocalPlayCoordinator {
                     do {
                         try snapshotMapper.apply(snapshot, to: viewModel)
                         latestSnapshot = snapshot
+                        voting = snapshot.voting
                         awaitingSnapshot = false
                         error = nil
                     } catch {
@@ -271,8 +282,12 @@ final class LocalPlayCoordinator {
 
     private func recordAssignment() {
         guard role == .host else { return }
+        if viewModel.phase == .settings || viewModel.phase == .score || viewModel.phase == .gameOver { voting = nil }
         if historyRoundID != viewModel.roundID {
             historyRoundID = viewModel.roundID
+            if viewModel.roundID != nil && (viewModel.phase == .playing || viewModel.phase == .result) {
+                voting = .init(id: UUID(), votes: [])
+            }
             assignmentHistory.removeAll()
             acceptedActionIDs.removeAll()
         }
@@ -295,7 +310,7 @@ final class LocalPlayCoordinator {
             viewModel.timerSecondsRemaining = viewModel.reassignmentDuration
         }
         do {
-            let snapshot = try snapshotMapper.makeSnapshot(from: viewModel, session: session)
+            let snapshot = try snapshotMapper.makeSnapshot(from: viewModel, session: session, voting: voting)
             latestSnapshot = snapshot
             for peer in welcomedPeers { enqueue(.snapshot(snapshot), to: peer) }
         } catch {
@@ -361,7 +376,7 @@ final class LocalPlayCoordinator {
         guard current.paused != shouldPause else { return }
         current.paused = shouldPause
         session = current
-        if shouldPause { viewModel.pauseTimer() } else { viewModel.resumeTimer() }
+        if shouldPause { viewModel.pauseSessionClocks() } else { viewModel.resumeSessionClocks() }
         publishChange()
     }
 
@@ -380,9 +395,48 @@ final class LocalPlayCoordinator {
         perform(.addColor(slot: slot, observedColorID: color.id, assignmentEpoch: epoch))
     }
 
+    func canVote(_ action: LocalVoteAction) -> Bool {
+        guard !endingSession, let role, voting != nil,
+              connectionStatus == .connected, !paused,
+              seatStatus.count == PlayerID.allCases.count,
+              seatStatus.allSatisfy({ $0.status == .connected }),
+              voting?.votes.contains(where: { $0.player == role.playerID }) == false,
+              role != .host || (hostIsForeground && recoveringPeers.isEmpty),
+              role == .host || (!awaitingSnapshot && hostPeer != nil) else { return false }
+        return isVoteEligible(action)
+    }
+
+    private func isVoteEligible(_ action: LocalVoteAction) -> Bool {
+        switch action {
+        case .mix: return viewModel.canMix
+        case .finish: return viewModel.canFinish
+        case .apply: return viewModel.canApply
+        case .redo: return viewModel.canRedo
+        }
+    }
+
+    @discardableResult
+    func castVote(_ action: LocalVoteAction) -> Bool {
+        guard canVote(action), let voting else { return false }
+        return perform(.vote(action: action, votingID: voting.id))
+    }
+
     @discardableResult
     func perform(_ action: LocalGameAction) -> Bool {
         guard !endingSession else { return false }
+        if case .returnToLobby = action {
+            guard role == .host, connectionStatus == .connected, var current = session else { return false }
+            pauseRequested = false
+            current.paused = false
+            session = current
+            viewModel.returnToSettings()
+            return viewModel.phase == .settings
+        }
+        if case .startRun = action {
+            guard canStartRun else { return false }
+            viewModel.startEndlessRun()
+            return viewModel.run != nil && viewModel.phase == .playing
+        }
         if case .startRound = action {
             guard canStartRound else { return false }
             viewModel.confirmSettings()
@@ -392,36 +446,35 @@ final class LocalPlayCoordinator {
            let session, session.seats.count == PlayerID.allCases.count,
            session.seats.allSatisfy({ $0.status == .connected }), !session.paused {
             switch action {
-            case .mix:
-                guard viewModel.phase == .playing, let mix = viewModel.round?.mix,
-                      !mix.isLocked, !mix.units.isEmpty else { return false }
-                viewModel.pressMixButton()
-                return viewModel.phase == .result
-            case .redo:
-                guard viewModel.phase == .result, viewModel.round?.mix.isLocked == true else { return false }
-                viewModel.selectRedo()
+            case .continueRun:
+                guard viewModel.canContinueRun else { return false }
+                viewModel.continueRun()
                 return viewModel.phase == .playing
-            case .finish:
-                guard viewModel.phase == .result, viewModel.mixResult != nil else { return false }
-                viewModel.selectFinish()
-                return viewModel.phase == .score
+            case .restartRun:
+                guard viewModel.phase == .gameOver else { return false }
+                viewModel.restartRun()
+                return viewModel.phase == .playing
             case .newRound:
                 guard viewModel.phase == .score else { return false }
                 viewModel.startNewRound()
-                return viewModel.phase == .settings
+                return viewModel.phase == .settings || viewModel.phase == .playing
             default: break
             }
         }
-        guard let role, let sessionID,
-              let roundID = viewModel.roundID, viewModel.phase == .playing,
-              viewModel.round?.mix.isLocked == false,
+        guard let role, let sessionID, let roundID = viewModel.roundID,
               connectionStatus == .connected, !paused,
               (role == .host || !awaitingSnapshot) else { return false }
-        guard case let .addColor(slot, observedColorID, epoch) = action,
-              epoch == viewModel.assignmentEpoch,
-              let assignment = viewModel.round?.assignments[role.playerID],
-              (slot == .primary ? assignment.primaryColor.id : assignment.secondaryColor.id) == observedColorID else {
-            return false
+        switch action {
+        case let .vote(voteAction, votingID):
+            guard canVote(voteAction), voting?.id == votingID else { return false }
+        case let .addColor(slot, observedColorID, epoch):
+            guard viewModel.phase == .playing, viewModel.round?.mix.isLocked == false,
+                  epoch == viewModel.assignmentEpoch,
+                  let assignment = viewModel.round?.assignments[role.playerID],
+                  (slot == .primary ? assignment.primaryColor.id : assignment.secondaryColor.id) == observedColorID else {
+                return false
+            }
+        default: return false
         }
         let input = WireMessage.Input(sessionID: sessionID, roundID: roundID,
                                       actionID: UUID(), action: action)
@@ -440,21 +493,54 @@ final class LocalPlayCoordinator {
     }
 
     private func acceptInput(_ input: WireMessage.Input, from source: SessionRole) -> Bool {
-        guard role == .host, let session,
+        if role == .host && !paused { viewModel.refreshRunBudget() }
+        guard role == .host, let session, hostIsForeground, recoveringPeers.isEmpty,
+              connectionStatus == .connected,
               input.sessionID == session.sessionID,
               input.roundID == viewModel.roundID,
               session.seats.count == PlayerID.allCases.count,
               session.seats.allSatisfy({ $0.status == .connected }),
-              !session.paused, viewModel.phase == .playing,
-              viewModel.round?.mix.isLocked == false,
-              !acceptedActionIDs.contains(input.actionID),
-              case let .addColor(slot, observedColorID, epoch) = input.action,
-              let assignment = assignmentHistory[epoch]?[source.playerID] else { return false }
-        let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
-        guard color.id == observedColorID,
-              viewModel.acceptColor(color, for: source.playerID) else { return false }
-        acceptedActionIDs.insert(input.actionID)
-        return true
+              session.seats.contains(where: { $0.role == source }),
+              !session.paused, !acceptedActionIDs.contains(input.actionID) else { return false }
+        switch input.action {
+        case .vote:
+            guard let proposed = proposedVoting(for: input, from: source) else { return false }
+            acceptedActionIDs.insert(input.actionID)
+            if let decision = proposed.votes.first(where: { vote in
+                proposed.votes.filter { $0.action == vote.action }.count >= 2
+            })?.action {
+                guard isVoteEligible(decision) else { return false }
+                voting = decision == .finish || decision == .apply ? nil : .init(id: UUID(), votes: [])
+                switch decision {
+                case .mix: viewModel.pressMixButton()
+                case .finish: viewModel.selectFinish()
+                case .apply: viewModel.selectApply()
+                case .redo: viewModel.selectRedo()
+                }
+            } else {
+                voting = proposed
+                publishChange()
+            }
+            return true
+        case let .addColor(slot, observedColorID, epoch):
+            guard viewModel.phase == .playing, viewModel.round?.mix.isLocked == false,
+                  let assignment = assignmentHistory[epoch]?[source.playerID] else { return false }
+            let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
+            guard color.id == observedColorID,
+                  viewModel.acceptColor(color, for: source.playerID) else { return false }
+            acceptedActionIDs.insert(input.actionID)
+            return true
+        default: return false
+        }
+    }
+
+    private func proposedVoting(for input: WireMessage.Input, from source: SessionRole) -> LocalVotingState? {
+        guard case let .vote(action, votingID) = input.action,
+              var proposed = voting, proposed.id == votingID,
+              !proposed.votes.contains(where: { $0.player == source.playerID }),
+              isVoteEligible(action) else { return nil }
+        proposed.votes.append(.init(player: source.playerID, action: action))
+        return proposed
     }
 
     private func accept(_ hello: WireMessage.Hello, from peer: PeerHandle) {
@@ -516,7 +602,7 @@ final class LocalPlayCoordinator {
             guard let self, !self.endingSession, self.peersByRole[assigned] == peer else { return }
             self.welcomedPeers.insert(peer)
             guard let session = self.session,
-                  let snapshot = try? self.snapshotMapper.makeSnapshot(from: self.viewModel, session: session) else {
+                  let snapshot = try? self.snapshotMapper.makeSnapshot(from: self.viewModel, session: session, voting: self.voting) else {
                 self.transport.disconnect(peer)
                 return
             }
@@ -541,7 +627,7 @@ final class LocalPlayCoordinator {
                                     paused: shouldPause,
                                     snapshotRevision: current.snapshotRevision + 1)
         if current.paused != shouldPause {
-            if shouldPause { viewModel.pauseTimer() } else { viewModel.resumeTimer() }
+            if shouldPause { viewModel.pauseSessionClocks() } else { viewModel.resumeSessionClocks() }
         }
         broadcastSnapshot()
     }

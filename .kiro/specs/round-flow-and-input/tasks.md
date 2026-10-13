@@ -91,3 +91,63 @@ These checked tasks record the existing single-device baseline. Source and test 
   - _Boundary: GameViewModelFlowTests, GameViewRenderingTests, ContentViewTests_
   - _Depends: 2.1, 3.1, 3.2, 3.3, 3.4_
   - _Requirements: 2.3, 2.4, 2.5, 3.5, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
+
+
+The checked tasks above record the existing round-flow baseline. Playtesting Part II tasks below extend that shared controller. Complete `color-mixing-and-scoring` tasks 5.1–5.2 first so all callers use the approved RYB-only contract. Task 6 in that spec verifies the live/empty/apply handoff after round task 6.2 and before network protocol work.
+
+- [x] 5. Add RYB and mix-mode settings to round state
+- [x] 5.1 Retain a fixed RYB selection and capture the chosen mix mode
+  - Remove palette selection and its Start gating; present RYB as the only palette and Manual Mix/Auto Mix as exclusive choices.
+  - Default new settings and New Round to Manual; preserve target selection, duration choices/default, hint default, and saved request availability.
+  - Capture the selected mode in each round. Keep the active round mode unchanged until that round ends.
+  - Done when settings can start with RYB alone, create a round in either mode, and reset to Manual on New Round without losing retained settings/catalog data.
+  - _Boundary: GameModels, GameState, GameViewModel settings state, SettingsView_
+  - _Depends: color-mixing-and-scoring 5.1, 5.2_
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 5.5, 5.6, 6.6_
+- [x] 5.2 Guarantee a duplicate color never lands within one player's pair
+  - Allocate the five palette colors and one duplicate across all six slots at round start and every reassignment.
+  - Correct any generated same-player pair with a bounded swap that preserves palette coverage and exactly one cross-player duplicate.
+  - Replace the test that expects a within-player duplicate; cover the correction case and reassignment.
+  - Done when each of three players always receives different colors, all five colors appear, and exactly one color occurs twice.
+  - _Boundary: GameViewModel assignments, GameViewModelTests_
+  - _Depends: 5.1_
+  - _Requirements: 2.1, 2.2, 2.6, 2.7, 4.3_
+
+- [x] 6. Support mode-specific round actions and live Auto color
+- [x] 6.1 Update live color for every accepted Auto contribution
+  - Maintain an optional live color separately from the frozen result; empty, Manual and scored states have no live color.
+  - Recalculate from all accepted units after both solo input and host-accepted network input using the shared RYB mixer; client snapshot application accepts the host color without calculating it.
+  - Keep current assignments, countdown, keyboard/touch mapping and contribution acceptance rules intact.
+  - Done when one accepted unit updates the Auto color and the value matches blending the entire current bowl on either accepted input path.
+  - _Boundary: GameState live color, GameViewModel input and applyRemoteState_
+  - _Depends: 5.1, 5.2_
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5, 6.1_
+- [x] 6.2 Apply or clear Auto Mix without a Manual result phase
+  - Add shared eligibility for Mix, Apply, Redo, Finish and New Round; gate each action by phase, mode, lock and nonempty/result state.
+  - Auto Apply freezes and scores the latest bowl directly into the score phase, stops timer/input, and retains the target; Auto Redo clears units/live color and continues playing with assignments and remaining time.
+  - Preserve Manual Mix → result → Redo/Finish → score behavior and invalid-action no-ops; clear transient colors and reset mode on New Round.
+  - Done when Auto never enters result, Apply uses the latest accepted contribution, both Redo paths preserve their required round data, and Manual flow remains unchanged.
+  - _Boundary: GameViewModel action eligibility and transitions_
+  - _Depends: 6.1_
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
+
+- [x] 7. Connect both round modes to functional screens
+- [x] 7.1 Show mode-specific controls and current bowl color
+  - Settings displays the fixed RYB palette and both mix-mode choices. Gameplay keeps existing request, hint, assignment, countdown and platform inputs.
+  - Manual shows its contribution chart and Mix action. Auto shows live color/empty state and Apply/Redo on the gameplay screen without the Manual ratio chart or Mix action.
+  - Keep solo iOS six-slot touch controls and macOS key mappings; do not apply the separate modern layout redesign in this task.
+  - Done when rendering assertions show the correct controls, mode and live/empty state and no CMYK options or previews remain.
+  - _Boundary: SettingsView, GameView, existing ContentView phase routing_
+  - _Depends: 6.1, 6.2_
+  - _Requirements: 1.1, 1.2, 1.5, 2.3, 2.4, 2.5, 3.3, 6.1, 6.2, 6.8_
+- [x] 7.2 Cover round lifecycle, mode and regression contracts
+  - Extend domain/flow tests for defaults, selected/random targets, color-pair invariants, input guards, timer/reassignment, Manual lifecycle, Auto Apply/Redo and New Round retention/reset.
+  - Exercise empty actions, wrong modes/phases, currentBlend clearing/freezing, and the latest blend at Apply; keep custom-request and single-device routing regressions.
+  - Done when focused macOS XCTest cases cover each transition and an iOS build/simulator smoke confirms the existing six solo controls still work.
+  - _Boundary: GameModelsTests, GameStateTests, GameViewModelTests, GameViewModelFlowTests, GameViewRenderingTests, ContentViewTests_
+  - _Depends: 5.1, 5.2, 6.1, 6.2, 7.1_
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
+
+## Implementation Notes
+
+- User confirmed the requested six solo touch controls and Manual/Auto flows worked. This is manual verification, not automated UI testing. Simulator remains unavailable through the UI automation tool.

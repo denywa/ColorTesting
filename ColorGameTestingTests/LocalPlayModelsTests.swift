@@ -31,6 +31,7 @@ final class LocalPlayModelsTests: XCTestCase {
             phase: .playing,
             roundID: roundID,
             selectedModel: .ryb,
+            mixMode: .auto,
             target: .init(id: UUID(), text: "Lavender", sRGB: .init(red: 0.2, green: 0.3, blue: 0.4)),
             reassignmentDuration: 8,
             showTargetColor: true,
@@ -44,6 +45,8 @@ final class LocalPlayModelsTests: XCTestCase {
             mixEntries: [.init(colorID: colorID, count: 3), .init(colorID: UUID(), count: 1)],
             mixLocked: false,
             mixResult: .init(red: 0.1, green: 0.2, blue: 0.3),
+            currentBlend: .init(red: 0.8, green: 0.7, blue: 0.6),
+            voting: .init(id: roundID, votes: [.init(player: .player2, action: .apply)]),
             score: 78.5,
             paused: true,
             seatStatus: [
@@ -60,6 +63,11 @@ final class LocalPlayModelsTests: XCTestCase {
         XCTAssertEqual(copy.phase, .playing)
         XCTAssertEqual(copy.roundID, roundID)
         XCTAssertEqual(copy.selectedModel, .ryb)
+        XCTAssertEqual(copy.mixMode, .auto)
+        XCTAssertEqual(copy.currentBlend?.red, 0.8)
+        XCTAssertEqual(copy.voting?.id, roundID)
+        XCTAssertEqual(copy.voting?.votes.first?.player, .player2)
+        XCTAssertEqual(copy.voting?.votes.first?.action, .apply)
         XCTAssertEqual(copy.target?.text, "Lavender")
         XCTAssertEqual(copy.target?.sRGB.blue, 0.4)
         XCTAssertEqual(copy.reassignmentDuration, 8)
@@ -84,7 +92,7 @@ final class LocalPlayModelsTests: XCTestCase {
             .welcome(.init(sessionID: sessionID, role: .player2, reconnectToken: UUID())),
             .reject(.init(sessionID: sessionID, reason: .sessionFull)),
             .input(.init(sessionID: sessionID, roundID: roundID, actionID: actionID, action: action)),
-            .snapshot(.init(protocolVersion: LocalPlayProtocol.version, sessionID: sessionID, snapshotRevision: 1, phase: .settings, roundID: nil, selectedModel: nil, target: nil, reassignmentDuration: 8, showTargetColor: false, timerSecondsRemaining: 8, assignmentEpoch: nil, assignments: [], mixEntries: [], mixLocked: false, mixResult: nil, score: nil, paused: false, seatStatus: [])),
+            .snapshot(.init(protocolVersion: LocalPlayProtocol.version, sessionID: sessionID, snapshotRevision: 1, phase: .settings, roundID: nil, selectedModel: nil, mixMode: .manual, target: nil, reassignmentDuration: 8, showTargetColor: false, timerSecondsRemaining: 8, assignmentEpoch: nil, assignments: [], mixEntries: [], mixLocked: false, mixResult: nil, currentBlend: nil, voting: nil, score: nil, paused: false, seatStatus: [])),
             .heartbeat(.init(sessionID: sessionID, ping: 9)),
             .end(.init(sessionID: sessionID, reason: .hostEnded))
         ]
@@ -97,4 +105,24 @@ final class LocalPlayModelsTests: XCTestCase {
             XCTAssertEqual(try encoder.encode(decoded), data)
         }
     }
+    @MainActor func testEveryVoteActionRoundTripsWithoutClaimingPlayer() throws {
+        let ballot = UUID()
+        let actionID = UUID()
+        for action in LocalVoteAction.allCases {
+            let message = WireMessage.input(.init(sessionID: sessionID, roundID: roundID,
+                                                  actionID: actionID, action: .vote(action: action, votingID: ballot)))
+            let data = try JSONEncoder().encode(message)
+            XCTAssertFalse(String(decoding: data, as: UTF8.self).contains("player"))
+            guard case .input(let input) = try JSONDecoder().decode(WireMessage.self, from: data),
+                  case .vote(let choice, let votingID) = input.action else { return XCTFail("Expected vote") }
+            XCTAssertEqual(input.sessionID, sessionID)
+            XCTAssertEqual(input.roundID, roundID)
+            XCTAssertEqual(input.actionID, actionID)
+            XCTAssertEqual(choice, action)
+            XCTAssertEqual(votingID, ballot)
+        }
+        XCTAssertThrowsError(try JSONDecoder().decode(MixMode.self, from: Data("\"unknown\"".utf8)))
+        XCTAssertThrowsError(try JSONDecoder().decode(LocalVoteAction.self, from: Data("\"unknown\"".utf8)))
+    }
+
 }

@@ -2,177 +2,147 @@
 
 ## Overview
 
-This baseline describes how the existing app turns a round's contributed color units into a displayed mix, ingredient breakdown, and perceptual match score. Players use the result and score screens to discuss their choices during a single-device playtest. It introduces no new runtime behavior.
+Playtesting Part II retains the current calibrated RYB calculation and perceptual score while removing CMYK. Manual results and the live Auto bowl use the same calculation. The round controller supplies accepted units and determines when to expose a live color, freeze a result, or score it.
+
+The change extends the existing helpers and result/score views. It introduces no dependency or new mixing model. Existing RYB palette UUIDs, display colors, built-in requests, and persisted custom requests remain stable.
 
 ### Goals
-- Preserve unit-weighted mixing in the selected palette's native component space.
-- Preserve visible ingredient counts, proportions, result color, and target comparison.
-- Give future rule changes a precise calculation and presentation baseline.
+
+- Supply one RYB calculation for both mix modes, preserving calibration and single-color identity.
+- Retain Manual ingredient feedback and perceptual scoring.
+- Define empty/live/frozen color contracts for round and network integration.
 
 ### Non-Goals
-- Change the mixing model, score calibration, controls, phase transitions, or stored data.
-- Define network synchronization, remote actions, or host/client presentation; `local-three-device-play` owns those behaviors.
+
+Assignment, input, phases, voting, network transport, request persistence, modern styling, and bowl layout belong to adjacent specs.
 
 ## Boundary Commitments
 
 ### This Spec Owns
-- The `ColorMixer.blend` output for valid CMYK and RYB units and the `Mix.ratios` calculation.
-- The existing sRGB-to-Lab conversion and Delta E 2000 match calculation used by scoring.
-- The ingredient breakdown, mix swatch, target comparison, and score formatting rendered by `ResultView` and `ScoreView` in single-device play.
+
+- RYB-only `ColorModel`, the color representation in `NamedColor`, palette data, blend calculation, and ingredient ratios.
+- Color conversion, score calculation, Manual result breakdown, and score feedback presentation.
 
 ### Out of Boundary
-- `round-flow-and-input` owns single-device result-action forwarding and `GameViewModel`'s accumulation, locking, phase changes, Redo, Finish, and New Round effects; this design records the calculator calls and display inputs at that seam without redefining its lifecycle.
-- `custom-color-requests` owns creation, validation, and persistence of selectable targets.
-- `round-flow-and-input` owns who contributes units, when mixing occurs, and when result and score appear.
-- `local-three-device-play` owns networked state exchange, role-gated controls, and pause presentation.
+
+- `round-flow-and-input` owns `MixMode`, live/frozen state storage, invocation timing, input and transitions.
+- `local-three-device-play` owns serialization, live-color distribution, votes and host authority.
+- `modern-playtest-ui` owns the redesigned chart/bowl, visual system and platform layout.
+- `custom-color-requests` owns validation/storage of custom requests; no request data is migrated here.
 
 ### Allowed Dependencies
-- `Round` supplies `ColorModel`, a `Mix` of `ColorUnit` values, and the selected `ColorRequest.targetSRGB`.
-- `NamedColor` supplies stable identity, name, display sRGB, and the native components for its palette.
-- `ResultView` and `ScoreView` read `GameViewModel`'s `round`, `mixResult`, and `score` for presentation.
-- Foundation math and SwiftUI rendering are sufficient; no package, storage schema, or new service is needed.
+
+Existing Swift 5 SIMD/Foundation math, SwiftUI rendering, `Mix`/`ColorUnit`, and target sRGB values. Helpers do not import the view model, views or Network. Dependency direction: palette/value inputs → calculation helpers → round controller → result/score views.
 
 ### Revalidation Triggers
-- A change to palette components, color IDs, color model selection, or the representation of contributed units.
-- A change to the sRGB/Lab conversion, Delta E 2000 implementation, score calibration or cutoff.
-- A change to `GameViewModel` result/score state, action ownership, or the data supplied to the views.
-- A change to result or score presentation that affects single-device and network-mode views at their shared seam.
+
+Palette ID or component changes require assignment, snapshot and codec revalidation. Blend/score changes require both modes and score presentation regression checks. Result structure changes require round transitions and UI revalidation.
 
 ## Architecture
 
 ### Existing Architecture Analysis
 
-This is a baseline of existing focused helpers and SwiftUI screens. `GameViewModel.pressMixButton()` accepts only a nonempty unlocked playing mix, locks it, and stores `ColorMixer.blend` as `mixResult`. `selectFinish()` converts that result and the target to Lab and stores `ScoreCalculator.matchPercentage` as `score`. The view model retains all phase transitions. The calculation helpers do not import SwiftUI or know how the result is presented. No external dependencies, migration, or startup changes are involved.
+`ColorMixer` already uses calibrated primary-share interpolation and black/white dilution. The old design's eight-corner description is stale. `Mix.ratios` supplies counts/total; `ResultView` formats first-contribution order; `ColorConverter` and `ScoreCalculator` provide Lab/Delta E 2000 scoring. Keep these components.
 
 ### Architecture Pattern & Boundary Map
 
 ```mermaid
 flowchart LR
-    Round[Round: model, units, target] --> VM[GameViewModel: lifecycle seam]
-    Round --> Ratios[Mix.ratios]
-    VM --> Mixer[ColorMixer]
-    Mixer --> Result[ResultView]
-    Ratios --> Result
-    Mixer --> Converter[ColorConverter]
-    Round --> Converter
-    Converter --> Scorer[ScoreCalculator]
-    Scorer --> Score[ScoreView]
-    VM --> Result
-    VM --> Score
+    Palette[RYB palette] --> Mixer[ColorMixer]
+    Units[Accepted units] --> Mixer
+    Units --> Ratios[Mix ratios]
+    Mixer --> Round[Round controller]
+    Round --> Scorer[ColorConverter and ScoreCalculator]
+    Ratios --> Result[Manual result]
+    Scorer --> Score[Score feedback]
 ```
-
-The existing pattern is value types for round inputs, pure helpers for math, and view-model state read by SwiftUI screens. `GameViewModel` is a shared integration seam with `round-flow-and-input`, not a new calculation owner. The network coordinator is outside this diagram and this spec.
 
 ### Technology Stack
 
-| Layer | Existing choice | Role |
+| Layer | Existing technology | Role |
 | --- | --- | --- |
-| Domain | Swift 5, Foundation, SIMD values | Component blending, ratios, conversion, scoring |
-| State seam | Main-actor `GameViewModel` using Observation | Stores result and score, invokes helpers |
-| Presentation | SwiftUI on macOS and iOS | Result breakdown and score comparison |
-| Validation | XCTest in the macOS shared scheme | Domain, flow, and rendering checks |
+| Calculation | Swift 5, SIMD and Foundation | Existing RYB blend, conversion and score |
+| Presentation | SwiftUI | Result breakdown, swatches and score formatting |
+| Validation | XCTest in macOS scheme | Palette, math and feedback regressions |
+
+No package, platform minimum or build configuration changes are required.
 
 ## File Structure Plan
 
-All paths already exist; the baseline requires no source modifications or new files.
+### Modified Files
 
-| Existing file | Responsibility |
+| Path | Responsibility |
 | --- | --- |
-| `ColorGameTesting/GameModels.swift` | `ColorModel` and `NamedColor` input contracts |
-| `ColorGameTesting/ColorData.swift` | `ColorRequest` target contract and the two built-in palettes |
-| `ColorGameTesting/GameState.swift` | `ColorUnit`, `Mix.ratios`, `Round`, and result/score state |
-| `ColorGameTesting/ColorMixer.swift` | CMYK and RYB unit-weighted blending |
-| `ColorGameTesting/ColorConverter.swift` | sRGB ↔ Lab conversion |
-| `ColorGameTesting/ScoreCalculator.swift` | Delta E 2000 and calibrated match percentage |
-| `ColorGameTesting/GameViewModel.swift` | Existing calculation invocation and display-value seam; phase behavior belongs to `round-flow-and-input` |
-| `ColorGameTesting/Views/ResultView.swift` | Mix swatch, breakdown rows, absent-data fallback; result-action forwarding belongs to `round-flow-and-input` |
-| `ColorGameTesting/Views/ScoreView.swift` | Percentage, two swatches, explanatory text, absent-data fallback |
-| `ColorGameTestingTests/ColorMixerTests.swift` | Native-component weighting, identity, corner mapping, and clamping checks |
-| `ColorGameTestingTests/MixRatiosTests.swift` | Nonempty ratio-sum check |
-| `ColorGameTestingTests/ColorConverterTests.swift` | Color reference and conversion checks |
-| `ColorGameTestingTests/ScoreCalculatorTests.swift` | Delta E reference cases and calibrated score checks |
-| `ColorGameTestingTests/ResultViewTests.swift` | Breakdown order, count, rounding, and rendering checks |
-| `ColorGameTestingTests/ScoreViewTests.swift` | Display rounding check |
-| `ColorGameTestingTests/GameViewModelFlowTests.swift` | Mix and score invocation in the existing round lifecycle |
+| `ColorGameTesting/GameModels.swift` | Keep only `ColorModel.ryb`; remove CMYK fields from `NamedColor`; make `rybComponents` nonoptional |
+| `ColorGameTesting/ColorData.swift` | Remove CMYK palette; preserve RYB IDs, components and display values; preserve requests |
+| `ColorGameTesting/ColorMixer.swift` | Remove CMYK branch/helpers and preserve current RYB calculation |
+| `ColorGameTesting/GameViewModel.swift` | Read-only invocation seam; round spec owns state mutation and live/frozen storage |
+| `ColorGameTesting/GameState.swift` | Existing `Mix.ratios` contract; round fields belong to round-flow spec |
+| `ColorGameTesting/ColorConverter.swift`, `ColorGameTesting/ScoreCalculator.swift` | Read-only existing scoring dependencies |
+| `ColorGameTesting/Views/ResultView.swift` | Retain Manual swatch/breakdown and fallback; replace CMYK previews |
+| `ColorGameTesting/Views/ScoreView.swift` | Retain score formatting, comparison and fallback |
+| `ColorGameTestingTests/ColorDataTests.swift`, `ColorGameTestingTests/ColorMixerTests.swift` | RYB-only palette and calibrated blend regression fixtures |
+| `ColorGameTestingTests/GameModelsTests.swift`, `ColorGameTestingTests/MixRatiosTests.swift`, `ColorGameTestingTests/ScaffoldTests.swift` | Model/ratio assertions and CMYK fixture cleanup |
+| `ColorGameTestingTests/ColorConverterTests.swift`, `ColorGameTestingTests/ScoreCalculatorTests.swift` | Existing perceptual-score regression gates |
+| `ColorGameTestingTests/GameViewModelFlowTests.swift` | Downstream integration seam for live/applied values; round spec owns changes |
+| `ColorGameTestingTests/ResultViewTests.swift`, `ColorGameTestingTests/ScoreViewTests.swift` | Formatting, empty fallback and comparison tests |
 
-## System Flows
-
-```mermaid
-sequenceDiagram
-    participant VM as GameViewModel
-    participant M as ColorMixer / Mix.ratios
-    participant R as ResultView
-    participant C as ColorConverter
-    participant S as ScoreCalculator
-    participant V as ScoreView
-    VM->>M: blend(nonempty units, selected model)
-    M-->>VM: sRGB result
-    VM-->>R: locked round and mixResult
-    R->>M: ratios for breakdown
-    VM->>C: convert result and target sRGB to Lab
-    C-->>VM: two Lab colors
-    VM->>S: matchPercentage(resultLab, targetLab)
-    S-->>VM: score in 0...100
-    VM-->>V: score, mixResult, and target
-```
-
-The result is calculated only after the view model accepts a nonempty playing mix. The scoring calculation occurs only when Finish is accepted from the result phase. Redo and New Round lifecycle effects remain in the round-flow specification.
+Shared-file edits proceed color → round → network → UI. This spec changes palette/calculation declarations only; downstream specs change their callers and state contracts.
 
 ## Requirements Traceability
 
-| Requirement | Existing contract and evidence |
-| --- | --- |
-| 1.1 | `ColorMixer.blend` single-ID path; `ColorMixerTests.testSingleDistinctColorReturnsItsStoredSRGBExactly` |
-| 1.2 | CMYK native-component mean and conversion; `ColorMixerTests` weighted and focused CMYK cases |
-| 1.3 | RYB native-component mean and eight-corner conversion; `ColorMixerTests` weighted and corner cases |
-| 1.4 | `ColorMixer.blend` clamps calculated channels; `testExtremeCMYKWeightAndClamping` |
-| 2.1 | `Mix.ratios` counts IDs over total units; `MixRatiosTests` and `ResultViewTests` |
-| 2.2 | `Mix.ratios` empty guard; `GameViewModelFlowTests.testRedoClearsMixAndResultButPreservesRequestAndCountdownThenResumes` |
-| 2.3 | `ResultView.breakdown` first occurrence order, counts, one-decimal percentages; `ResultViewTests` |
-| 3.1 | `ResultView` mix swatch and Grid; `ResultViewTests.testRenderedResultRespondsToSwatchAndBreakdownChanges` |
-| 3.2 | `ResultView` renders `No Mix Result` when round or result is missing |
-| 4.1 | `GameViewModel.selectFinish`, `ColorConverter.sRGBToLab`, `ScoreCalculator.matchPercentage`; converter, score, and flow tests |
-| 4.2 | `ScoreCalculator.matchPercentage` identity endpoint; `ScoreCalculatorTests` |
-| 4.3 | Delta E 2000 distance cutoff at 100; `ScoreCalculatorTests.testMatchPercentageUsesNonlinearPerceptualScore` |
-| 4.4 | `ScoreView` percent format at two decimals and explanatory text; `ScoreViewTests` |
-| 4.5 | `ScoreView` mix/target swatches from result and request target |
-| 4.6 | `ScoreView` renders `No Score` when score is missing |
+| Requirement | Summary | Components | Interfaces | Flows |
+| --- | --- | --- | --- | --- |
+| 1.1, 1.2, 1.3, 1.4 | RYB identity, weighted calibration and clamp | ColorModel, NamedColor, ColorData, ColorMixer | blend | Accepted units to color |
+| 2.1, 2.2, 2.3 | Counts and Manual breakdown | Mix, ResultView | ratios and breakdown | Manual result |
+| 3.1, 3.2 | Result or fallback | ResultView | Result state | Manual result |
+| 4.1, 4.2, 4.3, 4.4, 4.5, 4.6 | Perceptual score and feedback | ColorConverter, ScoreCalculator, ScoreView | Lab score and presentation | Manual Finish or Auto Apply |
+| 5.1, 5.2, 5.3 | Latest live/empty/applied color | ColorMixer; round-owned GameViewModel | Same blend invocation | Auto contributions and Apply |
 
 ## Components and Interfaces
 
-| Component | Boundary and contract | Requirements |
-| --- | --- | --- |
-| `Mix.ratios` | `Mix.units: [ColorUnit]` → `[UUID: Double]` | 2.1, 2.2, 2.3 |
-| `ColorMixer` | `blend(_ units: [ColorUnit], model: ColorModel) -> SIMD3<Double>` | 1.1, 1.2, 1.3, 1.4 |
-| `ColorConverter` | `sRGBToLab(_ srgb: SIMD3<Double>) -> SIMD3<Double>` | 4.1 |
-| `ScoreCalculator` | `deltaE2000(_:_:)` and `matchPercentage(_:_:)` on Lab colors | 4.1, 4.2, 4.3 |
-| `ResultView` | Reads `round` and `mixResult`; renders result or fallback | 2.3, 3.1, 3.2 |
-| `ScoreView` | Reads `score`, optional `round` and `mixResult`; renders score or fallback | 4.4, 4.5, 4.6 |
-| `GameViewModel` | Existing call seam from round lifecycle to math and screen state | 4.1 |
+| Component | Domain | Intent | Requirements | Dependencies | Contracts |
+| --- | --- | --- | --- | --- | --- |
+| `ColorModel`, `NamedColor`, `ColorData` | Palette | Represent five stable RYB colors | 1.1, 1.4 | Foundation/SIMD external P0 | State |
+| `ColorMixer` | Calculation | Blend accepted units using current calibration | 1.1, 1.2, 1.3, 1.4, 5.1, 5.2, 5.3 | Palette outbound P0; round inbound P0 | Service |
+| `Mix.ratios` | Calculation | Count units by color identity | 2.1, 2.2 | Color units outbound P0 | State |
+| `ColorConverter`, `ScoreCalculator` | Calculation | Produce perceptual match percentage | 4.1, 4.2, 4.3 | Result and target outbound P0 | Service |
+| `ResultView`, `ScoreView` | Presentation | Explain result and score | 2.3, 3.1, 3.2, 4.4, 4.5, 4.6 | View-model values outbound P0 | State |
 
-### Calculation contracts
+### RYB calculation contract
 
-- `Mix.ratios` groups units by `NamedColor.id`. For a nonempty mix, each value equals the ID's count divided by the number of units and all values sum to 1 within floating-point precision. For an empty mix, it returns an empty dictionary.
-- `ColorMixer.blend` returns `(0, 0, 0)` for an empty input as a helper fallback; the normal `pressMixButton()` path rejects empty mixes. If every unit has the same color ID, it returns that color's stored sRGB unchanged. Otherwise it averages each unit's native CMYK or RYB vector. CMYK uses `(1-C)(1-K)`, `(1-M)(1-K)`, `(1-Y)(1-K)`; RYB uses a fixed eight-corner trilinear mapping, with an equal-component neutral shortcut. The calculated result is clamped per sRGB channel to `[0, 1]`. Valid callers supply components matching the selected model; absent native components cause a precondition failure rather than a fallback color.
-- `ColorConverter.sRGBToLab` uses standard sRGB transfer, a fixed RGB-to-XYZ matrix, and D65 reference white. `GameViewModel.selectFinish()` converts both result and target before scoring. The reverse `labToSRGB` helper exists but is not used by this score flow.
-- `ScoreCalculator.deltaE2000` returns perceptual Lab distance. `matchPercentage` caps distance at 100, maps it through `1 / (1 + distance / 200 + (distance / 23)^4)`, and normalizes the endpoints to exactly 100 at distance zero and 0 at distance 100 or greater. The percentage expresses a game-calibrated similarity, not physical pigment behavior.
+```swift
+enum ColorModel: String, CaseIterable { case ryb = "RYB" }
+// Existing entry point remains; there is no selectable alternate model.
+static func blend(_ units: [ColorUnit], model: ColorModel) -> SIMD3<Double>
+```
 
-### Presentation contracts
+`NamedColor` retains UUID/name/sRGB and a required RYB vector; there is no CMYK vector. `ColorData.colors(for: .ryb)` returns the existing five colors. The one-distinct-color path returns its stored sRGB exactly. For multiple distinct colors, preserve the existing primary proportions, calibrated secondary overlap interpolation, neutral primary center, and separate black/white dilution. Every accepted unit contributes according to its count. Clamp computed channels to 0...1. Do not replace this with a mean-only RYB vector mapping: equal means can intentionally display different results.
 
-- `ResultView.breakdown(for:)` preserves first-contribution order and reports `NamedColor`, percentage, and exact count per ID. It rounds each displayed proportion separately to one decimal; displayed percentages can therefore differ slightly from a total of 100. The view shows a color swatch with an accessibility label containing rounded RGB channel percentages, a Grid with Color/Percentage/Units headers, and combined labels for each row.
-- `ScoreView` formats `score / 100` as a percentage with two decimal places, states that higher percentages mean a closer match, and places the mix swatch beside the target swatch when both colors are available. A missing score shows `No Score`; a missing round or mix result omits only the swatch comparison.
-- `round-flow-and-input` owns single-device result-action forwarding; optional coordinator behavior belongs to `local-three-device-play`.
+`blend` remains a pure function. Its legacy empty return is not a display color contract; the round controller represents an empty current color as `nil` and never invokes scoring for an empty bowl. Auto Apply calls this same function on the host's latest accepted units, then freezes its output for scoring.
+
+### Ratio and score contracts
+
+`Mix.ratios: [UUID: Double]` is empty for zero units; otherwise values are count/total and sum to one within floating-point tolerance. `ResultView` presents color name, count and one-decimal percentage ordered by first contribution.
+
+Existing interfaces remain `ColorConverter.sRGBToLab(_:) -> SIMD3<Double>` and `ScoreCalculator.matchPercentage(_:_:) -> Double`. Delta E 2000 distance is capped at 100 and mapped through `similarity(d) = 1 / (1 + d / 200 + (d / 23)^4)`. Score is `100 * (similarity(d) - similarity(100)) / (1 - similarity(100))`. Identical colors produce 100; distance of at least 100 produces zero. Preserve these calibration constants. `ScoreView` formats two decimals, explains higher is closer, and pairs frozen mix and target swatches. Missing result/score uses the existing fallback instead of invented zero feedback.
+
+## Data Models
+
+No persistence schema changes. Ratios derive from accepted units; result/target colors are bounded sRGB triples. `currentBlend` and `mixResult` are round-owned optional values, not extra fields in the mixer. Live Auto color is absent for empty units and calculated with this contract for nonempty units.
 
 ## Error Handling
 
-- The normal flow prevents empty-mix calculation and phase-inappropriate scoring through `GameViewModel` guards. Helper-level empty input has the documented zero-vector fallback.
-- Result and score views show their `ContentUnavailableView` messages if required state is absent.
-- Palette data must provide the native components expected by the selected model. This is a trusted in-app invariant, enforced by a precondition in `ColorMixer`.
+Trusted palette invariants are tested: five unique IDs, required bounded components. Wire validation belongs to the network mapper. Calculation does not silently invent missing native components. Missing feedback data renders a no-result/no-score state; empty eligibility is enforced by round flow.
 
 ## Testing Strategy
 
-Existing test files contain checks for the baseline without new tasks: `ColorMixerTests` covers both model means, identity, RYB corners, and clamping; `MixRatiosTests` and `ResultViewTests` cover proportions and one-decimal rows; `ColorConverterTests` and `ScoreCalculatorTests` cover conversion, Delta E reference pairs, score endpoints and bounds; `GameViewModelFlowTests` covers the result/score integration; `ScoreViewTests` covers two-decimal formatting. Static inspection confirms the no-result/no-score fallbacks and swatch comparison. This spec run did not verify a passing Xcode test execution. Future implementation changes should rerun these focused tests and the macOS shared-scheme suite.
+- Preserve single-color identity, order/count invariance, repeated-unit effects, clamps and calibrated overlaps in `ColorMixerTests` (1.1, 1.2, 1.3). Keep the test distinguishing three primaries from black plus two whites despite equal mean vectors.
+- Replace CMYK tests/fixtures with RYB-only declarations and verify stable five-color palette IDs (1.4).
+- Check empty and nonempty ratios and first-contribution ordering/one-decimal formatting (2.1, 2.2, 2.3, 3.1, 3.2).
+- Retain identical/extreme-score and conversion regressions; verify two-decimal display, explanation, swatch pairing and missing-score fallback (4.1, 4.2, 4.3, 4.4, 4.5, 4.6).
+- Round-flow tests compare live Auto color and its eventual scored value with this helper, including empty/reset/latest-unit cases (5.1, 5.2, 5.3); round spec owns those tests.
 
-## Baseline Discovery and Decisions
+## Integration & Migration Notes
 
-Light, integration-focused discovery used the current working tree, including its uncommitted `ColorMixer.swift` and `ColorMixerTests.swift` changes, as the source of truth. The design retains the existing helper/view split and adds no dependency or abstraction. No behavior gap was verified from the code and tests inspected. The current baseline is sensitive to later edits to the uncommitted mixer work; those edits require revalidation before treating this spec as a fixed comparison point.
+CMYK is removed from source and fixtures; transient rounds need no migration. Custom request storage and target colors remain unchanged. Network protocol v2 rejects old clients before new schemas are exchanged. Test/build/device results are implementation gates; this design generation does not establish runtime success.

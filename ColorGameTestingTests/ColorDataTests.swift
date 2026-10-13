@@ -3,29 +3,6 @@ import XCTest
 @testable import ColorGameTesting
 
 final class ColorDataTests: XCTestCase {
-    func testCMYKPaletteMatchesDesignTable() {
-        let expected: [(String, SIMD4<Double>, SIMD3<Double>)] = [
-            ("Cyan", SIMD4(1, 0, 0, 0), SIMD3(0, 1, 1)),
-            ("Magenta", SIMD4(0, 1, 0, 0), SIMD3(1, 0, 1)),
-            ("Yellow", SIMD4(0, 0, 1, 0), SIMD3(1, 1, 0)),
-            ("Black", SIMD4(0, 0, 0, 1), SIMD3(0, 0, 0)),
-            ("White", SIMD4(0, 0, 0, 0), SIMD3(1, 1, 1))
-        ]
-
-        XCTAssertEqual(ColorData.cmykPalette.count, expected.count)
-        for (name, components, srgb) in expected {
-            guard let color = ColorData.cmykPalette.first(where: { $0.name == name }) else {
-                XCTFail("Missing CMYK color \(name)")
-                continue
-            }
-            XCTAssertEqual(color.cmykComponents, components)
-            XCTAssertEqual(color.sRGB, srgb)
-            XCTAssertNil(color.rybComponents)
-        }
-        XCTAssertEqual(Set(ColorData.cmykPalette.map(\.name)).count, expected.count)
-        XCTAssertEqual(Set(ColorData.cmykPalette.map(\.id)).count, expected.count)
-    }
-
     func testRYBPaletteMatchesDesignTable() {
         let expected: [(String, SIMD3<Double>, SIMD3<Double>)] = [
             ("Red", SIMD3(1, 0, 0), SIMD3(1, 0, 0)),
@@ -43,16 +20,19 @@ final class ColorDataTests: XCTestCase {
             }
             XCTAssertEqual(color.rybComponents, components)
             XCTAssertEqual(color.sRGB, srgb)
-            XCTAssertNil(color.cmykComponents)
         }
         XCTAssertEqual(Set(ColorData.rybPalette.map(\.name)).count, expected.count)
         XCTAssertEqual(Set(ColorData.rybPalette.map(\.id)).count, expected.count)
+        XCTAssertEqual(ColorData.rybPalette.map(\.id), (1...5).map {
+            UUID(uuidString: String(format: "B0000000-0000-0000-0000-%012X", $0))!
+        })
+        XCTAssertTrue(ColorData.rybPalette.allSatisfy { color in
+            (0..<3).allSatisfy { (0...1).contains(color.rybComponents[$0]) }
+        })
     }
 
     func testColorsHelperSelectsOnlyTheRequestedModel() {
-        XCTAssertEqual(ColorData.colors(for: .cmyk), ColorData.cmykPalette)
         XCTAssertEqual(ColorData.colors(for: .ryb), ColorData.rybPalette)
-        XCTAssertTrue(Set(ColorData.cmykPalette.map(\.id)).isDisjoint(with: Set(ColorData.rybPalette.map(\.id))))
     }
 
     func testRequestPoolMatchesSuppliedNamesAndHexTargets() {

@@ -1,0 +1,22 @@
+{
+  "feature_name": "endless-day-run",
+  "created_at": "2026-10-13T08:50:56.780712+00:00",
+  "updated_at": "2026-10-13T08:50:56.780712+00:00",
+  "language": "en",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}

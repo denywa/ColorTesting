@@ -16,11 +16,11 @@ This is a native SwiftUI app with shared source for macOS and iOS targets. `Cont
 
 ### State and UI
 
-Keep phase transitions and round mutations in `GameViewModel`. Views render state and forward player actions. Use `#if os(macOS)` and `#if os(iOS)` for platform-specific input or presentation where needed. Keep timer and keyboard-monitor lifecycle tied to the playing phase.
+Keep phase transitions and round mutations in `GameViewModel`. Views render state and forward player actions. Mac and iPhone share adaptive gameplay, result, score and lobby/setup layouts; desktop sizing and keyboard labels remain platform-specific. Use `#if os(macOS)` and `#if os(iOS)` for platform-specific input or presentation where needed. Keep timer and keyboard-monitor lifecycle tied to the playing phase.
 
 ### Color and persistence
 
-Represent color components with `SIMD3<Double>` or `SIMD4<Double>` as appropriate. Keep palette data, color blending, color-space conversion, and scoring in their focused helpers. Mix in the selected model's component space; score the displayed result against the target through Lab and Delta E 2000. Persist custom requests as validated, Codable data in `UserDefaults`; allow injection of a defaults instance for tests.
+Represent RYB components and displayed colors with `SIMD3<Double>`. Keep palette data, color blending, color-space conversion, and scoring in their focused helpers. Preserve the calibrated RYB primary-share and black/white dilution calculation; score the displayed result against the target through Lab and Delta E 2000. Persist custom requests as validated, Codable data in `UserDefaults`; allow injection of a defaults instance for tests.
 
 ### Testing
 
@@ -28,7 +28,7 @@ Use XCTest in `ColorGameTestingTests`, with `@testable import ColorGameTesting`.
 
 ### Playtesting iteration
 
-Keep adjustable session conditions, such as the reassignment duration and target hint, easy to change from settings. Keep the path from setup through result and score to another round short, and make player actions and outcomes visible enough to discuss during a session. When changing the rules or scoring, protect the intended behavior with focused tests so playtest feedback can be interpreted against a stable implementation. Do not assume telemetry or saved round history exists; the current app only persists custom requests.
+Keep adjustable session conditions, such as the reassignment duration and target hint, easy to change from settings. Keep the path from setup through result and score to another round short, and make player actions and outcomes visible enough to discuss during a session. When changing the rules or scoring, protect the intended behavior with focused tests so playtest feedback can be interpreted against a stable implementation. Do not assume telemetry or saved round history exists; the current app persists custom requests and built-in request deletion preferences.
 
 ## Development Environment
 

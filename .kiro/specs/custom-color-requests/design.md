@@ -2,134 +2,134 @@
 
 ## Overview
 
-This baseline records the existing path from a player's named hex target to a locally retained `ColorRequest` and the setup picker. The SwiftUI settings form supplies input; `GameViewModel` validates and coordinates the request list; `CustomRequestStore` serializes it. No new runtime component or dependency is required.
+Extend the existing request catalog with three difficulty groups for playtesting. Keep all current built-in text, target colors and IDs. The settings picker and Add Color Request form consume the same typed level metadata, while existing storage and round-control paths continue to own their current responsibilities.
 
 ### Goals
 
-- Preserve the current entry, validation, persistence, and target-choice contracts.
-- Keep custom targets available after app restart while leaving built-in targets unchanged.
-- Identify the request seam consumed by round setup and three-device play.
+- Filter explicit and Random target choices by the selected level.
+- Save and reload a custom request’s level without losing older saved records.
+- Support repeated testing of one level in solo and host-controlled sessions.
 
 ### Non-Goals
 
-- Edit, delete, share, or synchronize a saved request catalog.
-- Define round transitions, color mixing, scoring, or network messages.
+New copywriting, new colors, request editing/deletion, automatic difficulty estimation, client catalog synchronization, changes to mixing/scoring/voting, or new dependencies.
 
 ## Boundary Commitments
 
 ### This Spec Owns
 
-- Local custom-request entry, input validation, and persisted catalog behavior.
-- The `ColorRequest` identity, text, and sRGB target contract as it applies to custom requests.
-- Exposure of built-in plus local custom requests to the settings target picker.
+Request-level metadata, initial catalog classification, local persistence, filtered setup choices and custom entry. GameViewModel integrates the chosen catalog with the existing round-start consumer.
 
 ### Out of Boundary
 
-- `round-flow-and-input` owns round start and target selection semantics after the picker hands over a choice.
-- `color-mixing-and-scoring` owns use of the selected target in scoring.
-- `local-three-device-play` owns host/client coordination and transfer of a host-selected target; it does not synchronize saved catalogs.
+Round transitions and mixing remain in their existing domains. Network play continues to synchronize the chosen target’s ID/text/color; difficulty is setup/catalog metadata and is not added to the wire protocol or displayed on client gameplay screens in this change.
 
 ### Allowed Dependencies
 
-- Existing `ColorRequest` and built-in `ColorData.requestPool` for target values and choices.
-- Foundation `UserDefaults`, `Codable`, and `UUID` for local retention; SwiftUI for the existing settings form.
-- `GameViewModel` is the integration seam. Storage and hex conversion do not depend on views or network mode.
+SwiftUI, Observation, Foundation, existing ColorRequest/ColorData, CustomRequestStore and GameViewModel. Dependency direction remains model/data → store → view model → settings. Storage does not depend on UI or network types.
 
 ### Revalidation Triggers
 
-- Changes to `ColorRequest` fields, hex validation, the storage key or record format require the persistence tests and round-choice consumer to be rechecked.
-- Changes to the available-request ordering or selected-request ID behavior require `round-flow-and-input` to recheck setup.
-- Changes to host target transfer require `local-three-device-play` to recheck its snapshot contract without changing this catalog's ownership.
+Recheck existing request selection, defaults migration and invalid-data handling when fields/filtering change. Recheck host authority and target mirroring when integrating round start. Adding a client-visible difficulty label later would require an explicit network metadata contract.
 
 ## Architecture
 
 ### Existing Architecture Analysis
 
-`SettingsView` shows the picker and a sheet with request text, hex input, preview, Cancel, and Add. Its Add action calls `GameViewModel.addCustomRequest`. The main-actor view model loads custom requests at initialization, joins them after the seven built-in requests, saves a new array before publishing it, and selects the new ID. `CustomRequestStore` serializes a private record of UUID, text, and normalized hex under `customColorRequests.v1` in injected `UserDefaults`. No migration or third-party library is involved.
+ColorRequest currently contains ID, text and target. CustomRequestStore keeps `{id,text,hex}` records in `customColorRequests.v1`. GameViewModel assembles the complete catalog, selects an ID or Random, and saves before publishing new requests. Settings already provides the request picker and entry sheet. Existing callers and tests construct requests without a level and consume the full availableRequests catalog.
 
 ### Architecture Pattern & Boundary Map
 
-The existing view → view model → store flow remains the sole write path. `ColorHex` is a focused value converter used by both the form preview and store. The model's available-request list is read by the picker and by round setup. The local-play snapshot mapper reads the selected round target; it never writes the guest's request store.
-
-```mermaid
-graph LR
-    SettingsView --> GameViewModel
-    SettingsView --> ColorHex
-    GameViewModel --> ColorHex
-    GameViewModel --> CustomRequestStore
-    CustomRequestStore --> UserDefaults
-    GameViewModel --> ColorData
-```
+Extend those components directly. Retain availableRequests as the complete catalog for caller compatibility; add requestsForSelectedLevel for the settings picker and round target resolution. No repository layer or additional persistence system is needed.
 
 ### Technology Stack
 
-| Layer | Existing choice | Role |
-| --- | --- | --- |
-| UI | SwiftUI on macOS and iOS | Picker, sheet, validation preview |
-| State | Swift 5, Observation, main-actor `GameViewModel` | Catalog and selected ID |
-| Storage | Foundation `UserDefaults` and `Codable` | Local records |
+Existing Swift 5, SwiftUI and Observation, plus Codable/UserDefaults. No package or deployment-target change.
 
 ## File Structure Plan
 
-The baseline already exists. Only a focused regression test is an open implementation item.
-
-### Existing Files
-
-- `ColorGameTesting/Views/SettingsView.swift` — request picker, entry form, preview, and local setup control.
-- `ColorGameTesting/GameViewModel.swift` — validation, save-before-publish, catalog assembly, and chosen ID.
-- `ColorGameTesting/CustomRequestStore.swift` — `ColorHex` conversion and versioned local record storage.
-- `ColorGameTesting/ColorData.swift` — `ColorRequest` value and immutable built-in request pool.
-- `ColorGameTestingTests/CustomRequestStoreTests.swift` — current entry, persistence, selection tests; add malformed-storage regression here.
-- `ColorGameTestingTests/ColorDataTests.swift` — built-in request pool baseline.
-
-### Modified Files
-
-- `ColorGameTestingTests/CustomRequestStoreTests.swift` — add tests for unreadable data and invalid decoded records; no production change is justified by the current evidence.
-
-## Requirements Traceability
-
-| Requirement | Design element |
+| File | Responsibility |
 | --- | --- |
-| 1.1, 1.2, 1.3, 1.4 | `SettingsView` picker, form, preview, and disabled Add action |
-| 2.1, 2.2, 2.3, 2.4 | `GameViewModel.addCustomRequest` and `ColorHex` validation |
-| 3.1, 3.2, 3.3, 3.4 | `CustomRequestStore` save/load and view-model initialization |
-| 4.1, 4.2 | `availableRequests`, selected ID, and settings picker |
-| 4.3, 4.4 | Catalog and selected-ID read seam consumed by `round-flow-and-input` task 1.2 |
+| ColorGameTesting/ColorData.swift | RequestDifficulty enum, ColorRequest defaulted level, initial classification of seven requests |
+| ColorGameTesting/CustomRequestStore.swift | Optional persisted level field, legacy fallback, per-record level validation |
+| ColorGameTesting/GameViewModel.swift | Selected level, filtered choices, save/select integration and level-restricted round selection |
+| ColorGameTesting/Views/SettingsView.swift | Settings and Add Request level selectors |
+| ColorGameTestingTests/CustomRequestStoreTests.swift | Existing save/reload regression checks |
+| ColorGameTestingTests/RequestDifficultyTests.swift | Grouped level classification, filtering, persistence/legacy records, authority and New Round checks |
+| ColorGameTestingTests/ColorDataTests.swift | Complete disjoint classification and unchanged IDs/text/colors |
+| ColorGameTestingTests/GameViewModelTests.swift | Level filtering, explicit/Random choice and New Round retention |
+| ColorGameTestingTests/GameViewModelLocalPlayTests.swift | Host/client authority preservation |
+| ColorGameTestingTests/SettingsViewLocalPlayTests.swift | Level controls and host-only setup presentation |
 
 ## Components and Interfaces
 
-| Component | Domain | Intent | Requirements | Key dependency | Contract |
-| --- | --- | --- | --- | --- | --- |
-| `SettingsView` | UI | Enter and choose requests | 1.1, 1.2, 1.3, 1.4, 4.1 | `GameViewModel` P0 | State, action |
-| `GameViewModel` | State | Validate, retain, and expose choices | 2.1, 2.3, 2.4, 3.1, 3.2, 4.1, 4.2 | Store, `ColorData` P0 | Service, state |
-| `ColorHex` | Domain helper | Validate and convert six-digit hex | 1.3, 1.4, 2.2, 2.3 | Foundation P0 | Service |
-| `CustomRequestStore` | Persistence | Save and load validated records | 3.1, 3.2, 3.3, 3.4 | `UserDefaults` P0 | Service |
-| `ColorData` | Domain data | Built-in target values | 3.3, 4.1, 4.4 | Foundation P0 | State |
+### Catalog
 
-### Request contracts
+`RequestDifficulty: Int, CaseIterable` has level1/level2/level3 with stable values 1/2/3 and display names. ColorRequest adds `difficulty: RequestDifficulty`, defaulting to level1 in its initializer so existing snapshots, fixtures and callers remain valid. Built-in declarations explicitly assign the approved classification.
 
-- `ColorRequest` is a Swift value with `id: UUID`, `text: String`, and `targetSRGB: SIMD3<Double>`. A custom ID is generated when the request is accepted; built-in IDs are stable constants.
-- `ColorHex.normalized(_:) -> String?` trims surrounding whitespace, accepts an optional first `#` and exactly six ASCII hex digits, then returns uppercase `#RRGGBB`. `ColorHex.sRGB(_:) -> SIMD3<Double>?` converts each byte to a 0...1 component. `ColorHex.string(from:) -> String` writes an uppercase hex target from sRGB components.
-- `GameViewModel.addCustomRequest(text:hex:) -> Bool` requires mutable local rules and settings phase, trims the name, validates hex, saves the appended array, then updates `customRequests` and `selectedRequestID`. Rejection or failed save returns `false` before publication.
-- `GameViewModel.availableRequests` is `ColorData.requestPool + customRequests`. The picker binds `selectedRequestID: UUID?`; `nil` denotes Random. `round-flow-and-input` task 1.2 reads this catalog and choice in `confirmSettings` to resolve a matching ID or sample the combined pool at round start.
-- `CustomRequestStore.load() -> [ColorRequest]` decodes records and filters blank names or invalid colors. Missing or undecodable stored data yields an empty custom list. `save(_:) -> Bool` encodes all supplied requests and stores them under `customColorRequests.v1`. The injected `UserDefaults` enables isolated tests.
+Classification is temporary metadata, not a claim of measured pigment-matching difficulty. A single field on each built-in declaration makes later regrouping simple.
+
+### Local Store
+
+Keep the existing storage key. Extend the Codable Record with an optional integer difficulty. Missing values load as level1. Unknown integer levels omit only the affected record; valid neighbors survive. Save writes the request’s level. Identity/text/hex validation and save-before-publish behavior remain unchanged.
+
+The optional integer avoids an unknown enum value invalidating an otherwise decodable entire array. Structurally undecodable payloads retain the existing empty-custom-list fallback.
+
+### View Model
+
+- `availableRequests`: full built-in plus local custom catalog, preserving existing ordering.
+- `selectedRequestLevel`: starts at level1; changes are allowed only during settings with local rule authority. Changing it clears an incompatible selected ID and publishes through the existing host hook.
+- `requestsForSelectedLevel`: read-only filtered catalog; both Picker and confirmSettings use it.
+- Selecting a known request ID through the existing public selection property also selects that request’s level during settings. This preserves explicit-selection callers while keeping the picker consistent.
+- `addCustomRequest(text:hex:difficulty:)`: optional difficulty defaults to current settings level, preserving existing two-argument calls. Save first; only on success publish the request, its level and selected ID.
+- New Round clears request selection and resets Manual as before, while selectedRequestLevel remains a view-model setup value outside the reset GameState.
+- No cross-level fallback at round start. If a filtered pool is empty, Start is unavailable. All three initial built-in pools are nonempty.
+
+### Settings
+
+Add a three-option level selector above Color Request with an accessible selected value. Random is described as using the selected level. The Add Request form owns a local level choice initialized from the current settings level and passes it to the existing save action. Existing preview, invalid-input handling, Add and Cancel remain unchanged.
+
+### Network Integration
+
+Only solo/host has mutation authority. Clients retain their local catalogs and cannot choose levels. The selected target travels through the current snapshot unchanged. Reconstructed client round targets may use the constructor’s default catalog level; client UI neither displays nor consumes that metadata. No protocol migration is required for this scoped setup feature.
+
+## Requirements Traceability
+
+| Criteria | Components/contracts |
+| --- | --- |
+| 1.1, 1.2, 1.3, 1.4 | Settings request form, preview and Add eligibility |
+| 2.1, 2.2, 2.3, 2.4 | GameViewModel validation/authority and ColorHex |
+| 3.1, 3.2, 3.3, 3.4 | CustomRequestStore save/load and invalid-record behavior |
+| 4.1, 4.2, 4.3, 4.4 | Filtered catalog, selected ID and confirmSettings integration |
+| 5.1, 5.2, 5.3 | Catalog classification, selected level and filtering |
+| 5.4, 5.5, 5.6 | Form level, save/select and backward-compatible storage |
+| 5.7, 5.8, 5.9 | Retained setup level, existing authority/network flow and unchanged game rules |
 
 ## Data Models
 
-### Domain Model
-
-Custom requests and built-in requests share `ColorRequest`; the catalog is an ordered array, with built-ins first. The app has no separate edit, delete, or duplicate-name rule. A request's UUID is the setup selection identity.
-
-### Logical Data Model
-
-The stored payload is a Codable array of private records `{ id: UUID, text: String, hex: String }`. It is device local, and only records that decode and pass load validation appear in the custom catalog. There is no cross-device catalog migration or synchronization. A selected host target travels as round state under `local-three-device-play` and does not become a saved guest request.
+Domain: ColorRequest `{id,text,targetSRGB,difficulty}`. Storage: existing array `{id,text,hex,difficulty?}`. The level is a stable integer; legacy absence means level1. Built-in and custom requests remain one catalog. No new network payload or persisted session state.
 
 ## Error Handling
 
-The form disables Add for blank text or invalid hex and keeps the form open when addition fails. The view model rejects writes outside settings or by a local client. The store returns no custom requests for absent or undecodable data and skips individual decoded records with blank names or invalid colors. Built-in requests remain available. The current UI does not distinguish a persistence failure with a dedicated error message; this is recorded behavior, not a new requirement.
+Keep existing name/hex validation. Invalid level records are omitted individually. A failed save leaves the catalog, selected level and request unchanged. Level changes and additions from clients or outside setup are rejected. An empty selected-level pool cannot silently choose from another pool.
 
 ## Testing Strategy
 
-- Existing `CustomRequestStoreTests` cover six-digit parsing, whitespace/case normalization, invalid entry, successful save and reload, preserved UUID/text/target, immediate selection, combined-list growth, and the downstream use of a custom choice in a round (1.3, 1.4, 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3).
-- `round-flow-and-input` owns selected and Random target resolution in `confirmSettings`; existing `GameViewModelTests` cover Random within the available list and explicit built-in selection (4.3, 4.4). Existing local-play tests cover guests not inheriting the host's catalog; the network contract remains in its own spec.
-- A focused missing regression should place undecodable bytes and a decoded array containing valid and invalid records in an isolated defaults suite, then assert that only valid custom requests appear and built-ins remain available (3.3, 3.4, 4.1). No production change is planned unless that check exposes a real defect.
+- Verify all seven existing IDs/text/targets remain and each occurs in exactly one approved group (5.1).
+- Verify changing levels filters built-in/custom choices and clears incompatible selections; explicit selection can choose its known level; Random never escapes the current group (4.1, 4.3, 4.4, 5.2, 5.3).
+- Save/reload one request at each level; load pre-level records without losing identity/target; omit unknown-level records without discarding valid neighbors; retain malformed-payload coverage (3.1–3.4, 5.5, 5.6).
+- Verify Add defaults to current level, can save into another level, switches/ selects only after success, and keeps existing validation (1.1–2.4, 4.2, 5.4, 5.5).
+- Verify New Round retains the level and still resets Manual; clients cannot mutate level/catalog and target snapshots preserve selected ID/text/color without catalog writes (5.7, 5.8, 5.9).
+- Run focused existing request/setup/authority tests and macOS/iOS builds after integration.
+
+## Implementation Plan for Approval
+
+1. Add typed levels and backward-compatible local persistence, with classification and migration checks.
+2. Integrate level selection/filtering with settings, custom entry and round target selection, preserving existing callers and authority.
+3. Verify request selection, saved data and solo/network integration; build both platforms.
+
+The user approved these steps and the design. Existing completed baseline tasks stay recorded; the existing malformed-storage regression is included in the grouped extension checks.
+
+## Request deletion update
+
+Solo players and the host may delete built-in or custom requests from the settings library. Custom entries are removed from saved records; built-in deletions are stored as stable ID exclusions on that device. Clear deleted selections and cached selection queues. Deletion is settings-only and does not change active rounds or guest libraries. Empty configured levels disable Start Run and show guidance to add requests or edit the schedule.

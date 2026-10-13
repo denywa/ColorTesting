@@ -16,12 +16,13 @@ final class GameViewLocalPlayTests: XCTestCase {
         func stop() {}
     }
 
-    private func makeModel() -> GameViewModel {
-        let colors = ColorData.cmykPalette
+    private func makeModel(mode: MixMode = .manual) -> GameViewModel {
+        let colors = ColorData.rybPalette
         let model = GameViewModel()
         model.phase = .playing
         model.round = Round(
-            request: ColorData.requestPool[0], colorModel: .cmyk,
+            request: ColorData.requestPool[0], colorModel: .ryb,
+            mixMode: mode,
             assignments: [
                 .player1: .init(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
                 .player2: .init(player: .player2, primaryColor: colors[2], secondaryColor: colors[3]),
@@ -32,12 +33,14 @@ final class GameViewLocalPlayTests: XCTestCase {
         return model
     }
 
-    private func joinPeer(_ coordinator: LocalPlayCoordinator) {
+    @discardableResult
+    private func joinPeer(_ coordinator: LocalPlayCoordinator) -> PeerHandle {
         let peer = PeerHandle(id: UUID())
         coordinator.handle(.connected(peer))
         coordinator.handle(.received(.hello(.init(protocolVersion: LocalPlayProtocol.version,
                                                    clientID: UUID(), sessionID: nil,
                                                    reconnectToken: nil)), from: peer))
+        return peer
     }
 
     private func texts(in value: Any) -> [String] {
@@ -61,9 +64,9 @@ final class GameViewLocalPlayTests: XCTestCase {
             let view = GameView(viewModel: model, coordinator: coordinator)
             XCTAssertEqual(view.visiblePlayers, [role.playerID])
             XCTAssertNotNil(model.round?.assignments[role.playerID])
-            XCTAssertTrue(texts(in: view.body).contains { $0.contains("Your role: Player") })
+            XCTAssertFalse(texts(in: view.content(size: CGSize(width: 900, height: 500))).contains { $0.contains("Your role: Player") })
             if role != .host {
-                XCTAssertFalse(view.showsMixButton)
+                XCTAssertTrue(view.showsMixButton)
                 XCTAssertFalse(view.canMix)
             }
         }
@@ -73,9 +76,9 @@ final class GameViewLocalPlayTests: XCTestCase {
         let model = GameViewModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
+        let peer = joinPeer(coordinator)
         joinPeer(coordinator)
-        joinPeer(coordinator)
-        model.selectModel(.cmyk)
+
         XCTAssertTrue(coordinator.perform(.startRound))
         let view = GameView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.showsMixButton)
@@ -83,12 +86,12 @@ final class GameViewLocalPlayTests: XCTestCase {
         view.mix()
         XCTAssertEqual(model.phase, .playing)
 
-        model.round?.mix.units = [ColorUnit(color: ColorData.cmykPalette[0])]
+        model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
         XCTAssertTrue(view.canMix)
         coordinator.setPaused(true)
         XCTAssertTrue(view.inputsDisabled)
         XCTAssertFalse(view.canMix)
-        XCTAssertTrue(texts(in: view.body).contains { $0.contains("Paused") })
+        XCTAssertTrue(texts(in: view.content(size: CGSize(width: 900, height: 500))).contains { $0.contains("Paused") })
         model.addColor(player: .player1, slot: .primary)
         XCTAssertEqual(model.round?.mix.units.count, 1)
         view.mix()
@@ -97,9 +100,26 @@ final class GameViewLocalPlayTests: XCTestCase {
         XCTAssertFalse(view.inputsDisabled)
         XCTAssertTrue(view.canMix)
         view.mix()
+        XCTAssertEqual(model.phase, .playing)
+        coordinator.handle(.received(.input(.init(sessionID: coordinator.sessionID!, roundID: model.roundID!,
+            actionID: UUID(), action: .vote(action: .mix, votingID: coordinator.voting!.id))), from: peer))
         XCTAssertEqual(model.phase, .result)
         model.pauseTimer()
         model.removeKeyMonitor()
+    }
+
+    func testNetworkActionsRequireAnActiveJoinedSession() {
+        let model = makeModel(mode: .auto)
+        let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
+        let view = GameView(viewModel: model, coordinator: coordinator)
+        XCTAssertFalse(view.showsMixButton)
+        XCTAssertFalse(view.canMix)
+        XCTAssertFalse(view.canApply)
+        XCTAssertFalse(view.canRedo)
+        view.apply()
+        view.redo()
+        XCTAssertEqual(model.phase, .playing)
+        XCTAssertEqual(model.round?.mix.units.count, 1)
     }
 
     func testSoloStillShowsAllPlayersAndUsesOriginalMix() {

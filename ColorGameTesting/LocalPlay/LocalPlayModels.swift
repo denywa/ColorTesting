@@ -1,7 +1,7 @@
 import Foundation
 
 enum LocalPlayProtocol {
-    static let version = 1
+    static let version = 3
 }
 
 enum PlayMode {
@@ -64,12 +64,30 @@ struct PeerHandle: Hashable {
     let id: UUID
 }
 
+enum LocalVoteAction: String, Codable, CaseIterable {
+    case mix, finish, apply, redo
+}
+
+struct LocalVotingState: Codable {
+    struct Vote: Codable {
+        let player: PlayerID
+        let action: LocalVoteAction
+    }
+
+    let id: UUID
+    var votes: [Vote]
+}
+
+extension MixMode: Codable {}
+
 enum LocalGameAction: Codable {
     case startRound
+    case startRun
+    case continueRun
+    case restartRun
+    case returnToLobby
     case addColor(slot: ColorSlot, observedColorID: UUID, assignmentEpoch: Int)
-    case mix
-    case redo
-    case finish
+    case vote(action: LocalVoteAction, votingID: UUID)
     case newRound
 }
 
@@ -84,6 +102,7 @@ struct GameSnapshot: Codable {
         let id: UUID
         let text: String
         let sRGB: RGB
+        var difficulty: RequestDifficulty = .level1
     }
 
     struct Assignment: Codable {
@@ -108,6 +127,7 @@ struct GameSnapshot: Codable {
     let phase: GamePhase
     let roundID: UUID?
     let selectedModel: ColorModel?
+    let mixMode: MixMode
     let target: Target?
     let reassignmentDuration: Int
     let showTargetColor: Bool
@@ -117,9 +137,13 @@ struct GameSnapshot: Codable {
     let mixEntries: [MixEntry]
     let mixLocked: Bool
     let mixResult: RGB?
+    let currentBlend: RGB?
+    let voting: LocalVotingState?
     let score: Double?
     let paused: Bool
     let seatStatus: [SeatStatus]
+    var runConfiguration: EndlessRunConfiguration = .init()
+    var run: EndlessRunState? = nil
 }
 
 enum WireMessage: Codable {
@@ -227,6 +251,7 @@ extension GamePhase: Codable {
         case "playing": self = .playing
         case "result": self = .result
         case "score": self = .score
+        case "gameOver": self = .gameOver
         default: throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown phase")
         }
     }
@@ -238,6 +263,7 @@ extension GamePhase: Codable {
         case .playing: try container.encode("playing")
         case .result: try container.encode("result")
         case .score: try container.encode("score")
+        case .gameOver: try container.encode("gameOver")
         }
     }
 }

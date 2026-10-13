@@ -3,21 +3,97 @@ import XCTest
 
 @MainActor
 final class GameViewModelTests: XCTestCase {
-    func testModelSelectionGatesConfirmationAndIsMutuallyExclusive() {
+    func testDefaultsStartWithoutModelSelection() {
         let viewModel = GameViewModel()
+        defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         XCTAssertEqual(viewModel.phase, .settings)
-        XCTAssertNil(viewModel.selectedModel)
-        XCTAssertFalse(viewModel.canConfirm)
-
-        viewModel.confirmSettings()
-        XCTAssertEqual(viewModel.phase, .settings)
-
-        viewModel.selectModel(.cmyk)
-        XCTAssertEqual(viewModel.selectedModel, .cmyk)
-        XCTAssertTrue(viewModel.canConfirm)
-        viewModel.selectModel(.ryb)
         XCTAssertEqual(viewModel.selectedModel, .ryb)
         XCTAssertTrue(viewModel.canConfirm)
+        XCTAssertEqual(viewModel.reassignmentDuration, 45)
+        XCTAssertFalse(viewModel.showTargetColor)
+        viewModel.confirmSettings()
+        XCTAssertEqual(viewModel.phase, .playing)
+        XCTAssertEqual(viewModel.round?.colorModel, .ryb)
+    }
+
+    func testSelectedModeIsCapturedAndCannotChangeDuringRound() {
+        for mode in MixMode.allCases {
+            let viewModel = GameViewModel()
+            defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
+            XCTAssertEqual(viewModel.selectedMixMode, .manual)
+            viewModel.selectMixMode(mode)
+            XCTAssertEqual(viewModel.selectedMixMode, mode)
+            viewModel.confirmSettings()
+            XCTAssertEqual(viewModel.round?.mixMode, mode)
+            viewModel.selectMixMode(mode == .auto ? .manual : .auto)
+            XCTAssertEqual(viewModel.selectedMixMode, mode)
+            XCTAssertEqual(viewModel.round?.mixMode, mode)
+            XCTAssertFalse(viewModel.canConfirm)
+        }
+    }
+
+    func testMixModeSelectionRequiresSettingsAuthorityAndNotifiesOnce() {
+        let host = GameViewModel()
+        host.configureLocalPlay(localPlayer: .player1, isHost: true) { _, _ in }
+        var changes = 0
+        host.didChange = { changes += 1 }
+        host.selectMixMode(.auto)
+        host.selectMixMode(.auto)
+        XCTAssertEqual(host.selectedMixMode, .auto)
+        XCTAssertEqual(changes, 1)
+        host.phase = .score
+        host.selectMixMode(.manual)
+        XCTAssertEqual(host.selectedMixMode, .auto)
+        XCTAssertEqual(changes, 1)
+        let client = GameViewModel()
+        client.configureLocalPlay(localPlayer: .player2, isHost: false) { _, _ in }
+        client.selectMixMode(.auto)
+        XCTAssertEqual(client.selectedMixMode, .manual)
+        XCTAssertFalse(client.canConfirm)
+    }
+
+    func testNewRoundResetsEitherModeAndRetainsSettingsAndCatalog() {
+        let suite = "RoundModeReset-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for mode in MixMode.allCases {
+            let viewModel = GameViewModel(requestDefaults: defaults)
+            defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
+            XCTAssertTrue(viewModel.addCustomRequest(text: "Saved target", hex: "#123456"))
+            let requests = viewModel.availableRequests.map(\.id)
+            viewModel.reassignmentDuration = 90
+            viewModel.showTargetColor = true
+            viewModel.selectMixMode(mode)
+            viewModel.confirmSettings()
+            viewModel.addColor(player: .player1, slot: .primary)
+            if mode == .manual {
+                viewModel.pressMixButton()
+                XCTAssertEqual(viewModel.phase, .result)
+                viewModel.selectFinish()
+            } else {
+                viewModel.selectApply()
+            }
+            XCTAssertEqual(viewModel.phase, .score)
+            XCTAssertTrue(viewModel.round?.mix.isLocked == true)
+            XCTAssertNotNil(viewModel.mixResult)
+            XCTAssertNotNil(viewModel.score)
+            viewModel.startNewRound()
+            XCTAssertEqual(viewModel.phase, .settings)
+            XCTAssertEqual(viewModel.selectedModel, .ryb)
+            XCTAssertEqual(viewModel.selectedMixMode, .manual)
+            XCTAssertNil(viewModel.round)
+            XCTAssertNil(viewModel.roundID)
+            XCTAssertNil(viewModel.assignmentEpoch)
+            XCTAssertNil(viewModel.selectedRequestID)
+            XCTAssertNil(viewModel.currentBlend)
+            XCTAssertNil(viewModel.mixResult)
+            XCTAssertNil(viewModel.score)
+            XCTAssertEqual(viewModel.reassignmentDuration, 90)
+            XCTAssertEqual(viewModel.timerSecondsRemaining, 90)
+            XCTAssertTrue(viewModel.showTargetColor)
+            XCTAssertEqual(viewModel.availableRequests.map(\.id), requests)
+            XCTAssertTrue(viewModel.canConfirm)
+        }
     }
 
     func testRoundStartsWithAvailableRequestEmptyMixAndModelPaletteAssignments() {
@@ -25,7 +101,7 @@ final class GameViewModelTests: XCTestCase {
             let viewModel = GameViewModel()
             defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
             XCTAssertNil(viewModel.selectedRequestID)
-            viewModel.selectModel(model)
+
             viewModel.confirmSettings()
 
             XCTAssertEqual(viewModel.phase, .playing)
@@ -47,7 +123,7 @@ final class GameViewModelTests: XCTestCase {
     func testSelectedRequestIsUsedForTheRound() {
         for request in ColorData.requestPool {
             let viewModel = GameViewModel()
-            viewModel.selectModel(.cmyk)
+
             viewModel.selectedRequestID = request.id
             viewModel.confirmSettings()
 
@@ -60,40 +136,50 @@ final class GameViewModelTests: XCTestCase {
     }
 
     func testFivePaletteColorsAndOneDuplicateAtStartAndEveryReassignment() {
-        for model in ColorModel.allCases {
-            let viewModel = makePlayingViewModel(model)
-            defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
-            assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
-            for _ in 0..<100 {
-                viewModel.triggerReassignment()
+        for mode in MixMode.allCases {
+            for _ in 0..<20 {
+                let viewModel = GameViewModel()
+                defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
+                viewModel.selectMixMode(mode)
+                viewModel.confirmSettings()
                 assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
+                for _ in 0..<5 {
+                    viewModel.triggerReassignment()
+                    assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
+                }
             }
         }
     }
 
-    func testDuplicateCanLandWithinOnePlayerOrAcrossTwoPlayers() {
-        let viewModel = makePlayingViewModel(.cmyk)
-        defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
-        var sawWithinPlayer = false
-        var sawAcrossPlayers = false
-        var duplicatedColors = Set<UUID>()
-        for _ in 0..<200 {
-            assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
-            let assignments = viewModel.round!.assignments
-            let within = assignments.values.contains { $0.primaryColor.id == $0.secondaryColor.id }
-            let ids = assignments.values.flatMap { [$0.primaryColor.id, $0.secondaryColor.id] }
-            let counts = Dictionary(ids.map { ($0, 1) }, uniquingKeysWith: +)
-            if let duplicate = counts.first(where: { $0.value == 2 })?.key {
-                duplicatedColors.insert(duplicate)
+    func testDuplicatedPairIsCorrectedForEveryPlayerAndPaletteColor() {
+        let palette = ColorData.rybPalette
+        for duplicate in palette {
+            for playerIndex in PlayerID.allCases.indices {
+                var slots = palette.filter { $0.id != duplicate.id }
+                slots.insert(contentsOf: [duplicate, duplicate], at: 2 * playerIndex)
+                var expected = slots
+                expected.swapAt(2 * playerIndex + 1, (2 * playerIndex + 2) % slots.count)
+
+                let assignments = GameViewModel.assignments(from: slots)
+
+                assertAssignmentsContainFullPalettePlusOneDuplicate(assignments)
+                for (index, player) in PlayerID.allCases.enumerated() {
+                    XCTAssertEqual(assignments[player]?.primaryColor.id, expected[2 * index].id)
+                    XCTAssertEqual(assignments[player]?.secondaryColor.id, expected[2 * index + 1].id)
+                }
             }
-            sawWithinPlayer = sawWithinPlayer || within
-            sawAcrossPlayers = sawAcrossPlayers || !within
-            viewModel.triggerReassignment()
         }
-        XCTAssertTrue(sawWithinPlayer, "The duplicate must be able to occupy one player's pair")
-        XCTAssertTrue(sawAcrossPlayers, "The duplicate must be able to occupy two players' slots")
-        XCTAssertEqual(duplicatedColors, Set(ColorData.cmykPalette.map(\.id)),
-                       "Each palette color must be eligible as the extra color")
+    }
+
+    func testAlreadyDistinctPairsKeepTheirShuffledOrder() {
+        let palette = ColorData.rybPalette
+        let slots = palette + [palette[0]]
+        let assignments = GameViewModel.assignments(from: slots)
+        assertAssignmentsContainFullPalettePlusOneDuplicate(assignments)
+        for (index, player) in PlayerID.allCases.enumerated() {
+            XCTAssertEqual(assignments[player]?.primaryColor.id, slots[2 * index].id)
+            XCTAssertEqual(assignments[player]?.secondaryColor.id, slots[2 * index + 1].id)
+        }
     }
 
     func testEveryMappedKeyAddsOneCurrentColorAndUpdatesRatios() {
@@ -129,13 +215,14 @@ final class GameViewModelTests: XCTestCase {
     }
 
     func testTimerReassignsAtZeroAndPreservesMixAndResetsCountdown() {
-        let viewModel = makePlayingViewModel(.cmyk)
+        let viewModel = makePlayingViewModel(.ryb)
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
         viewModel.pauseTimer()
         viewModel.pressKey(KeyCode.q.rawValue)
         viewModel.pressKey(KeyCode.b.rawValue)
         let originalUnits = viewModel.round!.mix.units.map(\.color.id)
         let originalRatios = viewModel.round!.mix.ratios
+        let originalEpoch = viewModel.assignmentEpoch!
 
         for expected in stride(from: 44, through: 1, by: -1) {
             viewModel.timerTick()
@@ -145,6 +232,7 @@ final class GameViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.timerSecondsRemaining, viewModel.reassignmentDuration)
         XCTAssertEqual(viewModel.round!.mix.units.map(\.color.id), originalUnits)
         XCTAssertEqual(viewModel.round!.mix.ratios, originalRatios)
+        XCTAssertEqual(viewModel.assignmentEpoch, originalEpoch + 1)
         assertAssignmentsContainFullPalettePlusOneDuplicate(viewModel)
         let currentPrimary = viewModel.round!.assignments[.player1]!.primaryColor.id
         viewModel.pressKey(KeyCode.q.rawValue)
@@ -166,7 +254,7 @@ final class GameViewModelTests: XCTestCase {
     func testDeinitReleasesViewModelWithActiveTimerAndKeyMonitor() {
         weak var releasedViewModel: GameViewModel?
         do {
-            let viewModel = makePlayingViewModel(.cmyk)
+            let viewModel = makePlayingViewModel(.ryb)
             releasedViewModel = viewModel
             XCTAssertNotNil(releasedViewModel)
         }
@@ -175,7 +263,7 @@ final class GameViewModelTests: XCTestCase {
 
     private func makePlayingViewModel(_ model: ColorModel) -> GameViewModel {
         let viewModel = GameViewModel()
-        viewModel.selectModel(model)
+
         viewModel.confirmSettings()
         return viewModel
     }
@@ -186,14 +274,24 @@ final class GameViewModelTests: XCTestCase {
             XCTFail("Missing round", file: file, line: line)
             return
         }
-        let ids = Set(ColorData.colors(for: round.colorModel).map(\.id))
+        assertAssignmentsContainFullPalettePlusOneDuplicate(round.assignments, file: file, line: line)
+    }
+
+    private func assertAssignmentsContainFullPalettePlusOneDuplicate(
+        _ assignments: [PlayerID: PlayerAssignment],
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertEqual(assignments.count, PlayerID.allCases.count, file: file, line: line)
+        let ids = Set(ColorData.rybPalette.map(\.id))
         var assignedIDs: [UUID] = []
         for player in PlayerID.allCases {
-            guard let assignment = round.assignments[player] else {
+            guard let assignment = assignments[player] else {
                 XCTFail("Missing assignment for \(player)", file: file, line: line)
                 continue
             }
             XCTAssertEqual(assignment.player, player, file: file, line: line)
+            XCTAssertNotEqual(assignment.primaryColor.id, assignment.secondaryColor.id,
+                              "Each player's colors must differ", file: file, line: line)
             XCTAssertTrue(ids.contains(assignment.primaryColor.id), file: file, line: line)
             XCTAssertTrue(ids.contains(assignment.secondaryColor.id), file: file, line: line)
             assignedIDs.append(assignment.primaryColor.id)

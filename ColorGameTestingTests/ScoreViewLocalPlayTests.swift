@@ -16,12 +16,20 @@ final class ScoreViewLocalPlayTests: XCTestCase {
         func stop() {}
     }
 
-    private func joinPeer(_ coordinator: LocalPlayCoordinator) {
+    @discardableResult
+    private func joinPeer(_ coordinator: LocalPlayCoordinator) -> PeerHandle {
         let peer = PeerHandle(id: UUID())
         coordinator.handle(.connected(peer))
         coordinator.handle(.received(.hello(.init(protocolVersion: LocalPlayProtocol.version,
                                                    clientID: UUID(), sessionID: nil,
                                                    reconnectToken: nil)), from: peer))
+        return peer
+    }
+
+    private func peerVote(_ action: LocalVoteAction, coordinator: LocalPlayCoordinator,
+                          model: GameViewModel, peer: PeerHandle) {
+        coordinator.handle(.received(.input(.init(sessionID: coordinator.sessionID!, roundID: model.roundID!,
+            actionID: UUID(), action: .vote(action: action, votingID: coordinator.voting!.id))), from: peer))
     }
 
     private func buttonCount(in value: Any) -> Int {
@@ -30,6 +38,7 @@ final class ScoreViewLocalPlayTests: XCTestCase {
     }
 
     private func texts(in value: Any) -> [String] {
+        if let heading = value as? PlaytestHeading { return texts(in: heading.body) }
         if let text = value as? Text { return [String(describing: text)] }
         return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
     }
@@ -48,8 +57,8 @@ final class ScoreViewLocalPlayTests: XCTestCase {
 
         XCTAssertEqual(model.score, 87.76)
         XCTAssertFalse(view.showsNewRound)
-        XCTAssertEqual(buttonCount(in: view.body), 0)
-        XCTAssertTrue(texts(in: view.body).contains { $0.contains("Color Match") })
+        XCTAssertEqual(buttonCount(in: view.layoutContent(score: model.score!, size: CGSize(width: 900, height: 500))), 0)
+        XCTAssertTrue(texts(in: view.layoutContent(score: model.score!, size: CGSize(width: 900, height: 500))).contains { $0.contains("MATCH SCORE") })
         XCTAssertTrue(view.pauseStatus?.contains("Paused") == true)
         view.newRound()
         XCTAssertEqual(model.phase, .score)
@@ -60,17 +69,19 @@ final class ScoreViewLocalPlayTests: XCTestCase {
         let model = GameViewModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
+        let peer = joinPeer(coordinator)
         joinPeer(coordinator)
-        joinPeer(coordinator)
-        model.selectModel(.cmyk)
+
         XCTAssertTrue(coordinator.perform(.startRound))
-        model.round?.mix.units = [ColorUnit(color: ColorData.cmykPalette[0])]
-        XCTAssertTrue(coordinator.perform(.mix))
-        XCTAssertTrue(coordinator.perform(.finish))
+        model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
+        XCTAssertTrue(coordinator.castVote(.mix))
+        peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
+        XCTAssertTrue(coordinator.castVote(.finish))
+        peerVote(.finish, coordinator: coordinator, model: model, peer: peer)
         let view = ScoreView(viewModel: model, coordinator: coordinator)
         XCTAssertNotNil(model.score)
         XCTAssertTrue(view.showsNewRound)
-        XCTAssertEqual(buttonCount(in: view.body), 1)
+        XCTAssertEqual(buttonCount(in: view.layoutContent(score: model.score!, size: CGSize(width: 900, height: 500))), 1)
 
         coordinator.setPaused(true)
         XCTAssertTrue(view.newRoundDisabled)

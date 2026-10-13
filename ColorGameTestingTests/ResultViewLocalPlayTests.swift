@@ -18,35 +18,44 @@ final class ResultViewLocalPlayTests: XCTestCase {
 
     private func resultModel() -> GameViewModel {
         let model = GameViewModel()
-        let colors = ColorData.cmykPalette
+        let colors = ColorData.rybPalette
         model.phase = .result
         model.round = Round(
-            request: ColorData.requestPool[0], colorModel: .cmyk, assignments: [:],
+            request: ColorData.requestPool[0], colorModel: .ryb, mixMode: .manual, assignments: [:],
             mix: Mix(units: [ColorUnit(color: colors[0]), ColorUnit(color: colors[1])], isLocked: true)
         )
         model.mixResult = SIMD3(0.2, 0.7, 0.4)
         return model
     }
 
-    private func joinPeer(_ coordinator: LocalPlayCoordinator) {
+    @discardableResult
+    private func joinPeer(_ coordinator: LocalPlayCoordinator) -> PeerHandle {
         let peer = PeerHandle(id: UUID())
         coordinator.handle(.connected(peer))
         coordinator.handle(.received(.hello(.init(protocolVersion: LocalPlayProtocol.version,
                                                    clientID: UUID(), sessionID: nil,
                                                    reconnectToken: nil)), from: peer))
+        return peer
+    }
+
+    private func peerVote(_ action: LocalVoteAction, coordinator: LocalPlayCoordinator,
+                          model: GameViewModel, peer: PeerHandle) {
+        coordinator.handle(.received(.input(.init(sessionID: coordinator.sessionID!, roundID: model.roundID!,
+            actionID: UUID(), action: .vote(action: action, votingID: coordinator.voting!.id))), from: peer))
     }
 
     private func texts(in value: Any) -> [String] {
+        if let heading = value as? PlaytestHeading { return texts(in: heading.body) }
         if let text = value as? Text { return [String(describing: text)] }
         return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
     }
 
     private func buttonCount(in value: Any) -> Int {
-        let count = value is Button<Text> ? 1 : 0
+        let count = String(describing: Swift.type(of: value)).hasPrefix("Button<") ? 1 : 0
         return count + Mirror(reflecting: value).children.reduce(0) { $0 + buttonCount(in: $1.value) }
     }
 
-    func testClientKeepsResultAndBreakdownWithoutHostActionsWhilePaused() {
+    func testClientKeepsResultBreakdownAndDisabledVotingActionsWhilePaused() {
         let model = resultModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         coordinator.startBrowsing()
@@ -56,13 +65,13 @@ final class ResultViewLocalPlayTests: XCTestCase {
                                                     reconnectToken: UUID())), from: peer))
         let view = ResultView(viewModel: model, coordinator: coordinator)
 
-        XCTAssertFalse(view.showsActions)
-        XCTAssertEqual(buttonCount(in: view.body), 0)
+        XCTAssertTrue(view.showsActions)
+        XCTAssertEqual(buttonCount(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500))), 2)
+        XCTAssertTrue(view.actionsDisabled)
         XCTAssertTrue(coordinator.paused)
         XCTAssertTrue(view.pauseStatus?.contains("Paused") == true)
-        let visibleText = texts(in: view.body)
-        XCTAssertTrue(visibleText.contains { $0.contains("Your Mix") })
-        XCTAssertTrue(visibleText.contains { $0.contains("Color Breakdown") })
+        let visibleText = texts(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500)))
+        XCTAssertTrue(visibleText.contains { $0.contains("YOUR MIX") })
         XCTAssertEqual(ResultView.breakdown(for: model.round!.mix).map(\.count), [1, 1])
         XCTAssertEqual(model.mixResult, SIMD3(0.2, 0.7, 0.4))
         view.redo()
@@ -74,20 +83,21 @@ final class ResultViewLocalPlayTests: XCTestCase {
         let model = GameViewModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
+        let peer = joinPeer(coordinator)
         joinPeer(coordinator)
-        joinPeer(coordinator)
-        model.selectModel(.cmyk)
+
         XCTAssertTrue(coordinator.perform(.startRound))
-        model.round?.mix.units = [ColorUnit(color: ColorData.cmykPalette[0])]
-        XCTAssertTrue(coordinator.perform(.mix))
+        model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
+        XCTAssertTrue(coordinator.castVote(.mix))
+        peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
         let view = ResultView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.showsActions)
-        XCTAssertEqual(buttonCount(in: view.body), 2)
+        XCTAssertEqual(buttonCount(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500))), 2)
 
         coordinator.setPaused(true)
         XCTAssertTrue(view.actionsDisabled)
         XCTAssertTrue(view.pauseStatus?.contains("Paused") == true)
-        XCTAssertTrue(texts(in: view.body).contains { $0.contains("Color Breakdown") })
+        XCTAssertTrue(texts(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500))).contains { $0.contains("YOUR MIX") })
         view.redo()
         view.finish()
         XCTAssertEqual(model.phase, .result)
@@ -96,11 +106,16 @@ final class ResultViewLocalPlayTests: XCTestCase {
         coordinator.setPaused(false)
         XCTAssertFalse(view.actionsDisabled)
         view.redo()
+        XCTAssertEqual(model.phase, .result)
+        peerVote(.redo, coordinator: coordinator, model: model, peer: peer)
         XCTAssertEqual(model.phase, .playing)
         XCTAssertTrue(model.round?.mix.units.isEmpty == true)
-        model.round?.mix.units = [ColorUnit(color: ColorData.cmykPalette[1])]
-        XCTAssertTrue(coordinator.perform(.mix))
+        model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[1])]
+        XCTAssertTrue(coordinator.castVote(.mix))
+        peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
         view.finish()
+        XCTAssertEqual(model.phase, .result)
+        peerVote(.finish, coordinator: coordinator, model: model, peer: peer)
         XCTAssertEqual(model.phase, .score)
         XCTAssertNotNil(model.score)
         model.pauseTimer()

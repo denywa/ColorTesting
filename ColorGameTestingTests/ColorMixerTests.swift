@@ -3,85 +3,23 @@ import XCTest
 @testable import ColorGameTesting
 
 final class ColorMixerTests: XCTestCase {
-    // Feature: color-mixing-game, Property 14: Color blending is weighted arithmetic mean
-    func testWeightedNativeComponentMeanForRandomCMYKMixes() {
-        let seed: UInt64 = 0xC010_0014
-        var generator = MixerSeededGenerator(seed: seed)
-
-        for iteration in 0..<200 {
-            let model: ColorModel = .cmyk
-            let colorCount = Int.random(in: 2...5, using: &generator)
-            let colors = (0..<colorCount).map { index in
-                randomColor(model: model, idNumber: iteration * 8 + index + 1, using: &generator)
-            }
-            let counts = (0..<colorCount).map { _ in Int.random(in: 1...12, using: &generator) }
-            let total = Double(counts.reduce(0, +))
-            let weights = counts.map { Double($0) / total }
-            let units = zip(colors, counts).flatMap { color, count in
-                Array(repeating: ColorUnit(color: color), count: count)
-            }
-
-            let native = zip(colors, weights).reduce(SIMD4<Double>(repeating: 0)) { sum, pair in
-                sum + pair.0.cmykComponents! * pair.1
-            }
-            let expected = SIMD3(
-                (1 - native.x) * (1 - native.w),
-                (1 - native.y) * (1 - native.w),
-                (1 - native.z) * (1 - native.w)
-            )
-
-            let actual = ColorMixer.blend(units, model: model)
-            let input = zip(colors, counts).map { color, count in
-                "id=\(color.id), count=\(count), cmyk=\(String(describing: color.cmykComponents)), ryb=\(String(describing: color.rybComponents))"
-            }.joined(separator: "; ")
-            for channel in 0..<3 {
-                XCTAssertEqual(
-                    actual[channel], expected[channel], accuracy: 1e-12,
-                    "seed=\(seed), iteration=\(iteration), model=\(model), channel=\(channel), weights=\(weights), input=[\(input)]"
-                )
-            }
-        }
-    }
-
-    // Feature: color-mixing-game, Property 15: Single-color blend is identity
     func testRandomSingleColorIsIdentityForAnyPositiveUnitCount() {
         let seed: UInt64 = 0xC010_0015
         var generator = MixerSeededGenerator(seed: seed)
 
         for iteration in 0..<200 {
-            let model: ColorModel = iteration.isMultiple(of: 2) ? .cmyk : .ryb
-            let color = randomColor(model: model, idNumber: iteration + 1, using: &generator)
+            let model: ColorModel = .ryb
+            let color = randomColor(idNumber: iteration + 1, using: &generator)
             let count = Int.random(in: 1...100, using: &generator)
             let units = Array(repeating: ColorUnit(color: color), count: count)
 
             XCTAssertEqual(
                 ColorMixer.blend(units, model: model), color.sRGB,
-                "seed=\(seed), iteration=\(iteration), model=\(model), count=\(count), id=\(color.id), sRGB=\(color.sRGB), cmyk=\(String(describing: color.cmykComponents)), ryb=\(String(describing: color.rybComponents))"
+                "seed=\(seed), iteration=\(iteration), model=\(model), count=\(count), id=\(color.id), sRGB=\(color.sRGB), ryb=\(String(describing: color.rybComponents))"
             )
         }
     }
 
-    func testEqualWeightCyanAndMagentaCMYKMix() {
-        let cyan = ColorData.cmykPalette[0]
-        let magenta = ColorData.cmykPalette[1]
-        let result = ColorMixer.blend([ColorUnit(color: cyan), ColorUnit(color: magenta)], model: .cmyk)
-        assertRGB(result, equals: SIMD3(0.5, 0.5, 1))
-    }
-
-    func testAllWhiteCMYKMix() {
-        let white = ColorData.cmykPalette[4]
-        let otherWhite = NamedColor(id: UUID(), name: "White", sRGB: white.sRGB,
-                                    cmykComponents: white.cmykComponents, rybComponents: nil)
-        let result = ColorMixer.blend([ColorUnit(color: white), ColorUnit(color: otherWhite)], model: .cmyk)
-        XCTAssertEqual(result, SIMD3(1, 1, 1))
-    }
-
-    func testCMYKBlendsFourChannelsBeforeConvertingToSRGB() {
-        let cyan = ColorData.cmykPalette[0]
-        let black = ColorData.cmykPalette[3]
-        let result = ColorMixer.blend([ColorUnit(color: cyan), ColorUnit(color: black)], model: .cmyk)
-        assertRGB(result, equals: SIMD3(0.25, 0.5, 0.5))
-    }
 
     func testRYBPaletteMatchesDiagramOverlaps() {
         let palette = ColorData.rybPalette
@@ -132,21 +70,33 @@ final class ColorMixerTests: XCTestCase {
         }
     }
 
-    func testExtremeCMYKWeightAndClamping() {
-        let cyan = ColorData.cmykPalette[0]
-        let black = ColorData.cmykPalette[3]
-        let units = Array(repeating: ColorUnit(color: cyan), count: 99) + [ColorUnit(color: black)]
-        assertRGB(ColorMixer.blend(units, model: .cmyk), equals: SIMD3(0.0099, 0.99, 0.99))
+    func testCompleteAcceptedUnitsPreserveWeightAndNeutralDilution() {
+        let palette = ColorData.rybPalette
+        let units = [0, 1, 0, 3, 4].map { ColorUnit(color: palette[$0]) }
+        let primary = palette[0].sRGB / 3 + SIMD3(243, 177, 61) / 255 * (2.0 / 3)
+        let expected = primary * (3.0 / 5) + SIMD3(repeating: 1.0 / 5)
+        assertRGB(ColorMixer.blend(units, model: .ryb), equals: expected)
+        XCTAssertNotEqual(ColorMixer.blend(units, model: .ryb), units.last!.color.sRGB)
+        assertRGB(ColorMixer.blend(units + units, model: .ryb), equals: expected)
+        assertRGB(ColorMixer.blend(Array(units.reversed()), model: .ryb), equals: expected)
 
-        let outOfRange = NamedColor(id: UUID(), name: "Out of range", sRGB: SIMD3(0, 0, 0),
-                                    cmykComponents: SIMD4(-1, 2, 0, 0), rybComponents: nil)
-        let white = ColorData.cmykPalette[4]
-        let clamped = ColorMixer.blend([ColorUnit(color: outOfRange), ColorUnit(color: white)], model: .cmyk)
-        XCTAssertEqual(clamped, SIMD3(1, 0, 1))
+        let mostlyRed = Array(repeating: ColorUnit(color: palette[0]), count: 99)
+            + [ColorUnit(color: palette[3])]
+        assertRGB(ColorMixer.blend(mostlyRed, model: .ryb), equals: SIMD3(0.99, 0, 0))
+    }
+
+    func testCalculatedRYBChannelsAreClamped() {
+        let components = SIMD3<Double>(-1, 2, 0)
+        let colors = (0..<2).map { _ in
+            NamedColor(id: UUID(), name: "Out of range", sRGB: SIMD3(0, 0, 0),
+                       rybComponents: components)
+        }
+        assertRGB(ColorMixer.blend(colors.map { ColorUnit(color: $0) }, model: .ryb),
+                  equals: SIMD3(1, 1, 0))
     }
 
     private func randomColor(
-        model: ColorModel, idNumber: Int, using generator: inout MixerSeededGenerator
+        idNumber: Int, using generator: inout MixerSeededGenerator
     ) -> NamedColor {
         let id = UUID(uuidString: String(format: "00000000-0000-0000-0000-%012x", idNumber))!
         let srgb = SIMD3(
@@ -154,28 +104,14 @@ final class ColorMixerTests: XCTestCase {
             Double.random(in: 0...1, using: &generator),
             Double.random(in: 0...1, using: &generator)
         )
-        switch model {
-        case .cmyk:
-            return NamedColor(
-                id: id, name: "Generated CMYK", sRGB: srgb,
-                cmykComponents: SIMD4(
-                    Double.random(in: 0...1, using: &generator),
-                    Double.random(in: 0...1, using: &generator),
-                    Double.random(in: 0...1, using: &generator),
-                    Double.random(in: 0...1, using: &generator)
-                ),
-                rybComponents: nil
+        return NamedColor(
+            id: id, name: "Generated RYB", sRGB: srgb,
+            rybComponents: SIMD3(
+                Double.random(in: 0...1, using: &generator),
+                Double.random(in: 0...1, using: &generator),
+                Double.random(in: 0...1, using: &generator)
             )
-        case .ryb:
-            return NamedColor(
-                id: id, name: "Generated RYB", sRGB: srgb, cmykComponents: nil,
-                rybComponents: SIMD3(
-                    Double.random(in: 0...1, using: &generator),
-                    Double.random(in: 0...1, using: &generator),
-                    Double.random(in: 0...1, using: &generator)
-                )
-            )
-        }
+        )
     }
 
     private func assertRGB(_ actual: SIMD3<Double>, equals expected: SIMD3<Double>,

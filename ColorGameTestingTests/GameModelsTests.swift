@@ -3,7 +3,8 @@ import XCTest
 
 final class GameModelsTests: XCTestCase {
     func testColorModelsAndGamePhasesHaveSpecifiedCases() {
-        XCTAssertEqual(ColorModel.allCases.map(\.rawValue), ["CMYK", "RYB"])
+        XCTAssertEqual(ColorModel.allCases.map(\.rawValue), ["RYB"])
+        XCTAssertNil(ColorModel(rawValue: "CMYK"))
 
         let phases: [GamePhase] = [.settings, .playing, .result, .score]
         XCTAssertEqual(phases.count, 4)
@@ -43,39 +44,33 @@ final class GameModelsTests: XCTestCase {
         let id = UUID()
         let first = NamedColor(
             id: id,
-            name: "Cyan",
-            sRGB: SIMD3(0.0, 1.0, 1.0),
-            cmykComponents: SIMD4(1.0, 0.0, 0.0, 0.0),
-            rybComponents: nil
+            name: "Red",
+            sRGB: SIMD3(1.0, 0.0, 0.0),
+            rybComponents: SIMD3(1.0, 0.0, 0.0)
         )
         let duplicate = NamedColor(
             id: id,
-            name: "Cyan",
-            sRGB: SIMD3(0.0, 1.0, 1.0),
-            cmykComponents: SIMD4(1.0, 0.0, 0.0, 0.0),
-            rybComponents: nil
+            name: "Red",
+            sRGB: SIMD3(1.0, 0.0, 0.0),
+            rybComponents: SIMD3(1.0, 0.0, 0.0)
         )
         let other = NamedColor(
             id: UUID(),
             name: "Red",
             sRGB: SIMD3(1.0, 0.0, 0.0),
-            cmykComponents: nil,
             rybComponents: SIMD3(1.0, 0.0, 0.0)
         )
         let changedComponents = NamedColor(
             id: id,
-            name: "Cyan",
-            sRGB: SIMD3(0.0, 1.0, 1.0),
-            cmykComponents: SIMD4(0.5, 0.0, 0.0, 0.0),
-            rybComponents: nil
+            name: "Red",
+            sRGB: SIMD3(1.0, 0.0, 0.0),
+            rybComponents: SIMD3(0.5, 0.0, 0.0)
         )
 
         XCTAssertEqual(first.id, id)
-        XCTAssertEqual(first.name, "Cyan")
-        XCTAssertEqual(first.sRGB, SIMD3(0.0, 1.0, 1.0))
-        XCTAssertEqual(first.cmykComponents, SIMD4(1.0, 0.0, 0.0, 0.0))
-        XCTAssertNil(first.rybComponents)
-        XCTAssertNil(other.cmykComponents)
+        XCTAssertEqual(first.name, "Red")
+        XCTAssertEqual(first.sRGB, SIMD3(1.0, 0.0, 0.0))
+        XCTAssertEqual(first.rybComponents, SIMD3(1.0, 0.0, 0.0))
         XCTAssertEqual(other.rybComponents, SIMD3(1.0, 0.0, 0.0))
         XCTAssertEqual(first, duplicate)
         XCTAssertNotEqual(first, other)

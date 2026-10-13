@@ -58,3 +58,32 @@ These checked tasks record the existing baseline. They do not request new implem
   - The deliverable is existing integration evidence for the result and score values supplied to their screens.
   - _Boundary: GameViewModel calculation seam_
   - _Requirements: 4.1_
+
+
+The checked tasks above establish the pre-Part-II baseline. The tasks below add the approved RYB-only and Auto Mix calculation contract; existing history is retained.
+
+- [x] 5. Remove CMYK while preserving the calibrated RYB calculation
+- [x] 5.1 Keep the palette and blend helper RYB-only
+  - Remove CMYK from the model, named-color components, palette data and mixer branch while retaining the existing five RYB palette IDs, names, components and display values.
+  - Preserve single-color identity, the current primary-share/overlap calibration, black and white dilution, and output clamping; do not substitute a component mean formula.
+  - Remove CMYK-only fixtures and assertions. Keep the focused cases that distinguish equal component means with different pigment composition.
+  - Verify blending the complete accepted-unit list gives one consistent result for both a Manual result and each nonempty live Auto update; never substitute only the most recent tap.
+  - Done when all production color values carry RYB components only and mixer tests prove the same calibrated output for existing RYB cases.
+  - _Boundary: ColorModel, NamedColor, ColorData, ColorMixer_
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.1, 5.2_
+- [x] 5.2 Preserve ratio, result and score feedback contracts
+  - Keep ratios empty for an empty mix and count/total for accepted units; preserve first-contribution order and one-decimal result breakdown.
+  - Retain the current Lab conversion and nonlinear Delta E score endpoints/calibration; keep two-decimal feedback and the mix/target comparison.
+  - Remove CMYK preview/test fixtures and keep no-result/no-score fallbacks intact.
+  - Done when focused ratio, result and scoring tests pass with RYB-only fixtures and existing presentation behavior.
+  - _Boundary: Mix.ratios, ColorConverter, ScoreCalculator, ResultView, ScoreView_
+  - _Depends: 5.1_
+  - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
+
+- [x] 6. Verify live Auto color and Apply across the round-calculation seam
+  - After round-flow supplies currentBlend, verify every accepted unit is included immediately, the empty bowl is nil and never displays the mixer’s empty-input fallback, and Apply scores the latest accepted full mix.
+  - Add only missing integration assertions to the existing round-flow test seam; leave round state transitions and mixer ownership in their respective specs.
+  - Done when tests compare live and applied values with the same RYB helper and prove an empty Auto bowl exposes no calculated color.
+  - _Boundary: ColorMixer and GameViewModel round-calculation integration_
+  - _Depends: round-flow-and-input 6.1, 6.2_
+  - _Requirements: 5.1, 5.2, 5.3_

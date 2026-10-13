@@ -107,3 +107,14 @@ The existing path is `SettingsView → GameViewModel → CustomRequestStore`. Th
 ### Research Needed and Next Validation
 
 No external dependency research is needed. Run the focused XCTest target before claiming that the retained-data handling passes. Keep the new test within the custom-request boundary and recheck round setup and network snapshots if request identity or target representation changes.
+
+## Difficulty-Level Extension
+
+Requirements approved by the user after reviewing difficulty-levels-proposal.md. Minimal integration discovery used the current ColorData, CustomRequestStore, GameViewModel, settings and existing request tests. Consulted kiro-spec-design principles, light discovery, synthesis and review gate, plus core steering.
+
+- Preserve availableRequests as the full catalog to keep existing callers/tests compatible; add a filtered consumer for setup and confirmSettings.
+- Keep the storage key and add an optional integer level; legacy records default to Level 1. Validate unknown values per record rather than decoding an enum that could discard the whole array.
+- Keep level selection outside the GameState reset so repeated New Round testing retains the level.
+- No wire change is needed: this version uses difficulty only for host/local catalog selection, and keeps target ID/text/color transfer unchanged. Client gameplay does not display difficulty metadata.
+- Reuse Foundation/SwiftUI and existing components; no additional storage layer or dependency is justified.
+- Inline design review passed: all 25 criteria explicitly mapped, concrete files/contracts supplied, boundaries and migration failure behavior checked. Implementation plan is included for human review; formal tasks await design approval.

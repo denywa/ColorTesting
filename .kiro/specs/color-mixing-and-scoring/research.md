@@ -1,3 +1,60 @@
+# Research & Design Decisions: Playtesting Part II
+
+## Summary
+
+- **Feature:** color-mixing-and-scoring
+- **Discovery Scope:** Extension; light integration discovery of current source/tests and adjacent round/network contracts.
+- **Key Findings:** Current RYB and nonlinear score calibration already exist; CMYK still has declarations, branch logic and fixtures. Manual/Auto can reuse one mixer. Old baseline design claims about eight-corner RYB conversion no longer match source.
+
+## Research Log
+
+### Existing calibration and requirement wording
+
+- **Context:** Remove CMYK and supply live Auto color without changing the calculation requested in the brief.
+- **Sources Consulted:** ColorMixer.swift, ColorMixerTests.swift, ColorData.swift, ScoreCalculator.swift, ScoreCalculatorTests.swift, requirements.md and brief.md.
+- **Findings:** RYB uses primary proportions, calibrated secondary overlaps, a neutral primary center and black/white dilution. A regression distinguishes equal RYB-vector means from different ingredient compositions. Score uses normalized nonlinear Delta E 2000 with constants 200/23 and cutoff 100.
+- **Implications:** Correct criterion 1.2's mean-vector wording to preserve the existing count-weighted calculation. This is a wording repair aligned with the user's existing-calculation scope, not authorization for a different formula. Preserve palette IDs, display values and score calibration. Replace stale formula descriptions.
+
+### Invocation and display seams
+
+- **Sources Consulted:** GameState.swift, GameViewModel.swift, ResultView.swift, ScoreView.swift, MixRatiosTests.swift and adjacent designs.
+- **Findings:** Ratios are UUID-keyed counts/total; first-contribution order is presentation data. Empty mixer zero is a helper fallback, not the Auto empty-bowl color. GameViewModel owns when colors are live/frozen and scored.
+- **Implications:** Round-owned currentBlend is optional and separate from mixResult. Same RYB helper supplies Manual result, live Auto and Apply. Clients receive host color through the network spec.
+
+## Architecture Pattern Evaluation
+
+| Option | Strength | Limit | Decision |
+| --- | --- | --- | --- |
+| Extend existing helpers | Preserves calibration and callers | Requires CMYK fixture cleanup | Selected |
+| New generic mixing service or formula | Separate implementation | Changes scope and adds migration | Rejected |
+
+## Design Decisions
+
+- **Generalization:** One accepted-unit blend contract supports Manual and Auto; no second mixer.
+- **Build vs. adopt:** Adopt existing Swift/SIMD, converter and scorer. No external library or new API is introduced, so no new external technology research is necessary.
+- **Simplification:** Keep fixed ColorModel.ryb for palette/wire seams, remove alternate model/components, and retain ratios as derived data. No caching or formula rewrite inside the mixer.
+- **Boundary:** This spec edits color declarations in shared files; round spec owns lifecycle/live storage, network owns wire mapping and UI owns modern layout. Stage shared-file edits in dependency order.
+- **Skills consulted:** kiro-spec-design light discovery/synthesis/gate and active Ponytail full favor existing components and explicit contracts. kiro-verify-completion requires fresh evidence before runtime success claims.
+
+## Risks & Mitigations
+
+- Silent mixing/score changes: preserve calibrated regression fixtures and exact score interface/formula.
+- CMYK caller breakage: downstream round/network/preview/test migrations are explicit prerequisites, with protocol2 rejecting old builds.
+- Empty color mistaken for black: optional currentBlend rather than displaying helper zero.
+
+## Review Gate
+
+Draft review passed after two bounded local repair passes shared across the three designs. Mechanical checks covered all 18 numeric criteria in traceability, populated boundaries, concrete existing paths and no placeholders. Judgment review checked helper ownership, actual score/ratio signatures, empty/live/frozen semantics, compatibility and executable test/file boundaries. Findings/review are source and document evidence; no runtime tests were run.
+
+## References
+
+Current production/test paths listed above, core steering product.md/tech.md/structure.md, and the adjacent round/network designs are the local sources of truth. The historical research below is retained for context and does not describe the new scope.
+
+
+---
+
+## Historical Research (superseded baseline scope)
+
 # Research and Design Decisions: Color Mixing and Scoring
 
 ## Summary

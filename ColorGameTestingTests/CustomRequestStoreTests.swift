@@ -37,7 +37,7 @@ final class CustomRequestStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.customRequests[0].text, added.text)
         XCTAssertEqual(reloaded.customRequests[0].targetSRGB, added.targetSRGB)
         reloaded.selectedRequestID = added.id
-        reloaded.selectModel(.cmyk)
+
         reloaded.confirmSettings()
         XCTAssertEqual(reloaded.round?.request.id, added.id)
         XCTAssertEqual(reloaded.round?.request.targetSRGB, added.targetSRGB)

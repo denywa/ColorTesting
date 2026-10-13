@@ -2,44 +2,35 @@
 
 ## Problem
 
-The project owner and future contributors need a stable description of the color feedback playtesters see. Blending and scoring already exist, but their rules and display responsibilities are not captured in a spec.
+Playtesting Part II removes CMYK and adds Auto Mix. The existing baseline spec describes both palettes and only a completed Manual Mix result, so it no longer defines the color feedback players need.
 
 ## Current State
 
-`ColorMixer` blends selected color units in the chosen CMYK or RYB model. The app shows the resulting color and ingredient breakdown, then compares the result with the target through Lab color conversion and Delta E 2000 to produce a match percentage. The result screen offers redo or finish, and the score screen displays the comparison. No spec currently documents these behaviors.
+`ColorMixer` blends CMYK or RYB units after Mix. The result shows ingredient proportions, and scoring compares the result with the target through Lab and Delta E 2000. Auto Mix has no live blend yet.
 
 ## Desired Outcome
 
-A source-grounded spec describes current mixing, proportions, result feedback, and scoring so playtest observations and future rule changes refer to the same baseline.
+The app calculates playtest mixes from RYB only. Manual Mix keeps the result color and ingredient breakdown. Auto Mix exposes the current blended color after each accepted contribution and treats an empty bowl as empty. Both modes use the existing perceptual match score.
 
 ## Approach
 
-Describe the existing color helpers and result/score presentation using `ColorMixer`, `ColorConverter`, `ScoreCalculator`, `ResultView`, `ScoreView`, and their tests. Treat the score as game feedback, not a physical pigment-accuracy claim.
+Update the existing palette and mixing contracts, reuse the current RYB calculation and score, and protect the behavior with focused color tests. The round-flow spec chooses when to show Manual result or Auto score; the UI spec owns the bowl and chart presentation.
 
 ## Scope
 
-- **In**: Palette-specific blending, mix ratios, visible result breakdown, target comparison, match percentage, and result/score presentation.
-- **Out**: Player input mapping, request persistence, timer rules, phase orchestration, or new scoring models.
+- **In**: RYB-only color calculation, Manual ingredient proportions and result, Auto live color, and shared scoring.
+- **Out**: Player assignments, timing, input, phase transitions, votes, network transport, and a new scoring formula.
 
 ## Boundary Candidates
 
-- Color helpers own calculation and conversion rules independently of SwiftUI rendering.
-- Result and score views own presentation of computed values; `GameViewModel` owns transitions into and out of those phases.
-
-## Out of Boundary
-
-This spec does not define who adds units to the mix or when a round changes phase.
+- Color helpers calculate RYB blend, proportions, and score independently of screen rendering.
+- Result and score screens present calculated values; round flow decides when those screens appear.
 
 ## Upstream / Downstream
 
-- **Upstream**: Existing palette and color-unit data, plus the round's chosen model and target.
-- **Downstream**: `round-flow-and-input` invokes mixing and scoring while managing the session lifecycle.
-
-## Existing Spec Touchpoints
-
-- **Extends**: None; no specs exist yet.
-- **Adjacent**: `custom-color-requests` defines persisted target creation; round flow defines when result and score appear; `local-three-device-play` owns networked synchronization of results and scores.
+- **Upstream**: The round supplies RYB units, mix mode, and target.
+- **Downstream**: `round-flow-and-input` consumes the color values; `local-three-device-play` synchronizes them; `modern-playtest-ui` displays them.
 
 ## Constraints
 
-Describe the current implementation and tests only. Keep color math in focused helpers and preserve the app's distinction between a game score and physically accurate pigment mixing.
+Preserve the existing RYB palette identity and scoring behavior. Treat the match percentage as playtest feedback, not a physical pigment measurement.

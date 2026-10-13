@@ -5,7 +5,7 @@ import XCTest
 final class GameViewModelLocalPlayTests: XCTestCase {
     func testClientRejectsDirectStateAndSettingsWritesButAppliesHostSnapshot() {
         let host = GameViewModel()
-        host.selectModel(.ryb)
+
         host.confirmSettings()
         defer { host.pauseTimer(); host.removeKeyMonitor() }
         let client = GameViewModel()
@@ -14,7 +14,7 @@ final class GameViewModelLocalPlayTests: XCTestCase {
                                 reassignmentDuration: 30, showTargetColor: true)
         defer { client.pauseTimer(); client.removeKeyMonitor() }
 
-        client.selectedModel = .cmyk
+        client.selectMixMode(.auto)
         client.selectedRequestID = ColorData.requestPool[0].id
         client.reassignmentDuration = 90
         client.showTargetColor = false
@@ -51,10 +51,10 @@ final class GameViewModelLocalPlayTests: XCTestCase {
         var inputs: [(PlayerID, ColorSlot)] = []
         viewModel.configureLocalPlay(localPlayer: .player1, isHost: true) { inputs.append(($0, $1)) }
         viewModel.didChange = { changes += 1 }
-        viewModel.selectModel(.cmyk)
+
         viewModel.confirmSettings()
         defer { viewModel.pauseTimer(); viewModel.removeKeyMonitor() }
-        XCTAssertEqual(changes, 2)
+        XCTAssertEqual(changes, 1)
 
         viewModel.addColor(player: .player2, slot: .primary)
         viewModel.pressKey(KeyCode.q.rawValue)
@@ -65,24 +65,24 @@ final class GameViewModelLocalPlayTests: XCTestCase {
 
         let previousColor = viewModel.round!.assignments[.player2]!.primaryColor
         viewModel.triggerReassignment()
-        XCTAssertEqual(changes, 3)
+        XCTAssertEqual(changes, 2)
         XCTAssertTrue(viewModel.acceptColor(previousColor, for: .player2))
         XCTAssertEqual(viewModel.round?.mix.units.map(\.color.id), [previousColor.id])
-        XCTAssertEqual(changes, 4)
+        XCTAssertEqual(changes, 3)
         viewModel.timerTick()
-        XCTAssertEqual(changes, 5)
+        XCTAssertEqual(changes, 4)
         viewModel.pressMixButton()
-        XCTAssertEqual(changes, 6)
+        XCTAssertEqual(changes, 5)
         viewModel.selectFinish()
-        XCTAssertEqual(changes, 7)
+        XCTAssertEqual(changes, 6)
         viewModel.startNewRound()
-        XCTAssertEqual(changes, 8)
+        XCTAssertEqual(changes, 7)
         XCTAssertEqual(viewModel.phase, .settings)
     }
 
     func testClientMirrorsRenderStateWithoutRunningRulesOrTimer() {
         let host = GameViewModel()
-        host.selectModel(.ryb)
+
         host.confirmSettings()
         defer { host.pauseTimer(); host.removeKeyMonitor() }
         let client = GameViewModel()

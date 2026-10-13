@@ -2,175 +2,178 @@
 
 ## Overview
 
-This baseline records how a single-device group configures and completes a three-player round. `ContentView` shows the current phase; `GameViewModel` owns setup state, one round, input, timer, and transitions; SwiftUI screens forward actions and render current state. The calculation and request catalog helpers remain upstream dependencies.
+Extend the existing main-actor `GameViewModel` with RYB-only setup, distinct player pairs, and Manual/Auto Mix. Retain four phases and one shared three-player mix. Manual keeps its review step; Auto updates its bowl while playing and scores directly on Apply.
+
+The same guarded domain actions serve solo and the authoritative network host. Network permission, voting and pause gates remain in the coordinator; modern styling remains in the UI spec.
 
 ### Goals
 
-- Preserve the implemented settings → playing → result → score → settings contract.
-- Identify which player action changes the one shared mix on macOS and iOS.
-- Keep phase, request, and calculation seams explicit for later playtesting changes.
+- Default setup and every New Round to Manual Mix with fixed RYB.
+- Guarantee two different colors for each player at start and every reassignment.
+- Expose mode-aware action eligibility and live/frozen colors to views and network integration.
 
 ### Non-Goals
 
-- Change gameplay, assignments, timing, controls, or persistence.
-- Define custom-request validation/storage or color and score formulas.
-- Define mode selection, host/client authority, network messages, or synchronized snapshots.
+No new blending/scoring formula, custom request schema, networking, voting logic, iPhone layout overhaul, timer service or independent round controller.
 
 ## Boundary Commitments
 
 ### This Spec Owns
 
-- Single-device setup choices and the use of a selected target when starting a round.
-- The `GamePhase` sequence, `Round` state, three-player assignments, direct local input, countdown, and guarded action transitions in `GameViewModel`.
-- The direct single-device UI action seam: settings Start Round, playing Mix and color controls, result Redo/Finish, score New Round.
+- `MixMode`, setup defaults, `Round`/`GameState` shape and live-color invariant.
+- Target resolution, assignments, input, timer lifecycle and guarded domain transitions.
+- Functional solo UI mode selector and mode-specific action forwarding.
 
 ### Out of Boundary
 
-- `custom-color-requests` owns saved request validation, storage, and availability in the picker. This spec owns resolving that choice into a new round.
-- `color-mixing-and-scoring` owns blending, proportions, result breakdown, perceptual scoring, and result/score display details. This spec owns when those calculations are invoked and when their screens appear.
-- `local-three-device-play` owns mode selection, lobby, network input, host/client authority, pause/reconnect, and synchronized display. Its coordinator uses the shared phases without owning direct single-device actions.
+Palette/math/result formatting: color spec. Request validation/storage: custom request spec. Connected-seat authority, votes, snapshots and pause/recovery: local network spec. Modern layout/landscape: UI spec.
 
 ### Allowed Dependencies
 
-- `ColorRequest` and `GameViewModel.availableRequests` supply target identity, text, and sRGB; `ColorData.colors(for:)` supplies the selected five-color palette.
-- `ColorMixer.blend` supplies a result for an accepted nonempty mix; `ColorConverter` and `ScoreCalculator` supply a score after Finish.
-- SwiftUI, Foundation `Timer`, and the macOS AppKit key monitor implement the existing local controls. No new dependency or persistent round storage is needed.
-- Dependency direction remains request/palette and calculation helpers → view-model round state → phase views; views forward actions into the view model and do not mutate the mix themselves.
+`ColorData`, available requests, `ColorMixer`, `ColorConverter`, `ScoreCalculator`, SwiftUI, Observation, Foundation Timer and existing AppKit input. Dependency direction: models/palette/math → `GameViewModel` → phase views. Domain code does not import Network or voting types.
 
 ### Revalidation Triggers
 
-- A change to phases, `Round` fields, mix locking, assignment epoch, or timer state requires `local-three-device-play` snapshot and authority checks.
-- A change to the available-request list or selected ID semantics requires the setup choice and custom-request spec to be rechecked.
-- A change to result/score invocation or values requires the color calculation spec and result/score views to be rechecked.
-- A change to the palette's five distinct colors or player/slot count requires assignment, key, touch, and rendering tests to be rechecked.
+Changes to state fields, phases, eligibility or timer behavior require mapper/coordinator tests. Assignment/ID changes require network validation and visible-slot tests. Live/frozen color changes require calculation and UI tests. Request resolution changes require custom-request integration checks.
 
 ## Architecture
 
 ### Existing Architecture Analysis
 
-The current app uses Swift value types for `GameState`, `Round`, assignments, and mix units. The main-actor, observable `GameViewModel` is the single authority for direct local mutations. `ContentView` selects `SettingsView`, `GameView`, `ResultView`, or `ScoreView` from `GamePhase`. In single-device mode each view calls a view-model action directly; coordinator calls in the same views are reserved for the adjacent network spec. Round state is transient; a new round does not erase saved custom targets.
+`ContentView` routes settings/playing/result/score; `GameViewModel` owns mutations and timer. Current setup requires a model selection, assignments allow same-player duplicates, and only Manual transitions exist. Solo input and accepted host input have separate append paths; both must maintain live Auto color after accepting exactly one unit.
 
 ### Architecture Pattern & Boundary Map
 
 ```mermaid
 flowchart LR
     Settings[SettingsView] --> VM[GameViewModel]
-    Keys[KeyRouter and macOS keys] --> VM
-    Touch[GameView iOS buttons] --> VM
-    VM --> State[GameState and Round]
-    Requests[Available requests] --> VM
-    Palette[ColorData palette] --> VM
-    VM --> Mixer[ColorMixer]
-    VM --> Scorer[ColorConverter and ScoreCalculator]
-    State --> Screens[ContentView phase screens]
+    Input[KeyRouter and touch] --> VM
+    Host[Network coordinator] --> VM
+    VM --> State[Round and GameState]
+    VM --> Math[Existing color helpers]
+    State --> Screens[ContentView phase views]
 ```
-
-The diagram shows the existing direct local path. `LocalPlayCoordinator` is deliberately omitted: its host/client protocol consumes state and phase changes but belongs to `local-three-device-play`. The only calculation calls in this spec are the invocation seams; algorithms stay upstream.
 
 ### Technology Stack
 
-| Layer | Existing choice | Role |
-| --- | --- | --- |
-| UI and state | Swift 5, SwiftUI, Observation | Phase routing, visible settings and controls, observable view model |
-| Timing | Foundation `Timer` | One-second playing countdown |
-| macOS input | AppKit local key-down monitor | Forward physical key codes into `KeyRouter` |
-| Domain | Swift value types and existing helpers | Round state, palette, request, result and score seams |
-| Validation | XCTest on the macOS shared scheme | State, input, and rendering checks |
+Swift 5 value types, main-actor Observation/SwiftUI, Foundation Timer and AppKit remain in place. XCTest uses the macOS scheme. No new dependency, framework or platform minimum is introduced.
 
 ## File Structure Plan
 
-All listed files already exist; no source file needs modification for this baseline.
+### Modified Files
 
-| Existing file | Responsibility in this spec |
+| Path | Responsibility |
 | --- | --- |
-| `ColorGameTesting/GameModels.swift` | Four `GamePhase` cases, three `PlayerID` values, two `ColorSlot` values, and key labels/codes |
-| `ColorGameTesting/GameState.swift` | Transient `GameState`, `Round`, `PlayerAssignment`, shared `Mix`, and color units |
-| `ColorGameTesting/GameViewModel.swift` | Setup choices, round creation, random assignments, input guards, timer, and transitions; calculation integration seam |
-| `ColorGameTesting/KeyRouter.swift` | macOS key-code-to-player/slot mapping |
-| `ColorGameTesting/ContentView.swift` | Route the selected single-device session by phase |
-| `ColorGameTesting/Views/SettingsView.swift` | Model, target, duration, hint, and Start Round controls |
-| `ColorGameTesting/Views/GameView.swift` | Request, assignments, timer, platform controls, and Mix action |
-| `ColorGameTesting/Views/ColorBarView.swift` | Shared-mix visualization consumed by `GameView`; proportion math is upstream |
-| `ColorGameTesting/Views/ResultView.swift` | Direct Redo and Finish action seam; result presentation is upstream |
-| `ColorGameTesting/Views/ScoreView.swift` | Direct New Round action seam; score presentation is upstream |
-| `ColorGameTesting/ColorData.swift` | Existing request pool and five-color palette dependency |
-| `ColorGameTesting/ColorMixer.swift`, `ColorGameTesting/ColorConverter.swift`, `ColorGameTesting/ScoreCalculator.swift` | Existing calculation dependencies, owned by `color-mixing-and-scoring` |
-| `ColorGameTestingTests/GameModelsTests.swift`, `ColorGameTestingTests/KeyRouterTests.swift` | Phase, player, slot, and physical-key contracts |
-| `ColorGameTestingTests/GameViewModelTests.swift`, `ColorGameTestingTests/GameViewModelFlowTests.swift` | Setup, assignment, input, timer, and transition checks |
-| `ColorGameTestingTests/GameStateTests.swift`, `ColorGameTestingTests/GameViewRenderingTests.swift`, `ColorGameTestingTests/ContentViewTests.swift` | Transient state, playing-screen feedback, and single-device route checks |
+| `ColorGameTesting/GameModels.swift` | Add shared `MixMode.manual`/`.auto`; preserve players, slots, keys and four phases |
+| `ColorGameTesting/GameState.swift` | Default fixed RYB and Manual selection; immutable `Round.mixMode`; optional `currentBlend` separate from frozen `mixResult` |
+| `ColorGameTesting/GameViewModel.swift` | Defaults, mode selection, distinct assignments, eligibility, accepted-unit/live-color update and mode transitions |
+| `ColorGameTesting/Views/SettingsView.swift` | Fixed RYB label, Manual/Auto selector and existing target/duration/hint/start controls |
+| `ColorGameTesting/Views/GameView.swift` | Manual contributions/Mix versus Auto swatch/Apply/Redo; preserve input labels and controls; replace CMYK previews |
+| `ColorGameTesting/Views/ResultView.swift`, `ColorGameTesting/Views/ScoreView.swift` | Existing direct Redo/Finish/New Round forwarding; color spec owns feedback presentation |
+| `ColorGameTesting/ContentView.swift`, `ColorGameTesting/KeyRouter.swift`, `ColorGameTesting/Views/ColorBarView.swift` | Existing read-only routing, physical-key and Manual chart dependencies; verify integration |
+| `ColorGameTesting/ColorData.swift`, `ColorGameTesting/ColorMixer.swift`, `ColorGameTesting/ColorConverter.swift`, `ColorGameTesting/ScoreCalculator.swift`, `ColorGameTesting/CustomRequestStore.swift` | Upstream dependencies; no domain formulas/storage owned here |
+| `ColorGameTestingTests/GameModelsTests.swift`, `ColorGameTestingTests/GameStateTests.swift` | Mode/state defaults and value contracts |
+| `ColorGameTestingTests/GameViewModelTests.swift`, `ColorGameTestingTests/GameViewModelFlowTests.swift` | Assignment, input, timer, modes, guards and reset flows |
+| `ColorGameTestingTests/GameViewRenderingTests.swift`, `ColorGameTestingTests/ContentViewTests.swift`, `ColorGameTestingTests/ResultViewTests.swift` | Functional rendering/phase routes and fixture migration |
+| `ColorGameTestingTests/KeyRouterTests.swift`, `ColorGameTestingTests/CustomRequestStoreTests.swift` | Existing input/persistence regression gates |
+
+No new source file is necessary. Shared edits are staged after color declarations and before network integration. Coordinator changes belong to the network spec.
 
 ## System Flows
 
 ```mermaid
 stateDiagram-v2
     [*] --> Settings
-    Settings --> Playing: Start Round with selected model
-    Playing --> Result: Mix with nonempty unlocked mix
-    Result --> Playing: Redo
-    Result --> Score: Finish with result
-    Score --> Settings: New Round
+    Settings --> Playing: Start with selected mode
+    Playing --> Result: Manual Mix
+    Result --> Playing: Manual Redo
+    Result --> Score: Manual Finish
+    Playing --> Playing: Auto color or Redo
+    Playing --> Score: Auto Apply
+    Score --> Settings: New Round resets Manual
 ```
 
-Invalid-phase actions and empty Mix do not cross a transition. In Playing, each accepted slot action adds one current-color unit. A timer tick decrements the countdown; at zero it replaces six assignments and resets the count while preserving the mix. Mix pauses the timer and locks input; Redo clears the units and result, unlocks input, and resumes the same countdown.
+Contribution and timer mutations remain allowed only in unlocked playing. Pending network votes add no domain phase or lock. Disconnect pause is applied through existing coordinator hooks.
 
 ## Requirements Traceability
 
-| Requirement IDs | Existing design elements and evidence |
-| --- | --- |
-| 1.1, 1.5 | `SettingsView` model controls and disabled Start; `GameViewModel.selectModel`, `canConfirm`, `confirmSettings`; `GameViewModelTests` |
-| 1.2, 1.6 | `SettingsView` request picker, `availableRequests`, `selectedRequestID`, round target resolution; `GameViewModelTests` and upstream custom-request tests |
-| 1.3, 1.4 | `SettingsView` duration picker and hint switch; view-model defaults |
-| 2.1, 2.2 | `confirmSettings`, `Round`, `randomAssignments`; `GameViewModelTests` |
-| 2.3, 2.4, 2.5 | `GameView`, `ColorBarView`, hint conditional; `GameViewRenderingTests` and source inspection |
-| 3.1, 3.5 | `GameViewModel.addColor` guard and append; `GameViewModelFlowTests` |
-| 3.2, 3.4 | `PlayerID.keys`, `KeyRouter`, `pressKey`; `KeyRouterTests`, `GameModelsTests`, `GameViewModelTests` |
-| 3.3 | iOS `GameView` touch buttons for every player and both slots; source inspection |
-| 4.1, 4.2 | `confirmSettings`, `startTimer`, `timerTick`; `GameViewModelTests` |
-| 4.3, 4.4, 4.5 | `triggerReassignment`, input guard and timer guard; `GameViewModelTests`, `GameViewModelFlowTests` |
-| 5.1, 5.2 | `GameView.canMix`, `pressMixButton`; `GameViewModelFlowTests` |
-| 5.3 | `selectRedo`; `GameViewModelFlowTests` |
-| 5.4 | `selectFinish`; `GameViewModelFlowTests`; scoring calculation upstream |
-| 5.5, 5.6 | `startNewRound`, retained settings fields and catalog; `GameViewModelFlowTests`, view-model source |
-| 5.7 | Phase guards on transition methods; `GameViewModelFlowTests` |
+| Requirement | Summary | Components | Interfaces | Flows |
+| --- | --- | --- | --- | --- |
+| 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 | Fixed RYB setup, target, defaults and mode | GameState, GameViewModel, SettingsView | selectMixMode, confirmSettings | Settings to playing |
+| 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7 | Shared round and distinct assignments | Round, GameViewModel, GameView | Assignment invariants | Start and reassignment |
+| 3.1, 3.2, 3.3, 3.4, 3.5 | One-unit platform input and guards | GameViewModel, KeyRouter, GameView | addColor, acceptColor, pressKey | Unlocked playing |
+| 4.1, 4.2, 4.3, 4.4, 4.5 | Countdown and preserved mix | GameViewModel | timerTick, triggerReassignment | Playing timer |
+| 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7 | Manual review and reset | GameViewModel, ContentView, ResultView, ScoreView | Eligibility and direct actions | Manual state flow |
+| 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8 | Live Auto, Apply/Redo and reset | GameState, GameViewModel, GameView | currentBlend, selectApply, selectRedo | Auto state flow |
 
 ## Components and Interfaces
 
-| Component | Domain | Intent | Requirements | Key dependency | Contract |
+| Component | Domain | Intent | Requirements | Dependencies | Contracts |
 | --- | --- | --- | --- | --- | --- |
-| `GameState`, `Round`, `GameModels` | Domain state | Hold transient phase inputs and one shared round | 2.1, 2.2, 3.1, 5.5 | Palette/request values (P0) | State |
-| `GameViewModel` | State coordinator | Resolve setup, mutate mix, time reassignment, guard transitions | 1.5, 1.6, 2.1, 2.2, 3.1, 3.5, 4.1–4.5, 5.1–5.7 | Request catalog, palette, math helpers (P0) | State, service |
-| `KeyRouter` | Input | Map macOS physical keys to player and slot | 3.2, 3.4 | `PlayerID`, `ColorSlot` (P0) | Service |
-| `ContentView` | UI | Display the current phase in single-device mode | 2.3, 5.2, 5.4, 5.5 | View model (P0) | State |
-| `SettingsView` | UI | Expose setup options and Start Round | 1.1–1.6 | View model (P0) | State, action |
-| `GameView` | UI | Show the active round and forward slot/Mix actions | 2.3–2.5, 3.1–3.3, 5.1 | View model, `ColorBarView` (P0) | State, action |
-| `ResultView`, `ScoreView` | UI seam | Forward Redo/Finish/New Round in single-device play | 5.3–5.6 | View model (P0) | Action |
+| `MixMode`, `Round`, `GameState` | State | One immutable round mode and separate live/frozen colors | 1.5, 1.7, 2.1, 6.1 | Color/request values outbound P0 | State |
+| `GameViewModel` | Domain orchestration | Setup, assignment, input, timing and transitions | 1.1, 1.6, 2.2, 2.6, 2.7, 3.1, 3.5, 4.3, 5.2, 6.4 | Math/catalog outbound P0; views/coordinator inbound P0 | State, Service |
+| `KeyRouter` | Input | Preserve physical key mapping | 3.2, 3.4 | Player/slot types outbound P0 | Service |
+| `SettingsView`, `GameView`, `ContentView` | Presentation | Expose setup, playing state and mode actions | 1.2, 1.3, 1.4, 2.3, 2.4, 2.5, 3.3, 6.2, 6.8 | View model outbound P0 | State |
+| `ResultView`, `ScoreView` | Presentation seam | Forward direct solo actions | 5.3, 5.4, 5.5, 6.6 | View model outbound P0 | State |
 
-### State and action contracts
+### Shared state contract
 
-- `GamePhase` is `settings`, `playing`, `result`, or `score`. `ContentView.phaseContent` maps each case to exactly one screen. A new root first chooses a mode; the selected single-device route begins in settings. That mode choice is specified in `local-three-device-play`.
-- `GameState` holds `selectedModel`, optional `Round`, `mixResult`, and `score`. `Round` holds a `ColorRequest`, `ColorModel`, assignments keyed by three `PlayerID` values, and one `Mix`. `Mix` contains ordered `ColorUnit` contributions and an `isLocked` flag. Ratio calculations belong upstream.
-- `GameViewModel.confirmSettings()` requires settings and a selected model. It resolves `selectedRequestID: UUID?` against `availableRequests`; nil or a nonmatching ID falls back to a random available request. It creates a round with empty unlocked mix, six assignments from five palette colors plus one duplicate, clears result and score, sets the countdown, and enters playing. The request catalog's construction and retention belong to `custom-color-requests`.
-- `GameViewModel.addColor(player:slot:)` requires playing, an unlocked mix, and an assignment for that player. In single-device mode it appends exactly one unit of the current primary or secondary color. `pressKey(_:)` first asks `KeyRouter.action(for:)`; unknown codes have no action. The macOS key monitor is installed on entering playing and removed on Mix or New Round. iOS `GameView` buttons call `addColor` directly.
-- `timerTick()` requires playing and unlocked mix. A positive remaining value decreases by one; reaching zero calls `triggerReassignment()`. That call shuffles all six slots, increments the internal assignment epoch, resets the countdown, and preserves `Mix.units`. `startTimer` schedules one-second ticks once; `pauseTimer` invalidates the timer; `resumeTimer` starts it again. Assignment epoch is a shared state seam consumed by network mode but does not add network rules here.
-- `pressMixButton()` requires playing, unlocked, nonempty mix. It locks the mix, stops timing and macOS key monitoring, stores the upstream blend, and enters result. `selectRedo()` requires locked result, clears units and result, unlocks, enters playing, and resumes timing and key monitoring without changing target, assignments, or remaining seconds. `selectFinish()` requires result and a blend, stores the upstream score, and enters score. `startNewRound()` requires score and clears transient round, model, target choice, result, score, round ID, and assignment epoch; it retains duration, hint, and saved requests.
+```swift
+enum MixMode: String, CaseIterable { case manual, auto }
+// GameState: selectedModel: ColorModel = .ryb; selectedMixMode: MixMode = .manual
+// Round: let mixMode: MixMode; colorModel always .ryb
+// GameState: currentBlend: SIMD3<Double>?; mixResult: SIMD3<Double>?; score: Double?
+```
 
-### UI contracts
+Keep the RYB marker for existing palette/wire calls; remove the model-choice setter and UI. Start no longer waits for palette selection. `selectedMixMode` may change only in settings under existing solo/host authority. Round mode is captured at start and does not change during that round.
 
-- `SettingsView` presents the five duration choices, target hint switch, model choice, request picker, and a Start Round button disabled until a model is selected. The Add Request form and storage are upstream.
-- `GameView` shows the request text, optional target swatch, shared-mix chart, six assignments, and countdown. On macOS it labels the six physical keys; on iOS it presents six named touch buttons with an accessible “Add [color]” label and one-unit hint. Mix is disabled when the mix is empty.
-- `ResultView.redo/finish` and `ScoreView.newRound` call view-model methods directly when no coordinator is supplied. Their result and score displays are described by `color-mixing-and-scoring`.
+`currentBlend` is stored because the host sends it and clients must apply it without calculating locally. It is nonnil exactly for a nonempty Auto playing mix, and is updated once by the shared accepted-unit helper after either solo or host acceptance. It is nil in empty, Manual, settings and score states. Auto Apply freezes the freshly calculated current color into `mixResult` and clears live color. Manual `mixResult` exists only in result/score. Score is absent until scoring. No cached ratios are introduced.
+
+### GameViewModel service contract
+
+Existing `confirmSettings()`, `addColor(player:slot:)`, `acceptColor(_:for:)`, `timerTick()`, `triggerReassignment()`, `pressMixButton()`, `selectRedo()`, `selectFinish()` and `startNewRound()` remain. Add `selectMixMode(_ mode: MixMode)` and `selectApply()`; expose `selectedMixMode`, `currentBlend`, and `canMix/canApply/canRedo/canFinish/canNewRound: Bool`.
+
+| Action | Eligibility | Postcondition |
+| --- | --- | --- |
+| Start | Settings, available request and solo/host mutation authority | Empty unlocked RYB round, selected mode, new round ID and epoch zero, duration countdown, no live/frozen color or score |
+| Color | Playing, unlocked, assigned valid slot/color | One accepted unit appended; Auto live color updated; notify once |
+| Mix | Manual, playing, unlocked, nonempty | Lock, stop timer/keys, freeze blend, enter result |
+| Finish | Manual, locked result with blend | Score frozen blend, enter locked score |
+| Apply | Auto, playing, unlocked, nonempty | Blend latest units, freeze color, lock/stop timer and keys, score, enter score directly |
+| Redo | Manual locked result, or Auto unlocked nonempty playing | Clear units/live/frozen color/score; retain target, assignments, remaining seconds and round mode; resume playing |
+| New Round | Score | Settings; clear round, request selection, colors, score, round ID and epoch; reset Manual/fixed RYB; retain duration, hint and request catalog |
+
+Eligibility represents domain state only; network adds seat/pause/vote guards. Invalid actions are no-ops and do not notify a fake transition. Client mutation remains prohibited; `applyRemoteState` applies validated host values, including mode/live color, without starting timer/keys or calculating.
+
+### Assignment and timer contracts
+
+Every assignment has three player pairs, five unique palette colors represented across six slots, exactly one color occurring twice, and distinct colors within each pair. Preserve shuffle-based allocation with a bounded correction for a duplicated pair; no unbounded retry loop. Use the same allocation on round start and timer reassignment.
+
+Timer starts at selected duration (15/30/45/60/90; default45). Every unlocked playing tick decreases seconds; zero reassigns all pairs, increments epoch and resets duration while preserving units/live color. Redo preserves remaining seconds. Leaving playing stops timer/keys. Network pause stops timer through existing hooks, without discarding state.
+
+### Functional UI contract
+
+Settings preserves Random/available targets, saved requests, durations and hint default off, and exposes mutually exclusive Manual/Auto choices defaulting Manual. Gameplay shows target text, optional hint, countdown and assignments. Solo iOS retains all six named touch controls; macOS retains Q/W, B/N, O/P.
+
+Manual renders contribution proportions and Mix; Auto renders `currentBlend` or empty state, no ratio chart and no Mix, and offers Apply/Redo on gameplay. Button disabled states use shared eligibility; color buttons keep their accessible names and one-unit hints. Manual Result and Score retain their current routes. Modern bowl placement and landscape configuration remain downstream work.
+
+## Data Models
+
+`GameState` holds setup selection plus optional round/live/frozen/score values. `Round` is the aggregate for target, fixed RYB marker, immutable mix mode, three assignments and ordered units/lock. Player/slot/phase cardinalities remain three/two/four. Round ID and assignment epoch remain view-model seams for network validation. No persistent round or score record is introduced; saved custom requests retain their existing schema.
 
 ## Error Handling
 
-The phase and lock guards turn premature, repeated, or stale actions into no-ops. A missing model prevents Start Round; an empty mix prevents Mix. `GameView` shows `No Active Round` if the playing screen lacks round data. Result and score fallback rendering belongs to the calculation spec. Palette count and uniqueness are trusted in-app invariants checked by `randomAssignments`; request and result inputs come from the adjacent contracts.
+Wrong-phase/mode, locked and empty actions are no-ops. Unknown keys add nothing. Missing active round renders its existing fallback. Palette invariants are trusted in-process and tested; inbound snapshot validation belongs to network. Missing request choice resolves Random from available requests; custom catalog construction stays upstream.
 
 ## Testing Strategy
 
-- `GameViewModelTests` checks model selection and Start gating, selected and random request resolution, empty unlocked round creation, five-color-plus-one assignments, mapped input, per-tick countdown, reassignment without losing units, and pause/resume (1.1, 1.5, 1.6, 2.1, 2.2, 3.1, 3.2, 3.4, 4.1–4.4).
-- `KeyRouterTests` and `GameModelsTests` check physical key codes, three player pairs, two slots, and the four phases (2.2, 3.2, 3.4). `GameStateTests` checks transient value semantics and mix mutation (2.1, 3.1).
-- `GameViewModelFlowTests` covers direct color buttons, locked and wrong-phase input, empty Mix, result locking and timer stop, Redo with preserved countdown and request, Finish scoring, New Round reset, and invalid-phase actions (3.1, 3.5, 4.5, 5.1–5.7). This is the critical single-device end-to-end state path.
-- `GameViewRenderingTests` verifies visible request, assignments, countdown, and mix state; `ContentViewTests` verifies the single-device settings route without network activity (2.3, 2.4, 2.5, 5.2, 5.4, 5.5). Duration choices, hint conditional, and iOS touch buttons are source-inspected; the iOS scheme currently has no test action.
+- Test Manual default, no model-selection gate, mode retention, explicit/Random target, duration/hint defaults and New Round retention/reset (1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 5.5, 5.6, 6.6).
+- Replace the test requiring same-player duplicates. Across start/reassignment samples assert all five colors, `[1,1,1,1,2]` counts and three distinct pairs; include a deterministic duplicated-pair correction fixture (2.1, 2.2, 2.6, 2.7, 4.3).
+- Verify exact current-slot one-unit input, unknown keys, wrong phase and lock no-ops, reassigned slots, retained contributions, tick/reset and stopped timer (3.1, 3.2, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5).
+- Manual end-to-end: empty Mix rejected → contributions → result/ratios → Redo preserving target/time/pairs → Mix → Finish → New Round; invalid mode/phase calls do nothing (5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7).
+- Auto end-to-end: empty Apply/Redo rejected → every accepted unit matches mixer color → Redo empty → add → Apply score/frozen latest blend and stop timer → New Round Manual. Cover both solo append and host accepted-color paths, invalid actions and absence of Manual result (6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8).
+- Render request/hint/assignments/timer and correct mode controls, and preserve six solo iOS controls (2.3, 2.4, 2.5, 3.3). iOS scheme lacks a test action: require iOS build plus simulator/device smoke.
 
-## Baseline Discovery and Decisions
+## Integration & Migration Notes
 
-Light discovery of current source and tests found no verified missing behavior in this spec's boundary. Existing platform APIs, helpers, views, and view-model state satisfy the baseline without new code or dependencies. Tests cited above exist, but this spec generation did not establish a passing full Xcode suite. The adjacent network spec must be revalidated if a future change alters the shared phase or round-state contract.
+Color declarations land first. Network schema/mode/live-color support must land before three-device mode is ready. Existing modern UI task 1.1 stays blocked until shared eligibility/currentBlend/voting contracts exist. Do not reset custom storage. Use macOS XCTest, iOS build, both-mode solo smoke and three-device validation before claiming feature readiness.

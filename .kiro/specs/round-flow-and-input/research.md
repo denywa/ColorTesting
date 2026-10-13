@@ -1,3 +1,61 @@
+# Research & Design Decisions: Playtesting Part II
+
+## Summary
+
+- **Feature:** round-flow-and-input
+- **Discovery Scope:** Extension; light analysis of state, input, timer, views and adjacent contracts.
+- **Key Findings:** Existing four-phase controller is reusable. No MixMode/currentBlend or Auto Apply currently exists. Allocation permits same-player duplicates; both initial allocation and reassignment must share a corrected invariant.
+
+## Research Log
+
+### Shared controller and live color
+
+- **Context:** Add Auto while keeping Manual and staged SwiftUI implementation.
+- **Sources Consulted:** GameModels.swift, GameState.swift, GameViewModel.swift, GameViewModelFlowTests.swift and GameViewModelLocalPlayTests.swift.
+- **Findings:** Solo addColor and authoritative acceptColor both append units. Clients apply snapshots and do not calculate. Existing result-phase guards/timer hooks provide the Manual path.
+- **Implications:** Add MixMode, immutable Round.mixMode, Manual setup default and currentBlend separate from frozen mixResult. Use one accepted-unit helper for both append paths. Store live color in GameState so client apply does not require a separate override/cache or calculation. Auto goes playing→score, preserving four phases.
+
+### Pair uniqueness and call sites
+
+- **Sources Consulted:** randomAssignments in GameViewModel.swift; GameViewModelTests.swift, KeyRouter.swift, SettingsView.swift, GameView.swift, ResultView.swift and ContentView.swift.
+- **Findings:** Five palette colors plus one duplicate fill six slots. A duplicated adjacent pair is possible, and a test currently explicitly requires that case. At most one pair conflicts; a bounded swap with another pair preserves all-five-plus-one counts. Physical keys and touch mapping need no redesign.
+- **Implications:** Correct allocation once for both start/reassignment; replace contradictory duplicate test and add deterministic conflict fixture. Remove model-selection gating; preserve target/duration/hint/catalog behavior and solo platform controls.
+
+## Architecture Pattern Evaluation
+
+| Option | Strength | Limit | Decision |
+| --- | --- | --- | --- |
+| Extend GameViewModel/shared views | One state/transition authority | Shared file staging required | Selected |
+| Separate Auto/iOS controller | Layout freedom | Duplicate rules/timer/snapshot seams | Rejected |
+
+## Design Decisions
+
+- **Generalization:** Both modes use the same round aggregate, four phases and guarded actions; mode determines eligible transitions. Eligibility is shared by views/coordinator, while voting remains network-only.
+- **Build vs. adopt:** Reuse Foundation Timer, AppKit keys, SwiftUI controls, math and catalog. No dependency or new platform API.
+- **Simplification:** Add one enum, optional live field, eligibility properties and Auto action to existing files. Keep exact two modes and no timer service or generic action framework. Store live color once for wire mirroring instead of computed client color.
+- **Boundary:** Round owns GameState/transitions; color owns formulas; network owns pause/seat/vote gates and codec; modern UI owns layout/orientation. Run shared-file edits sequentially after color declarations.
+- **Skills consulted:** kiro-spec-design light discovery/synthesis/review and active Ponytail full; kiro-verify-completion for evidence limits.
+
+## Risks & Mitigations
+
+- Auto missed on host input: test both solo and accepted network append paths.
+- Wrong action or stale result: explicit phase/mode/empty/lock guards, separate currentBlend/mixResult and empty/reset tests.
+- Timer/persistence regression: preserve Redo countdown and custom catalog, and test every New Round resets Manual but retains duration/hint/catalog.
+- Existing UI contract task is blocked: unblock only after shared eligibility/currentBlend and network voting exist.
+
+## Review Gate
+
+All 39 numeric criteria appear in traceability. Mechanical checks verified populated sections, existing concrete paths, requirements approval and no placeholders. Bounded review repaired an absent explicit Data Models section. Judgment checked state ownership, mode flows, both input paths, distinct-pair invariants, client apply and executable staged integration. No source implementation or runtime verification occurred.
+
+## References
+
+Production/test files named above and core steering are local sources. Adjacent color/network/UI designs define the integration boundaries. Historical baseline research below predates this scope and is retained for audit context.
+
+
+---
+
+## Historical Research (superseded baseline scope)
+
 # Research Log: Round Flow and Input
 
 ## Summary

@@ -2,326 +2,219 @@
 
 ## Overview
 
-Fitur ini memungkinkan tiga pemain menjalankan satu ronde ColorGameTesting pada tiga perangkat dalam Wi-Fi lokal yang sama. Satu perangkat menjadi host otoritatif; dua perangkat lain mengirim input warna dan menampilkan keadaan ronde yang dikirim host. Mode satu perangkat tetap menggunakan alur yang ada.
+Playtesting Part II memperluas sesi lokal yang sudah tersedia dengan RYB saja, Manual/Auto Mix, serta keputusan mayoritas. Host tetap menjadi sumber keadaan, timer, pencampuran, dan skor. Setiap perangkat memperoleh satu kursi pemain dan mengendalikan dua warna berbeda.
 
-Desain mempertahankan GameViewModel sebagai pemilik aturan ronde. Lapisan sesi baru menangani penemuan, peran perangkat, perintah, snapshot, jeda, dan pemulihan. Tidak ada server internet atau penyimpanan sesi.
+Mix, Finish, Apply, dan Redo menjadi suara final dari seluruh kursi. Tindakan berlaku segera ketika dua pemain memilih hal yang sama. Pengaturan, Start Round, New Round, dan pengakhiran sesi tetap dikendalikan host. Transport Bonjour/TCP yang ada dipakai kembali.
 
 ### Goals
 
-- Tiga perangkat memperoleh peran unik dan satu keadaan ronde yang konsisten.
-- Host menjadi satu-satunya pengendali pengaturan, waktu, hasil, dan perpindahan fase.
-- Koneksi sementara yang putus menjeda sesi dan dapat dipulihkan tanpa mengganti peran atau kehilangan kontribusi yang telah diterima host.
-- Alur tiga pemain pada satu perangkat tetap berfungsi.
+- Menyinkronkan mode campur, warna Auto, hasil, skor dan suara tertunda.
+- Menjalankan mayoritas tepat sekali terhadap campuran terbaru.
+- Mempertahankan suara, kursi dan ronde selama jeda/pemulihan koneksi.
 
 ### Non-Goals
 
-- Permainan melalui internet, akun, migrasi host, skor individu, riwayat sesi, dan pemulihan setelah aplikasi ditutup.
-- Sinkronisasi katalog permintaan warna kustom antarperangkat.
-- Protokol keamanan untuk jaringan publik; versi playtest ini digunakan pada Wi-Fi tepercaya.
+Tidak menambah server internet, akun, migrasi host, skor individu, penyimpanan sesi, sinkronisasi katalog kustom, transport baru atau perombakan tampilan modern.
 
 ## Boundary Commitments
 
 ### This Spec Owns
 
-- Pemilihan mode, lobi lokal, pembagian tiga peran, serta izin tindakan sesuai peran.
-- Kontrak pesan lokal, transport antartiga perangkat, identitas sementara, urutan input, dan snapshot keadaan.
-- Jeda/pemulihan koneksi, termasuk tampilan status dan penolakan aksi selama jeda.
-- Integrasi mode lokal dengan GameViewModel dan tampilan yang sudah ada.
-- Prasyarat implementasi: memulihkan tiga tes macOS yang sudah gagal sebelum fitur ini dibuat. Hanya nilai target Lavender bawaan yang dikembalikan ke nilai asalnya; ekspektasi tes nama, diagram campuran, dan sudut RYB diselaraskan dengan perilaku saat ini.
+- Pemilihan mode perangkat, lobi, kursi, hak pengaturan dan masukan, protokol, snapshot serta koordinasi sesi.
+- Suara final, identitas pemungutan suara, keputusan dua suara, penolakan duplikasi/pesan lama dan distribusi status suara.
+- Jeda/pemulihan serta integrasi tindakan jaringan dengan aturan ronde dan layar yang ada.
 
 ### Out of Boundary
 
-- Algoritma pencampuran dan skor, aturan palet, serta validasi/penyimpanan permintaan kustom tetap dimiliki komponen yang ada. Pengecualian prasyarat di atas tidak mengubah algoritma atau palet.
-- Tidak ada perubahan aturan permainan solo selain pintu masuk pemilihan mode.
-- Tidak ada layanan cloud, akun, riwayat, atau migrasi host.
+Spesifikasi warna memiliki palet/perhitungan. Spesifikasi ronde memiliki `MixMode`, penugasan, eligibility, live/frozen color dan transisi. Spesifikasi permintaan kustom memiliki penyimpanan. Spesifikasi UI memiliki visual modern dan orientasi iPhone. Prasyarat pemulihan tes pada desain baseline sudah merupakan riwayat; tidak diulang sebagai pekerjaan baru.
 
 ### Allowed Dependencies
 
-- Aturan ronde memakai GameViewModel, GameState, GameModels, ColorData, ColorMixer, dan ScoreCalculator; lapisan jaringan tidak menghitung warna atau skor.
-- Transport memakai Apple Network framework dan Foundation; UI memakai SwiftUI/Observation. Tidak ada paket pihak ketiga.
-- Aliran dependensi: model/aturan game → mapper; model pesan → codec → transport; GameViewModel, mapper, dan transport → koordinator sesi → UI. GameViewModel tidak mengimpor Network framework.
-- CustomRequestStore hanya dibaca oleh host melalui alur yang sudah ada; snapshot permintaan kustom tidak menulis ke penyimpanan klien.
+GameViewModel/GameState/GameModels, ColorData, mapper, codec, transport Network/Foundation yang ada, dan SwiftUI/Observation. Arah dependensi: model/aturan → mapper; model pesan → codec → transport; aturan, mapper dan transport → koordinator → UI. Domain tidak mengimpor Network atau tipe suara. Snapshot target kustom tidak menulis CustomRequestStore klien.
 
 ### Revalidation Triggers
 
-- Perubahan bentuk Round, NamedColor, ColorRequest, fase, timer, atau semantik Redo/Mix memerlukan pemeriksaan ulang mapper dan snapshot.
-- Perubahan ID palet atau format pesan memerlukan pemeriksaan kompatibilitas protokol antarbinaan aplikasi.
-- Perubahan target minimum OS, izin jaringan, atau kebutuhan bermain di jaringan publik/internet memerlukan pemeriksaan ulang transport dan keamanan.
-- Perubahan jumlah pemain atau aturan kepemilikan input memerlukan pemeriksaan ulang peran, lobi, dan pengujian lintas perangkat.
+Perubahan mode/fase/warna/palet memerlukan tes mapper dan integrasi. Perubahan pesan memerlukan gate versi codec/handshake. Perubahan timer/input/eligibility memerlukan tes keputusan dan recovery. Perubahan jumlah pemain, jaringan atau izin memerlukan validasi transport/perangkat.
 
 ## Architecture
 
 ### Existing Architecture Analysis
 
-ContentView saat ini membuat satu GameViewModel dan langsung memilih SettingsView, GameView, ResultView, atau ScoreView. GameViewModel memegang pilihan pengaturan, penugasan acak, timer, campuran, hasil, serta skor. Dalam mode lokal, hanya instans host menjalankan mutasi dan timer tersebut. Instans klien menerima snapshot untuk rendering dan meneruskan input lokal; klien tidak mengacak, mencampur, atau menghitung skor sendiri.
+Implementasi memiliki host otoritatif, snapshot penuh bernomor revisi, riwayat penugasan, deduplikasi ID aksi, heartbeat serta token reconnect sementara. Versi protokol masih 1; host menjalankan Mix/Redo/Finish langsung dan menolak tindakan fase dari peer. Mapper belum mengenal Auto atau suara dan masih menerima CMYK.
 
 ### Architecture Pattern & Boundary Map
 
-Pola yang dipilih adalah host otoritatif dengan snapshot penuh. Perintah masuk diserialisasi pada MainActor host. Setelah mutasi, host menaikkan revisi dan mengirim snapshot ke dua klien. Snapshot lama diabaikan klien. Koneksi TCP memberi urutan byte per koneksi, sedangkan ID aksi dan revisi menjaga idempotensi serta pemulihan lintas koneksi.
-
-~~~mermaid
+```mermaid
 flowchart LR
-    GV[ModeSelectionView dan layar game] --> CO[LocalPlayCoordinator]
-    CO --> VM[GameViewModel host atau cermin klien]
-    CO --> MP[LocalGameSnapshotMapper]
-    CO --> TR[LocalNetworkTransport]
-    TR --> CD[LocalMessageCodec]
-    TR <-->|Bonjour dan TCP lokal| RT[Transport perangkat lain]
-    VM --> RULE[ColorData, ColorMixer, ScoreCalculator]
-~~~
+    UI[Layar dan lobi] --> Coordinator[LocalPlayCoordinator]
+    Coordinator --> Rules[GameViewModel host]
+    Coordinator --> Mapper[LocalGameSnapshotMapper]
+    Coordinator --> Transport[LocalNetworkTransport]
+    Transport --> Codec[LocalMessageCodec]
+    Transport <--> Peers[Dua klien]
+    Mapper --> Mirror[GameViewModel klien]
+```
 
-Host selalu menempati Player 1; dua klien yang pertama diterima menempati Player 2 dan Player 3. Kursi disimpan selama proses aplikasi host hidup, termasuk ketika koneksi sementara putus. Perangkat keempat atau klien tanpa token kursi yang mencoba masuk setelah penuh ditolak.
+Seluruh penerimaan input/suara host berjalan sinkron pada MainActor. Klien tidak mengubah bowl secara optimistis, menjalankan timer, menghitung blend atau skor. Snapshot penuh memuat warna live dari host. Urutan penerimaan host menentukan unit yang sudah diterima saat keputusan berlaku.
 
 ### Technology Stack
 
-| Lapisan | Pilihan / versi | Peran | Catatan |
-|---|---|---|---|
-| UI | SwiftUI + Observation; iOS 17+, macOS 27 | Pemilihan mode, lobi, tampilan ronde/peran | Komponen tampilan lama digunakan kembali |
-| Aturan | Swift 5, GameViewModel yang ada | Keadaan dan timer otoritatif host | Klien hanya menerapkan snapshot |
-| Jaringan | Network framework NWListener, NWBrowser, NWConnection | Bonjour lokal dan dua koneksi TCP | API NW lama dipilih untuk iOS 17 |
-| Pesan | Foundation Codable JSON + bingkai panjang 32-bit | Perintah dan snapshot bertipe | Batas ukuran bingkai dan versi protokol |
-| Penyimpanan | UserDefaults yang ada | Hanya permintaan kustom lokal | Sesi/round/token tidak disimpan |
+| Lapisan | Teknologi yang dipertahankan | Peran |
+| --- | --- | --- |
+| State/UI | Swift 5, Observation, SwiftUI | Sesi dan tampilan iOS/macOS |
+| Transport | Network NWListener/NWBrowser/NWConnection | Bonjour `_colorgame._tcp` dan TCP Wi-Fi lokal |
+| Pesan | Foundation Codable JSON, frame panjang 32-bit | Pesan bertipe, batas frame 1 MiB, versi 2 |
+| Validasi | XCTest, FakePeerNetwork | Host dan dua klien deterministik |
 
-Network framework dipilih karena [Apple mendepresiasi Multipeer Connectivity pada Xcode 27](https://developer.apple.com/documentation/technotes/tn3213-moving-from-multipeer-connectivity-to-network-framework). Listener mengiklankan layanan Bonjour _colorgame._tcp, browser mencari tipe yang sama pada domain lokal, dan koneksi dibatasi ke jalur Wi-Fi tanpa fallback seluler. Host memakai satu listener; klien tidak membuka listener. Sesuai [aturan privasi jaringan lokal Apple](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy), kedua target mendeklarasikan NSLocalNetworkUsageDescription dan NSBonjourServices. Target macOS yang disandbox memberi entitlement network.server dan network.client. Detail sumber ada di research.md.
-
-Kunci NSBonjourServices harus berupa array berisi _colorgame._tcp pada Info.plist hasil build, bukan string biasa. File entitlement macOS memuat app-sandbox = true bersama network.server dan network.client. Integrasi build memverifikasi bentuk plist hasil build sebelum uji perangkat.
+Info.plist NSLocalNetworkUsageDescription/NSBonjourServices dan entitlement macOS app-sandbox/network.client/network.server yang ada tetap diperlukan. Tidak ada perubahan API atau dependensi transport. Heartbeat 3 detik/batas 9 detik dan jalur recovery yang ada dipertahankan.
 
 ## File Structure Plan
 
-### Directory Structure
-
-~~~text
-ColorGameTesting/
-├── LocalPlay/
-│   ├── LocalPlayModels.swift          # Peran, keadaan sesi, DTO snapshot, dan pesan bertipe
-│   ├── LocalMessageCodec.swift        # JSON, versi protokol, dan pembingkaian panjang TCP
-│   ├── LocalNetworkTransport.swift    # Kontrak LocalPeerTransport, Bonjour, koneksi, heartbeat, callback
-│   ├── LocalGameSnapshotMapper.swift  # Peta dan validasi GameViewModel ↔ snapshot
-│   └── LocalPlayCoordinator.swift     # Kursi, otoritas host, aksi, revisi, jeda, dan pemulihan
-├── Views/
-│   ├── ModeSelectionView.swift        # Pilihan satu atau tiga perangkat
-│   └── LocalLobbyView.swift           # Buat/cari/gabung sesi, peran, status, dan kegagalan
-└── ColorGameTesting.entitlements       # Hak jaringan masuk/keluar target macOS
-
-ColorGameTestingTests/
-├── LocalMessageCodecTests.swift       # Bingkai dan validasi pesan
-├── LocalGameSnapshotMapperTests.swift # Target kustom dan round-trip keadaan
-└── LocalPlayCoordinatorTests.swift    # Tiga peer melalui transport palsu
-~~~
-
 ### Modified Files
 
-- ColorGameTesting/ContentView.swift — memilih mode, memiliki koordinator sesi, merutekan lobi atau layar game, serta menyediakan tindakan Akhiri Sesi untuk host/Keluar untuk klien pada setiap fase lokal; mode solo tetap memakai GameViewModel yang sama.
-- ColorGameTesting/GameViewModel.swift — menambahkan hook perubahan keadaan untuk host, penerapan snapshot klien tanpa timer lokal, dan jalur input lokal yang bisa diteruskan; mutasi aturan tetap berada di sini.
-- ColorGameTesting/Views/SettingsView.swift — host mengatur ronde lokal; tombol Start dibatasi tiga kursi terhubung; klien melihat status baca saja di lobi.
-- ColorGameTesting/Views/GameView.swift — hanya dua input peran lokal aktif; hanya host melihat Mix; status jeda ditampilkan.
-- ColorGameTesting/Views/ResultView.swift — Redo dan Finish dirutekan melalui koordinator, hanya untuk host dan tidak tersedia saat jeda.
-- ColorGameTesting/Views/ScoreView.swift — New Round dirutekan melalui koordinator, hanya untuk host dan tidak tersedia saat jeda.
-- ColorGameTesting2.xcodeproj/project.pbxproj — kunci Info.plist Bonjour/privasi pada target iOS dan macOS serta referensi entitlement macOS.
-- ColorGameTesting/ColorData.swift — hanya mengembalikan nilai target Lavender bawaan ke C8B4F4 sebelum pekerjaan fitur dimulai.
-- ColorGameTestingTests/ColorDataTests.swift, ColorMixerTests.swift, dan GameViewRenderingTests.swift — menyelaraskan regresi yang sudah gagal dengan perilaku yang ditetapkan dalam riwayat kode; tidak mengubah aturan pencampuran atau tampilan produksi.
-- ColorGameTestingTests/ContentViewTests.swift dan pengujian rendering/flow terkait — menyesuaikan pintu masuk mode dan hak kontrol lokal tanpa mengurangi cakupan mode solo.
+| Path | Tanggung jawab |
+| --- | --- |
+| `ColorGameTesting/LocalPlay/LocalPlayModels.swift` | Versi 2, Codable MixMode, LocalVoteAction/LocalVotingState, aksi vote dan snapshot mode/live/ballot |
+| `ColorGameTesting/LocalPlay/LocalMessageCodec.swift` | Pertahankan framing/versi; dukung payload baru tanpa mengubah Hello/Reject |
+| `ColorGameTesting/LocalPlay/LocalGameSnapshotMapper.swift` | Peta/validasi RYB, mode, pasangan berbeda, warna live dan suara |
+| `ColorGameTesting/LocalPlay/LocalPlayCoordinator.swift` | Penerimaan vote host/peer, mayoritas, ballot lifecycle, publishing dan recovery |
+| `ColorGameTesting/Views/GameView.swift` | Dua input lokal, suara Mix atau Apply/Redo untuk semua peran, status suara/jeda |
+| `ColorGameTesting/Views/ResultView.swift` | Suara Finish/Redo semua peran dan pilihan final |
+| `ColorGameTesting/Views/SettingsView.swift` | Pengaturan mode host dan RYB tetap; tiga kursi sebelum Start |
+| `ColorGameTesting/Views/ScoreView.swift` | New Round tetap host-only |
+| `ColorGameTesting/ContentView.swift` | Integrasi mode/phase/lifecycle sesi |
+| `ColorGameTesting/Views/ModeSelectionView.swift`, `ColorGameTesting/Views/LocalLobbyView.swift` | Pilihan mode, kursi dan status/retry yang ada; verifikasi integrasi |
+| `ColorGameTesting/LocalPlay/LocalPeerTransport.swift` | Kontrak transport dan jam/heartbeat injeksi yang ada; dipertahankan |
+| `ColorGameTesting/LocalPlay/LocalNetworkTransport.swift`, `ColorGameTesting/ColorGameTesting.entitlements`, `ColorGameTesting2.xcodeproj/project.pbxproj` | Transport/izin yang ada; verifikasi tanpa membangun ulang |
+| `ColorGameTesting/GameViewModel.swift`, `ColorGameTesting/GameState.swift`, `ColorGameTesting/GameModels.swift`, `ColorGameTesting/ColorData.swift` | Kontrak upstream; network hanya menyelaraskan hook applyRemoteState/serialization |
+| `ColorGameTestingTests/LocalPlayModelsTests.swift`, `ColorGameTestingTests/LocalMessageCodecTests.swift` | Round-trip payload dan kompatibilitas/framing |
+| `ColorGameTestingTests/LocalGameSnapshotMapperTests.swift` | Invarian snapshot mode/warna/penugasan/vote |
+| `ColorGameTestingTests/LocalPlayCoordinatorTests.swift`, `ColorGameTestingTests/LocalPeerTransportTestSupport.swift` | Keputusan, input bersamaan, recovery dan transport palsu yang ada |
+| `ColorGameTestingTests/LocalPlayInputIntegrationTests.swift`, `ColorGameTestingTests/GameViewModelLocalPlayTests.swift` | Input dan live blend host/klien |
+| `ColorGameTestingTests/GameViewLocalPlayTests.swift`, `ColorGameTestingTests/ResultViewLocalPlayTests.swift`, `ColorGameTestingTests/ScoreViewLocalPlayTests.swift`, `ColorGameTestingTests/SettingsViewLocalPlayTests.swift` | Hak tindakan dan status suara di layar |
+| `ColorGameTestingTests/ContentViewTests.swift`, `ColorGameTestingTests/ModeSelectionViewTests.swift`, `ColorGameTestingTests/LocalLobbyViewTests.swift` | Regresi mode/lobi/solo |
 
-Setiap komponen baru mempunyai satu berkas utama. Selain pemulihan nilai Lavender di atas, tidak ada perubahan pada ColorMixer, ScoreCalculator, ColorData, atau CustomRequestStore.
-
-Sesudah prasyarat baseline selesai, dependensi baca-saja tetap berada di ColorGameTesting/ColorData.swift, ColorGameTesting/ColorMixer.swift, ColorGameTesting/ScoreCalculator.swift, ColorGameTesting/CustomRequestStore.swift, dan ColorGameTesting/GameState.swift.
-
-Lobi dan status jeda memakai label peran/keadaan yang terbaca pembaca layar; tombol warna mempertahankan nama warna yang dapat diakses. Menyembunyikan kontrol host pada klien juga menghapusnya dari urutan fokus.
+Semua berkas sudah tersedia. Deklarasi warna/ronde diselesaikan lebih dahulu; perubahan UI bersama dijalankan bertahap setelah kontrak jaringan, sehingga kepemilikan tidak tumpang tindih.
 
 ## System Flows
 
-~~~mermaid
+```mermaid
 sequenceDiagram
+    participant A as Pemain pertama
     participant H as Host
-    participant C as Klien
-    participant N as Transport lokal
-    H->>N: Iklankan sesi Bonjour
-    C->>N: Temukan dan hubungi host
-    C->>H: Hello versi dan identitas sementara
-    H->>C: Welcome kursi dan token pemulihan
-    H->>C: Snapshot revisi awal
-    H->>H: Mulai ronde jika 3 kursi aktif
-    H->>C: Snapshot ronde dan penugasan
-    C->>H: Input ID, ronde, slot, warna terlihat, epoch
-    H->>H: Validasi, deduplikasi, tambah ke campuran
-    H->>C: Snapshot revisi berikutnya
-    N-->>H: Klien terputus
-    H->>H: Jeda timer dan semua aksi
-    H->>C: Snapshot jeda ke klien yang tersisa
-    C->>H: Reconnect dengan token kursi
-    H->>C: Snapshot penuh terbaru
-    H->>H: Lanjutkan jika 3 kursi aktif
-    H->>C: Snapshot lanjut
-~~~
+    participant B as Pemain kedua
+    participant C as Pemain ketiga
+    A->>H: Vote dengan votingID dan actionID
+    H->>H: Validasi kursi dan simpan final
+    H->>B: Snapshot suara tertunda
+    H->>C: Snapshot suara tertunda
+    C->>H: Warna baru
+    H->>H: Terima unit dan perbarui warna
+    B->>H: Vote sama dengan votingID aktif
+    H->>H: Dua cocok, ganti ballot, jalankan pada bowl terbaru
+    H->>A: Snapshot hasil tanpa suara lama
+    H->>B: Snapshot hasil tanpa suara lama
+    H->>C: Snapshot hasil tanpa suara lama
+```
 
-Urutan fase tetap settings → playing → result → score → settings. Jeda adalah status sesi yang dapat melapisi fase mana pun setelah ronde dimulai; fase dan sisa waktu tidak berubah ketika peer hilang. Saat perangkat masuk latar belakang dan koneksi tidak lagi aktif, perlakukan sebagai putus sementara; saat kembali ke depan, coba sambung ulang.
-
-Di lobi, host melihat pengaturan ronde bersama dengan status tiga kursi; tamu hanya melihat status baca-saja. Saat host masuk latar belakang, koordinator menjeda ronde sebelum sistem menangguhkan aplikasi. Mode solo tidak memulai browser atau listener jaringan.
-
-~~~mermaid
-stateDiagram-v2
-    [*] --> PilihMode
-    PilihMode --> Lobi: pilih tiga perangkat
-    PilihMode --> Solo: pilih satu perangkat
-    Lobi --> Bermain: host mulai dengan tiga kursi
-    Bermain --> Hasil: host Mix
-    Hasil --> Bermain: host Redo
-    Hasil --> Skor: host Finish
-    Skor --> Lobi: host New Round
-    Bermain --> Jeda: peer terputus
-    Hasil --> Jeda: peer terputus
-    Skor --> Jeda: peer terputus
-    Jeda --> Bermain: pulih ke fase bermain
-    Jeda --> Hasil: pulih ke fase hasil
-    Jeda --> Skor: pulih ke fase skor
-    Lobi --> PilihMode: keluar sesi
-    Jeda --> PilihMode: keluar sesi
-~~~
+Jika dua suara pertama berbeda, suara ketiga menentukan mayoritas. Input dan hitung mundur playing tetap berjalan selama menunggu. Disconnect menjeda sesi, mempertahankan ballot, dan menolak input/suara baru sampai tiga kursi pulih. Auto Redo tidak mengubah fase/roundID tetapi mengganti votingID.
 
 ## Requirements Traceability
 
-| Requirement | Ringkasan | Komponen | Kontrak / alur |
-|---|---|---|---|
-| 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8 | Pilih mode, temukan sesi, isi tiga kursi | ModeSelectionView, LocalLobbyView, LocalPlayCoordinator, LocalNetworkTransport | Bonjour, Hello/Welcome, status kursi |
-| 2.1, 2.2, 2.3, 2.4, 2.5 | Pengaturan host dan target kustom | SettingsView, GameViewModel, LocalGameSnapshotMapper | Snapshot target lengkap |
-| 3.1, 3.2, 3.3, 3.4, 3.5, 3.6 | Input milik peran dan campuran konsisten | GameView, GameViewModel, LocalPlayCoordinator | Input ID/epoch, snapshot revisi |
-| 4.1, 4.2, 4.3, 4.4 | Timer dan penugasan bersama | GameViewModel, LocalPlayCoordinator, LocalGameSnapshotMapper | Snapshot detik/epoch, riwayat penugasan |
-| 5.1, 5.2, 5.3, 5.4, 5.5, 5.6 | Mix, Redo, Finish, New Round | GameViewModel, LocalPlayCoordinator, GameView, ResultView, ScoreView | Perintah host, snapshot fase |
-| 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7 | Jeda, reconnect, keluar | LocalNetworkTransport, LocalPlayCoordinator, LocalLobbyView | Heartbeat, token kursi, snapshot penuh, End |
-| 7.1, 7.2, 7.3, 7.4 | Mode solo dan batas lokal | ContentView, LocalPlayCoordinator, LocalNetworkTransport | Pemilihan mode, siklus hidup proses, Wi-Fi |
+| Requirement | Summary | Components | Interfaces | Flows |
+| --- | --- | --- | --- | --- |
+| 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8 | Discovery, tiga kursi dan kegagalan | ModeSelectionView, LocalLobbyView, LocalPlayCoordinator, LocalNetworkTransport | Hello/Welcome, status kursi | Lobi |
+| 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7 | Pengaturan host dan mode RYB | SettingsView, LocalPlayCoordinator, LocalGameSnapshotMapper | Snapshot mode/target | Start dan New Round |
+| 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7 | Input peran dan warna bersama | GameView, LocalPlayCoordinator, LocalGameSnapshotMapper | Input ID/epoch, currentBlend | Playing |
+| 4.1, 4.2, 4.3, 4.4 | Timer dan penugasan bersama | GameViewModel upstream, LocalPlayCoordinator | Snapshot epoch dan assignmentHistory | Tick/reassignment |
+| 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11 | Mayoritas hasil/skor dan reset host | LocalPlayCoordinator, GameView, ResultView, ScoreView | Vote dan transisi domain | Manual/Auto |
+| 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9 | Jeda, recovery dan suara dipertahankan | LocalPlayCoordinator, LocalNetworkTransport, LocalLobbyView | Token dan snapshot penuh | Disconnect/reconnect |
+| 7.1, 7.2, 7.3, 7.4 | Solo langsung, satu skor dan batas sesi | ContentView, LocalPlayCoordinator, LocalNetworkTransport | Mode dan lifecycle | Pilih mode |
+| 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9 | Final vote, dua cocok, latest bowl | LocalVotingState, LocalPlayCoordinator, LocalGameSnapshotMapper | votingID, actionID, eligibility | Pemungutan suara |
 
 ## Components and Interfaces
 
-| Komponen | Lapisan / maksud | Cakupan | Dependensi kunci | Kontrak |
-|---|---|---|---|---|
-| LocalPlayModels | Model pesan dan sesi bertipe | 1.3, 1.4, 3.3, 3.4, 4.1, 5.2, 6.3, 7.2 | Foundation | State, Event |
-| LocalMessageCodec | Pembingkaian dan validasi dasar | 1.7, 3.6, 6.3 | LocalPlayModels | Service |
-| LocalNetworkTransport | Penemuan dan koneksi lokal | 1.2, 1.6, 1.7, 1.8, 6.1, 6.3, 6.5, 6.6, 7.4 | Network framework, codec | Service, Event |
-| LocalGameSnapshotMapper | Representasi keadaan lintas perangkat | 2.2, 2.3, 2.5, 3.1, 3.4, 4.1, 4.2, 5.2, 5.4, 6.3, 6.4 | GameViewModel, model, ColorData | Service |
-| LocalPlayCoordinator | Otoritas sesi dan sinkronisasi | 1.3, 1.4, 1.5, 1.6, 2.1, 2.4, 3.2, 3.3, 3.5, 3.6, 4.4, 5.1, 5.5, 5.6, 6.1, 6.4, 6.6, 6.7, 7.2, 7.3 | Transport, mapper, GameViewModel | Service, State |
-| GameViewModel | Aturan ronde yang sudah ada | 2.2, 2.3, 3.3, 4.1, 4.2, 4.3, 5.2, 5.3, 5.4, 5.5, 7.1 | Model/aturan warna | State, Service |
-| ModeSelectionView / LocalLobbyView dan layar lama | Presentasi serta input sesuai peran | 1.1, 1.4, 1.7, 2.1, 2.4, 3.1, 3.2, 3.5, 5.1, 5.6, 6.2, 6.7, 7.1 | Koordinator, view model | State |
+| Komponen | Domain | Maksud | Requirements | Dependensi | Kontrak |
+| --- | --- | --- | --- | --- | --- |
+| LocalPlayModels | Pesan/state | Mode dan suara bertipe | 2.2, 3.7, 8.1, 8.3 | Model domain outbound P0 | State, Event |
+| LocalMessageCodec/LocalNetworkTransport | Transport | Bingkai, discovery dan koneksi | 1.2, 1.7, 1.8, 6.1, 7.4 | Foundation/Network external P0 | Service, Event |
+| LocalGameSnapshotMapper | Validasi | Snapshot konsisten lintas mode | 2.2, 2.3, 2.5, 3.1, 3.7, 6.3, 6.8 | Aturan/palet outbound P0 | Service |
+| LocalPlayCoordinator | Sesi | Otoritas, suara, mayoritas dan pemulihan | 3.2, 3.6, 4.4, 5.2, 5.7, 6.9, 8.1, 8.4, 8.9 | Mapper/transport/aturan outbound P0; UI inbound P0 | State, Service, Event |
+| Lobi dan layar | Presentasi | Input/peran/status yang dapat diakses | 1.1, 1.4, 2.1, 3.1, 5.1, 5.3, 5.6, 6.2, 8.3 | Koordinator outbound P0 | State |
 
-### Model dan transport
+### Model pesan dan ballot
 
-#### LocalPlayModels
+```swift
+enum LocalVoteAction: String, Codable { case mix, finish, apply, redo }
+struct LocalVotingState: Codable {
+    struct Vote: Codable { let player: PlayerID; let action: LocalVoteAction }
+    let id: UUID
+    var votes: [Vote]
+}
+// LocalGameAction: startRound, addColor(...),
+// vote(action: LocalVoteAction, votingID: UUID), newRound
+```
 
-- **Tanggung jawab:** Menetapkan PlayMode, SessionRole, SessionStatus, DiscoveredSession, PeerHandle, LocalGameAction, GameSnapshot, WireMessage, dan LocalPlayError sebagai tipe Swift eksplisit. LocalPlayError membedakan izin ditolak, Wi-Fi tidak tersedia, sesi penuh, versi berbeda, pesan tidak valid, dan koneksi putus. Tidak memuat aturan warna atau kode jaringan.
-- **Invarian:** Tepat satu host dan maksimal dua klien; setiap kursi PlayerID unik. ID sesi, ID ronde, ID aksi, dan token kursi berupa UUID sementara. ProtocolVersion wajib cocok.
-- **Dependensi:** Inbound dari codec/mapper/koordinator (P0); outbound ke Foundation (P0).
-- **Kontrak:** State [x], Event [x].
+`WireMessage.Input` tetap membawa sessionID, roundID, actionID dan aksi bertipe. Payload vote tidak mengklaim pemain; sumber koneksi menentukan kursi. Hilangkan jalur host yang menjalankan Mix/Redo/Finish langsung melalui aksi jaringan. `MixMode` berasal dari domain, dengan Codable di lapisan protokol. `GameSnapshot` menambah `mixMode: MixMode`, `currentBlend: RGB?`, `voting: LocalVotingState?`; selectedModel tetap marker RYB, target lengkap, penugasan, counts per warna/urutan pertama, timer/epoch, lock, hasil/skor, pause/kursi dan revisi tetap tersedia.
 
-#### LocalMessageCodec
+Ballot baru dibuat saat ronde mulai. Keputusan mayoritas menghapus records dan membuat ID baru untuk playing/result berikutnya; settings/score/akhir sesi memakai nil. Warna, tick, pergantian penugasan, pause dan reconnect tidak mengganti ID. ID aksi yang telah diterima tetap disimpan sepanjang roundID yang sama, termasuk Redo/reconnect.
 
-- **Tanggung jawab:** Mengode/dekode WireMessage sebagai JSON Codable dan bingkai 32-bit panjang-jaringan. Parser menampung paket TCP parsial, memisahkan paket gabungan, dan menolak panjang yang melebihi batas 1 MiB atau payload tak valid.
-- **Dependensi:** Inbound LocalNetworkTransport (P0); outbound LocalPlayModels/Foundation (P0).
-- **Kontrak:** Service [x].
-- **Antarmuka:** encode(WireMessage) throws -> Data; append(Data) throws -> [WireMessage]. Decoder per koneksi memiliki buffer sendiri; kesalahan framing menutup koneksi itu.
+### LocalPlayCoordinator
 
-#### LocalNetworkTransport
+Pertahankan `perform(_ action: LocalGameAction) -> Bool`, `chooseMode`, hosting/browsing/join/leave, dan callback transport. Tambahkan `castVote(_ action: LocalVoteAction) -> Bool`, `canVote(_:) -> Bool` dan observable `voting: LocalVotingState?`. UI memanggil castVote; coordinator membentuk vote memakai ballot terbaru dan mengirim melalui perform. Pada host, jalur lokal dan peer masuk ke penerimaan sinkron yang sama.
 
-- **Tanggung jawab:** Iklan/pencarian layanan, koneksi, kirim/terima bingkai, status peer, dan heartbeat. Tidak mengetahui Round, skor, atau peran pemain.
-- **Dependensi:** Inbound LocalPlayCoordinator (P0); outbound Network framework (P0), LocalMessageCodec (P0).
-- **Kontrak:** Service [x], Event [x].
-- **Antarmuka:** LocalPeerTransport menetapkan host(serviceName) throws; browse(); connect(DiscoveredSession); send(WireMessage, to: PeerHandle) async throws; stop(). Implementasi LocalNetworkTransport memakai Network framework; pengujian memakai transport palsu. Event bertipe discovered, connected, disconnected, received, dan failure, semuanya dikirim ke MainActor koordinator. Kegagalan dipetakan ke LocalPlayError.
-- **Prasyarat:** Izin jaringan lokal tersedia dan jalur Wi-Fi aktif. Browser menampilkan sesi Bonjour yang tersedia; listener host tidak menerima lebih dari dua klien aktif.
-- **Pemulihan:** Heartbeat tiap 3 detik dengan batas 9 detik tanpa respons mendeteksi koneksi idle yang mati; konstanta waktu dapat diuji dengan jam injeksi. Koneksi gagal dibatalkan dan dibuat ulang melalui layanan yang ditemukan. Jika listener host gagal akibat hilangnya Wi-Fi, koordinator tetap menyimpan sesi dalam keadaan jeda dan transport membuat listener/iklan baru saat Wi-Fi pulih. Koneksi reconnect yang membawa token kursi sah menggantikan koneksi lama bila perlu; peer baru tetap ditolak saat dua kursi klien terisi. Kesalahan izin/layanan dipetakan ke pesan yang bisa dicoba lagi.
+Syarat penerimaan: versi/session/round/votingID cocok; peer terikat kursi sah; tiga kursi terhubung; sesi tidak paused/recovering; actionID baru; pemain belum memilih; tindakan memenuhi eligibility domain. Suara pengganti ditolak tanpa mengubah records. Record valid diterbitkan jika belum mayoritas. Ketika dua records cocok, validasi ulang eligibility, kosongkan/ganti ballot sebelum mutasi domain, lalu jalankan satu tindakan terhadap semua unit yang telah diterima host. Hook didChange menerbitkan snapshot hasil beserta ballot baru. Tidak ada await antara pencatatan mayoritas dan mutasi domain.
 
-### Orkestrasi dan aturan
+Suara lama/ketiga setelah keputusan ditolak walau roundID/fase masih sama. Color input tetap melewati gate playing/unlocked, deduplikasi actionID dan validasi observedColorID terhadap assignmentHistory[epoch]; jangan melemahkan gate ini agar vote pada result diterima. Riwayat epoch mempertahankan warna yang terlihat saat input dilakukan, bukan menggantinya dengan slot terbaru.
 
-#### LocalGameSnapshotMapper
+Pengaturan/Start/New Round tetap host-only; start memerlukan tiga kursi. Pause tidak timbul hanya karena vote. Recovery mengirim snapshot penuh termasuk vote sebelum timer/input dilanjutkan; tidak menyimpulkan keputusan baru dari reconnect. Host Player1, klien Player2/3, token kursi sementara, penolakan perangkat keempat serta pengakhiran sesi tetap seperti implementasi saat ini.
 
-- **Tanggung jawab:** Membuat snapshot lengkap dari keadaan host dan menerapkannya ke view model klien; memvalidasi ID warna, rentang komponen, fase, serta target kustom.
-- **Dependensi:** Inbound LocalPlayCoordinator (P0); outbound GameViewModel/GameState/ColorData (P0).
-- **Kontrak:** Service [x].
-- **Antarmuka:** makeSnapshot(from: GameViewModel, session: SessionState) throws -> GameSnapshot; apply(GameSnapshot, to: GameViewModel) throws. Klien tidak memanggil operasi aturan saat apply.
-- **Invarian:** Snapshot ronde membawa target dengan ID, teks, dan sRGB; model/durasi/petunjuk; semua penugasan; jumlah unit tiap warna dalam urutan kemunculan pertamanya; lock; fase; hasil/skor; sisa detik; status jeda/kursi. Saat masih di pengaturan, target, ronde, dan penugasan boleh kosong. ID palet harus dikenal pada kedua perangkat dengan versi protokol sama. CustomRequestStore klien tidak ditulis.
+### LocalGameSnapshotMapper
 
-#### LocalPlayCoordinator
+```swift
+func makeSnapshot(from viewModel: GameViewModel,
+                  session: SessionState,
+                  voting: LocalVotingState?) throws -> GameSnapshot
+func apply(_ snapshot: GameSnapshot, to viewModel: GameViewModel) throws
+```
 
-- **Tanggung jawab:** Menghubungkan aksi UI dan jaringan ke satu GameViewModel host, mengelola kursi, validasi input, revisi keadaan, jeda, serta reconnect. Koordinator klien hanya mengirim input miliknya dan menerapkan snapshot.
-- **Dependensi:** Inbound ContentView/layar (P0); outbound GameViewModel (P0), LocalGameSnapshotMapper (P0), LocalNetworkTransport (P0).
-- **Kontrak:** Service [x], State [x], Event [x].
-- **Antarmuka:** chooseMode(PlayMode); startHosting(); startBrowsing(); join(DiscoveredSession); perform(LocalGameAction); leaveSession(); handle(TransportEvent). LocalGameAction berisi startRound, addColor(slot, observedColorID, assignmentEpoch), mix, redo, finish, dan newRound. Keadaan observable: mode, role, seatStatus, connectionStatus, paused, error, discoveredSessions.
-- **Aturan host:** Semua mutasi pada MainActor. Host hanya menerima pengaturan dan perpindahan fase dari dirinya sendiri. Input host lokal dan input peer melewati validasi yang sama; input peer dipetakan ke kursi menurut koneksinya, bukan peran yang diklaim payload. Perintah harus cocok dengan sesi/ronde, slot, warna yang ditampilkan pada assignmentEpoch, serta ID aksi yang belum diterima; riwayat penugasan disimpan selama ronde untuk aksi yang terlambat. Input saat paused, bukan playing, atau mix locked ditolak. Host menaikkan snapshotRevision setelah setiap mutasi termasuk tick, reassignment, dan jeda.
-- **Aturan klien:** Klien tidak mengubah campuran secara optimistis, tidak menjalankan timer atau skor, dan membuang snapshot dengan sessionID salah atau revisi tidak lebih baru. Saat disconnected, seluruh input dinonaktifkan; rejoin memakai token kursi sementara lalu snapshot penuh.
-- **Siklus ronde:** New Round mengosongkan GameState host sesuai aturan lama tetapi mempertahankan sesi, kursi, serta koneksi. End Session mengirim pesan End dan menutup transport.
+Kesalahan memakai `LocalPlayError.invalidMessage`; validasi dilakukan sebelum apply/publikasi. Koordinator klien hanya memperbarui voting/revisi setelah mapper berhasil, sehingga snapshot tidak diterapkan sebagian. Snapshot revisi lama/session lain ditolak oleh koordinator.
 
-#### GameViewModel
+| Keadaan | Invarian |
+| --- | --- |
+| Settings | Tidak ada round/target/assignment/unit/live/result/score/ballot; Manual sesudah New Round |
+| Manual playing | Unlocked, live/result/score nil; ballot ada; Mix hanya jika nonempty |
+| Manual result | Locked nonempty, result ada, live/score nil; ballot ada; Finish/Redo |
+| Auto playing | Unlocked, result/score nil; currentBlend ada tepat saat nonempty; ballot ada; Apply/Redo hanya nonempty |
+| Score | Locked nonempty, frozen result dan score ada, live/ballot nil |
 
-- **Perubahan kontrak:** Hook didChange memicu snapshot host setelah mutasi publik/tick; applyRemoteState memperbarui data render klien tanpa menyalakan timer, tetapi memasang/melepas monitor keyboard sesuai fase bermain; localInputHandler mengarahkan tombol/keyboard ke koordinator. Keyboard macOS hanya meneruskan tombol yang memetakan ke peran lokal pada mode tiga perangkat. Jalur solo tetap memakai mutasi lama.
-- **Batas:** Tidak memiliki jenis pesan, identitas jaringan, atau retry. Host memanggil mutasi aturan yang ada; penambahan warna yang membawa assignmentEpoch memakai warna tervalidasi oleh koordinator, tanpa mengubah rumus campuran.
+Validasi tipe/mode/fase, angka finite/rentang RGB0...1 dan score0...100, timer/durasi/epoch, ID palet RYB, counts positif/tidak duplikat dan jumlah unit maksimal 10.000 sesuai batas yang ada, tepat tiga assignment unik, setiap pair berbeda, seluruh lima warna dan satu duplikasi lintas pemain. Auto tidak boleh result. Vote memerlukan player unik dari kursi sesi, tindakan eligible dan maksimal records tertunda tanpa mayoritas. Record dari kursi yang sedang disconnected tetap sah ketika paused. Tidak ada blend/skor lokal saat apply klien. Target kustom memuat UUID/teks/sRGB; tidak disalin ke katalog persisten.
 
-### Kontrak pesan dan keadaan
+### Codec, transport dan UI
 
-| Pesan | Pengirim → penerima | Muatan utama | Urutan dan idempotensi |
-|---|---|---|---|
-| Hello | Klien → host | protocolVersion, clientID sementara, sessionID/token jika reconnect | Satu per koneksi; token divalidasi host |
-| Welcome / Reject | Host → klien | sessionID, kursi, token baru atau alasan penolakan | Welcome sebelum snapshot |
-| Input | Klien → host | actionID, roundID, slot, observedColorID, assignmentEpoch | Host deduplikasi actionID; peer menentukan kursi |
-| Snapshot | Host → klien | GameSnapshot lengkap + sessionID + snapshotRevision | Revisi monoton; klien membuang yang lama |
-| Heartbeat | Dua arah | sessionID, nomor ping | Tidak mengubah game |
-| End | Host → klien | sessionID, alasan akhir | Klien kembali ke pemilihan mode |
+Codec mempertahankan `encode(_:) throws -> Data` dan parser `append(_:) throws -> [WireMessage]`; frame parsial/gabungan tetap didukung. Transport/heartbeat/retry tidak berubah. ProtocolVersion menjadi 2; Hello/Reject mempertahankan encoding v1 agar versi lama ditolak di handshake sebelum snapshot baru dikirim, sementara snapshot versi salah tetap ditolak.
 
-Snapshot adalah pengganti keadaan penuh, bukan delta. Host menyiarkannya setelah setiap input yang diterima, tick timer, pergantian warna, perpindahan fase, perubahan kursi, dan jeda/lanjut. Klien tidak menganggap input berhasil sebelum campuran host muncul dalam snapshot. Input yang tidak sampai ke host sebelum koneksi putus tidak masuk campuran pemulihan; tidak ada replay input setelah jeda. ID aksi tetap mencegah pemrosesan ganda bila pesan duplikat diterima.
+Setiap perangkat menampilkan hanya input slot perannya dan tindakan vote yang eligible. Setelah memilih, tombol tindakan untuk kursi itu disabled sampai ballot baru; warna tetap aktif saat playing/unpaused. Status menampilkan siapa memilih tindakan apa dan bahwa dua suara sama menjalankan keputusan. Label peran, pilihan, progress dan pause tersedia untuk pembaca layar; jangan mengandalkan warna saja. Klien settings tetap baca-saja, score New Round hanya host.
 
 ## Data Models
 
-### Domain Model
-
-Satu SessionState memuat sessionID, host, tiga Seat, status koneksi, status paused, dan snapshotRevision. Seat mengikat PlayerID ke clientID/token sementara. Satu `Round` tetap dimiliki GameViewModel host. AssignmentEpoch bertambah tiap pengacakan dalam ronde; RoundID baru pada setiap Start Round. AcceptedActionIDs adalah himpunan per ronde untuk deduplikasi; AssignmentHistory memetakan epoch ke dua warna per pemain. Tidak ada data sesi yang dipersistenkan.
-
-### Logical Data Model
-
-GameSnapshot berisi phase, roundID opsional, selectedModel opsional, target lengkap yang opsional sebelum ronde, reassignmentDuration, showTargetColor, timerSecondsRemaining, assignmentEpoch opsional sebelum ronde, assignments untuk tiga pemain saat bermain, mixEntries berupa pasangan colorID/count dalam urutan kemunculan pertama, mixLocked, mixResult opsional, score opsional, paused, seatStatus, dan snapshotRevision. Warna target memakai tiga komponen Double eksplisit yang wajib finite. Mapper klien menyusun satu unit untuk tiap warna sesuai urutan mixEntries, kemudian menambah sisa unit menurut count; ini mempertahankan proporsi dan urutan tampilan tanpa mengirim seluruh daftar tap. Penugasan dan campuran direkonstruksi dari ColorData dengan ID warna stabil; decoder menolak ID asing, count negatif, atau komponen non-finite. Payload target lengkap memungkinkan permintaan kustom host ditampilkan tanpa menyalinnya ke daftar tersimpan klien.
-
-### Data Contracts & Integration
-
-- Versi protokol tetap pada setiap Hello dan snapshot; versi yang tidak cocok menghasilkan Reject dengan alasan pembaruan aplikasi.
-- Semua UUID, enum, dan angka dikodekan secara eksplisit. Data dari jaringan divalidasi sebelum dipakai oleh GameViewModel.
-- Batas 1 MiB per bingkai mencegah panjang tak masuk akal; ukuran campuran playtest dipantau. Revisi meningkat sepanjang sesi, tidak direset saat New Round.
-- Endpoint Bonjour hanya menemukan dan menghubungkan perangkat lokal; tidak ada alamat internet tetap atau basis data.
+Host menyimpan ballot, acceptedActionIDs, assignmentHistory dan token di memori. Snapshot memakai counts per warna dalam urutan kemunculan pertama; tidak memerlukan event log. Reconnect pada proses yang sama memulihkan snapshot/kursi/vote. Membuka ulang aplikasi tidak memulihkan sesi. Tidak ada perubahan UserDefaults.
 
 ## Error Handling
 
-### Error Strategy
-
-- Izin jaringan ditolak, Wi-Fi tidak tersedia, atau sesi tidak ditemukan: lobi menampilkan alasan dan tombol Coba Lagi; mode solo tetap dapat dipilih.
-- Lobi penuh atau versi protokol berbeda: host mengirim Reject, klien tetap di daftar sesi; host tidak mengubah kursi.
-- Pesan tak valid, peran salah, atau aksi duplikat: host tidak memutasi ronde; kesalahan protokol berat menutup koneksi, aksi game yang ditolak mendapat snapshot mutakhir.
-- Koneksi hilang setelah ronde dimulai: host pauseTimer, menandai peer terputus, menolak input/perpindahan fase, menyiarkan status jeda; klien yang kehilangan host menunjukkan status menunggu dan tombol Keluar.
-- Host memilih Akhiri Sesi: kirim End, tutup koneksi, semua perangkat kembali ke pemilihan mode. Penutupan aplikasi mendadak tidak memulihkan sesi; peer yang tersisa dapat memilih Keluar.
-
-### Monitoring
-
-Log lokal terstruktur untuk perubahan koneksi, alasan Reject, nomor revisi, dan aksi yang diabaikan; jangan mencatat token kursi atau seluruh payload target. Status lobi dan jeda menjadi indikator utama saat playtesting.
+Versi salah, Wi-Fi/izin gagal, sesi penuh dan sesi tidak tersedia memakai error/retry yang ada. Vote tak sah, duplikat, stale atau saat pause tidak mengubah state. Frame/payload rusak menutup koneksi terkait sesuai codec/transport; host kemudian menjeda sesi aktif. Host hilang tidak memicu migrasi; klien menunggu recovery atau keluar. Status sesi berakhir membawa klien kembali ke pilihan mode.
 
 ## Testing Strategy
 
-### Unit Tests
+- Pertahankan discovery/Hello/kursi unik/keempat ditolak/host-only settings/target kustom tidak menulis storage/solo tanpa transport (1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 2.1, 2.2, 2.3, 2.4, 2.5, 7.1, 7.2, 7.3, 7.4).
+- Round-trip Manual/Auto dan default reset; validasi live warna, fase tidak sah, pasangan/duplikasi, record unik dan actions eligible dalam mapper/models (2.6, 2.7, 3.1, 3.7, 4.2, 8.8).
+- Satu vote pending; dua cocok segera jalan; dua berbeda lalu vote ketiga; kedua/pengganti ditolak; semua kursi termasuk host menggunakan jalur yang sama. Periksa penerbitan sekali dan tidak menunggu ketiga (8.1, 8.2, 8.3, 8.4, 8.5, 8.9).
+- Input/tick/reassignment berjalan setelah vote pertama, votes tidak reset, mayoritas Apply/Mix memakai unit terbaru; delayed third vote dan replay Auto Redo ditolak berdasarkan votingID/actionID (3.2, 3.3, 3.4, 3.5, 3.6, 4.1, 4.3, 4.4, 8.6, 8.7).
+- Manual Mix/Redo/Finish dan Auto Apply/Redo melalui mayoritas menyinkronkan fase, result/score, lock/timer, target/assignments/countdown yang dipertahankan; New Round host-only mempertahankan kursi (5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11).
+- Putus sebelum/selama ronde dan ballot, vote/input baru ditolak, records dipertahankan; held-snapshot fake memastikan recovery terkirim sebelum resume. Uji session end/leave (6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9).
+- Codec vote dengan frame parsial/gabungan dan penolakan v1/v2 dua arah. Rendering memastikan tindakan semua peran, disabled setelah final, warna tetap aktif, status yang dapat diakses, score tetap host-only.
+- Perangkat nyata: tiga iPhone/mac pada satu Wi-Fi, kedua mode, input serentak/dekat reassignment, dua suara, disconnect/reconnect/background dan izin jaringan. Simulator/fake tidak membuktikan dialog izin atau operasi jaringan nyata.
 
-- LocalMessageCodecTests: bingkai terpotong/bergabung, ukuran berlebih, payload rusak, dan versi tak cocok (1.7, 6.3).
-- LocalGameSnapshotMapperTests: round-trip target kustom, penugasan, urutan Mix, hasil/skor, serta penolakan ID warna asing; katalog klien tetap lokal (2.2, 2.3, 2.4, 2.5, 3.4, 5.2, 5.3, 5.4).
-- LocalPlayCoordinatorTests: kursi unik, batas tiga perangkat, start hanya saat lengkap, kendali host, dan pembatasan input peran (1.3, 1.4, 1.5, 1.6, 2.1, 3.2, 5.6).
-- LocalPlayCoordinatorTests: dua input hampir serentak, kirim ulang ID yang sama, input epoch lama di batas pergantian, serta snapshot lama (3.3, 3.6, 4.2, 4.3, 4.4).
-- LocalPlayCoordinatorTests: putus/jeda, reconnect token yang sama, snapshot penuh, sisa waktu, End, dan New Round yang mempertahankan kursi (5.5, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7).
+## Integration & Migration Notes
 
-### Integration Tests
-
-- Transport palsu tiga peer menjalankan host → dua klien → Start → input → Mix → Redo → Finish → New Round; bandingkan snapshot/phase semua peer dengan host (1.3, 1.5, 2.2, 3.3, 3.4, 4.1, 5.2, 5.3, 5.4, 5.5).
-- Simulasi putus salah satu klien dan host, input tertunda, sambung ulang, lalu pastikan tidak ada mutasi selama jeda dan satu campuran akhir (3.5, 3.6, 6.1, 6.2, 6.3, 6.4).
-- Tes rendering mode/lobi/role, hanya dua input lokal dan kontrol host, status jeda, serta regresi mode satu perangkat (1.1, 3.1, 3.2, 5.1, 5.6, 7.1).
-
-### Uji Perangkat Fisik
-
-- Pada tiga perangkat Apple yang menjalankan aplikasi di satu Wi-Fi: izin jaringan lokal, penemuan, tiga kursi, target kustom host, timer/penugasan, kontribusi hampir bersamaan, hasil/Redo/skor/New Round, dan penolakan perangkat keempat (1.2, 1.3, 1.6, 2.3, 3.6, 4.2, 5.2, 5.3, 5.4, 5.5, 7.4).
-- Matikan sementara Wi-Fi salah satu perangkat lalu hidupkan kembali; amati jeda, pemulihan peran dan sisa waktu, serta kemampuan keluar jika host tidak kembali (6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7).
-- Jalankan skema uji macOS yang ada untuk aturan solo. Simulator tidak menggantikan uji izin Bonjour/perangkat fisik.
-
-## Security Considerations
-
-Versi awal hanya untuk Wi-Fi tepercaya. TCP tanpa TLS berarti perangkat lain pada jaringan yang sama berpotensi membaca atau mengirim pesan; jangan kirim akun atau data pribadi. Host membatasi kursi, memvalidasi pesan, serta memakai token acak sementara untuk pemulihan kursi, tetapi token ini bukan autentikasi terhadap penyadap jaringan. Kebutuhan jaringan publik, internet, atau data sensitif memicu desain ulang TLS, verifikasi peer, dan pemasangan perangkat sebelum implementasi tersebut.
-
-## Performance & Scalability
-
-Skala tetap tiga perangkat. Snapshot penuh pada tiap tick/input menyederhanakan konsistensi; mixEntries berisi maksimal lima warna palet sehingga ukuran pesan tetap kecil, dengan batas bingkai 1 MiB untuk menolak payload rusak. Tidak ada target latensi yang ditetapkan kebutuhan; uji fisik mencatat keterlambatan tampilan campuran/timer dan ukuran snapshot untuk menentukan apakah optimasi kelak diperlukan.
+Urutan: deklarasi RYB → mode/transisi ronde → pesan/mapper v2 → coordinator mayoritas → functional UI/tes → modern UI. Semua perangkat memakai build protokol yang sama; tidak ada dukungan sesi campuran v1/v2. Jalankan macOS XCTest, build iOS dan smoke solo/lokal sebelum feature GO. Dokumen ini bukan laporan tes lulus.
