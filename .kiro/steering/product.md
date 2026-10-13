@@ -8,10 +8,10 @@ Use the app to try the core game loop with people on one device and learn whethe
 
 ## Core Capabilities
 
-- Start a round by choosing a CMYK or RYB palette and either a specific target request or a random one.
+- Start a solo round with the fixed RYB palette, choose Manual Mix or Auto Mix, and use either a specific target request or a random one.
 - Let three players add colors to one shared mix. Each player has two assigned color slots; macOS supports dedicated keyboard keys and iOS provides touch controls.
 - Reassign player colors on a configurable timer while keeping the mix accumulated so far.
-- Show the resulting color and ingredient proportions, allow a redo, then score the finished mix against the target color.
+- In Manual Mix, show ingredient proportions and a result before scoring. In Auto Mix, update the live color with each accepted contribution and apply it directly for scoring; both modes allow a redo.
 - Add named custom target requests with hex colors and retain them locally for later rounds.
 
 ## Primary Use Case
@@ -20,7 +20,7 @@ Three people play together on one device: choose a target, contribute colors dur
 
 ## Product Boundaries
 
-- A round has one shared mix and three fixed players. The app does not model remote players or separate player scores.
+- A round has one shared mix and three fixed players. Local sessions can use one device or three devices on the same Wi-Fi; the app does not maintain separate player scores.
 - Built-in requests and custom requests supply target colors. Only custom requests persist between launches; round state and scores are transient.
 - The score expresses color similarity using a perceptual color difference calculation. Treat it as game feedback, not a claim of physically accurate pigment mixing.
 - Current sessions do not store playtest observations, analytics, or score history. Gather those through a separate process unless a future specification explicitly adds in-app collection.

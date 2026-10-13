@@ -20,7 +20,7 @@ Keep phase transitions and round mutations in `GameViewModel`. Views render stat
 
 ### Color and persistence
 
-Represent color components with `SIMD3<Double>` or `SIMD4<Double>` as appropriate. Keep palette data, color blending, color-space conversion, and scoring in their focused helpers. Mix in the selected model's component space; score the displayed result against the target through Lab and Delta E 2000. Persist custom requests as validated, Codable data in `UserDefaults`; allow injection of a defaults instance for tests.
+Represent RYB components and displayed colors with `SIMD3<Double>`. Keep palette data, color blending, color-space conversion, and scoring in their focused helpers. Preserve the calibrated RYB primary-share and black/white dilution calculation; score the displayed result against the target through Lab and Delta E 2000. Persist custom requests as validated, Codable data in `UserDefaults`; allow injection of a defaults instance for tests.
 
 ### Testing
 
