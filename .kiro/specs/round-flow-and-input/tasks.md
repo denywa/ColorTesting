@@ -132,7 +132,7 @@ The checked tasks above record the existing round-flow baseline. Playtesting Par
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
 
 - [ ] 7. Connect both round modes to functional screens
-- [ ] 7.1 Show mode-specific controls and current bowl color
+- [x] 7.1 Show mode-specific controls and current bowl color
   - Settings displays the fixed RYB palette and both mix-mode choices. Gameplay keeps existing request, hint, assignment, countdown and platform inputs.
   - Manual shows its contribution chart and Mix action. Auto shows live color/empty state and Apply/Redo on the gameplay screen without the Manual ratio chart or Mix action.
   - Keep solo iOS six-slot touch controls and macOS key mappings; do not apply the separate modern layout redesign in this task.

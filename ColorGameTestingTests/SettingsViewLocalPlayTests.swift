@@ -97,6 +97,7 @@ final class SettingsViewLocalPlayTests: XCTestCase {
         for label in ["Palette: RYB", "Manual Mix", "Auto Mix", "Random", "15s", "30s", "45s", "60s", "90s", "Show Target Color Hint"] {
             XCTAssertTrue(labels.contains { $0.contains(label) }, "Missing \(label)")
         }
+        XCTAssertFalse(labels.contains { $0.contains("CMYK") })
         XCTAssertEqual(model.selectedMixMode, .manual)
     }
 

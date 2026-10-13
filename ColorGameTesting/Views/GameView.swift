@@ -15,11 +15,27 @@ struct GameView: View {
     }
 
     var inputsDisabled: Bool { coordinator?.paused == true }
-    var showsMixButton: Bool { coordinator == nil || coordinator?.role == .host }
+    var showsMixButton: Bool {
+        (viewModel.round?.mixMode == .manual) &&
+        (coordinator == nil || coordinator?.role == .host)
+    }
 
     var canMix: Bool {
-        !(viewModel.round?.mix.units.isEmpty ?? true) &&
+        viewModel.canMix &&
         (coordinator == nil || (coordinator?.role == .host && !inputsDisabled))
+    }
+
+    var canApply: Bool { coordinator == nil && viewModel.canApply }
+    var canRedo: Bool { coordinator == nil && viewModel.canRedo }
+
+    func apply() {
+        guard canApply else { return }
+        viewModel.selectApply()
+    }
+
+    func redo() {
+        guard canRedo else { return }
+        viewModel.selectRedo()
     }
 
     func mix() {
@@ -114,9 +130,27 @@ struct GameView: View {
                         }
                     }
 
-                    ColorBarView(mix: round.mix)
-                        .frame(width: chartSize, height: chartSize)
-                        .padding(.vertical, chartVerticalPadding)
+                    if round.mixMode == .auto {
+                        if let color = viewModel.currentBlend {
+                            Circle()
+                                .fill(Color(red: color.x, green: color.y, blue: color.z))
+                                .frame(width: chartSize, height: chartSize)
+                                .overlay(Circle().strokeBorder(.primary, lineWidth: 1))
+                                .accessibilityLabel(
+                                    "Current blended color, red \(Int((color.x * 100).rounded())) percent, " +
+                                    "green \(Int((color.y * 100).rounded())) percent, " +
+                                    "blue \(Int((color.z * 100).rounded())) percent"
+                                )
+                        } else {
+                            Text("Add a color to start mixing")
+                                .foregroundStyle(.secondary)
+                                .frame(width: chartSize, height: chartSize)
+                        }
+                    } else {
+                        ColorBarView(mix: round.mix)
+                            .frame(width: chartSize, height: chartSize)
+                            .padding(.vertical, chartVerticalPadding)
+                    }
 
                     Group {
                         #if os(iOS)
@@ -146,7 +180,14 @@ struct GameView: View {
                     HStack {
                         TimerBadge(secondsRemaining: viewModel.timerSecondsRemaining)
                         Spacer()
-                        if showsMixButton {
+                        if round.mixMode == .auto {
+                            Button("Redo", action: redo)
+                                .buttonStyle(.bordered)
+                                .disabled(!canRedo)
+                            Button("Apply", action: apply)
+                                .buttonStyle(.borderedProminent)
+                                .disabled(!canApply)
+                        } else if showsMixButton {
                             MixButton(isDisabled: !canMix, action: mix)
                         }
                     }

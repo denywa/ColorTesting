@@ -91,6 +91,108 @@ final class GameViewRenderingTests: XCTestCase {
                           "The displayed pie must react when only the mix proportions change")
     }
 
+    func testAutoGameplayShowsEmptyThenLiveColorWithoutManualChartOrMix() throws {
+        let model = makeFixture(mode: .auto)
+        model.round?.mix.units.removeAll()
+        var view = GameView(viewModel: model)
+        XCTAssertFalse(containsChart(view.body))
+        XCTAssertFalse(view.showsMixButton)
+        XCTAssertTrue(texts(in: view.body).contains { $0.contains("Add a color to start mixing") })
+        XCTAssertEqual(Set(buttons(in: view.body).map(buttonTitle)), ["Apply", "Redo"])
+        XCTAssertFalse(view.canApply)
+        XCTAssertFalse(view.canRedo)
+        let empty = try renderedPixels(of: model)
+
+        model.addColor(player: .player1, slot: .primary)
+        view = GameView(viewModel: model)
+        XCTAssertNotNil(model.currentBlend)
+        XCTAssertFalse(containsChart(view.body))
+        XCTAssertFalse(texts(in: view.body).contains { $0.contains("Add a color to start mixing") })
+        XCTAssertTrue(view.canApply)
+        XCTAssertTrue(view.canRedo)
+        let live = try renderedPixels(of: model)
+        XCTAssertNotEqual(empty, live)
+        model.addColor(player: .player1, slot: .secondary)
+        XCTAssertNotEqual(live, try renderedPixels(of: model),
+                          "The live swatch must change after a different color is accepted")
+        model.pauseTimer()
+        model.removeKeyMonitor()
+    }
+
+    func testAutoGameplayButtonsForwardRedoAndApplyAndRejectEmptyActions() throws {
+        let model = makeFixture(mode: .auto)
+        model.round?.mix.units.removeAll()
+        for name in ["Apply", "Redo"] {
+            try pressButton(name, in: GameView(viewModel: model).body)
+            XCTAssertEqual(model.phase, .playing)
+            XCTAssertTrue(model.round?.mix.units.isEmpty == true)
+        }
+        model.addColor(player: .player1, slot: .primary)
+        model.timerSecondsRemaining = 17
+        let requestID = model.round?.request.id
+        let primaryIDs = PlayerID.allCases.map { model.round?.assignments[$0]?.primaryColor.id }
+        let secondaryIDs = PlayerID.allCases.map { model.round?.assignments[$0]?.secondaryColor.id }
+        try pressButton("Redo", in: GameView(viewModel: model).body)
+        XCTAssertEqual(model.phase, .playing)
+        XCTAssertTrue(model.round?.mix.units.isEmpty == true)
+        XCTAssertNil(model.currentBlend)
+        XCTAssertEqual(model.round?.request.id, requestID)
+        XCTAssertEqual(PlayerID.allCases.map { model.round?.assignments[$0]?.primaryColor.id }, primaryIDs)
+        XCTAssertEqual(PlayerID.allCases.map { model.round?.assignments[$0]?.secondaryColor.id }, secondaryIDs)
+        XCTAssertEqual(model.timerSecondsRemaining, 17)
+        model.addColor(player: .player1, slot: .secondary)
+        let blend = model.currentBlend
+        try pressButton("Apply", in: GameView(viewModel: model).body)
+        XCTAssertEqual(model.phase, .score)
+        XCTAssertEqual(model.mixResult, blend)
+        XCTAssertNotNil(model.score)
+        XCTAssertTrue(model.round?.mix.isLocked == true)
+        model.pauseTimer()
+        model.removeKeyMonitor()
+    }
+
+    func testManualGameplayRetainsChartAndMixAndHintChangesRendering() throws {
+        let model = makeFixture()
+        let view = GameView(viewModel: model)
+        XCTAssertTrue(containsChart(view.body))
+        XCTAssertTrue(view.showsMixButton)
+        XCTAssertTrue(buttons(in: view.body).isEmpty,
+                      "Manual actions remain in the existing MixButton component")
+        let withoutHint = try renderedPixels(of: model)
+        model.showTargetColor = true
+        XCTAssertNotEqual(withoutHint, try renderedPixels(of: model))
+        model.round?.mix.isLocked = true
+        XCTAssertFalse(GameView(viewModel: model).canMix)
+    }
+
+    private func containsChart(_ value: Any) -> Bool {
+        if value is ColorBarView { return true }
+        return Mirror(reflecting: value).children.contains { containsChart($0.value) }
+    }
+
+    private func texts(in value: Any) -> [String] {
+        if let text = value as? Text { return [String(describing: text)] }
+        return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
+    }
+
+    private func buttons(in value: Any) -> [Button<Text>] {
+        if let button = value as? Button<Text> { return [button] }
+        return Mirror(reflecting: value).children.flatMap { buttons(in: $0.value) }
+    }
+
+    private func buttonTitle(_ button: Button<Text>) -> String {
+        let label = Mirror(reflecting: button).children.first { $0.label == "label" }!.value
+        let text = String(describing: label)
+        return text.contains("Apply") ? "Apply" : text.contains("Redo") ? "Redo" : text
+    }
+
+    private func pressButton(_ title: String, in value: Any) throws {
+        let button = try XCTUnwrap(buttons(in: value).first { buttonTitle($0) == title })
+        let action = try XCTUnwrap(Mirror(reflecting: button).children.first { $0.label == "action" }?.value)
+        let closure = try XCTUnwrap(Mirror(reflecting: action).children.first?.value as? @MainActor () -> Void)
+        closure()
+    }
+
     private func renderedPiePixels(of mix: Mix) throws -> NSBitmapImageRep {
         let hostingView = NSHostingView(rootView: ColorBarView(mix: mix).frame(width: 160, height: 160))
         hostingView.frame = NSRect(x: 0, y: 0, width: 160, height: 160)
@@ -117,14 +219,14 @@ final class GameViewRenderingTests: XCTestCase {
         }
     }
 
-    private func makeFixture() -> GameViewModel {
+    private func makeFixture(mode: MixMode = .manual) -> GameViewModel {
         let colors = ColorData.rybPalette
         let viewModel = GameViewModel()
         viewModel.phase = .playing
         viewModel.round = Round(
             request: ColorData.requestPool[0],
             colorModel: .ryb,
-            mixMode: .manual,
+            mixMode: mode,
             assignments: [
                 .player1: PlayerAssignment(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
                 .player2: PlayerAssignment(player: .player2, primaryColor: colors[1], secondaryColor: colors[2]),

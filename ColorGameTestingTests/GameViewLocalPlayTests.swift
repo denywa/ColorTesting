@@ -16,13 +16,13 @@ final class GameViewLocalPlayTests: XCTestCase {
         func stop() {}
     }
 
-    private func makeModel() -> GameViewModel {
+    private func makeModel(mode: MixMode = .manual) -> GameViewModel {
         let colors = ColorData.rybPalette
         let model = GameViewModel()
         model.phase = .playing
         model.round = Round(
             request: ColorData.requestPool[0], colorModel: .ryb,
-            mixMode: .manual,
+            mixMode: mode,
             assignments: [
                 .player1: .init(player: .player1, primaryColor: colors[0], secondaryColor: colors[1]),
                 .player2: .init(player: .player2, primaryColor: colors[2], secondaryColor: colors[3]),
@@ -101,6 +101,20 @@ final class GameViewLocalPlayTests: XCTestCase {
         XCTAssertEqual(model.phase, .result)
         model.pauseTimer()
         model.removeKeyMonitor()
+    }
+
+    func testNetworkAutoActionsRemainUnavailableUntilVotingIntegration() {
+        let model = makeModel(mode: .auto)
+        let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
+        let view = GameView(viewModel: model, coordinator: coordinator)
+        XCTAssertFalse(view.showsMixButton)
+        XCTAssertFalse(view.canMix)
+        XCTAssertFalse(view.canApply)
+        XCTAssertFalse(view.canRedo)
+        view.apply()
+        view.redo()
+        XCTAssertEqual(model.phase, .playing)
+        XCTAssertEqual(model.round?.mix.units.count, 1)
     }
 
     func testSoloStillShowsAllPlayersAndUsesOriginalMix() {
