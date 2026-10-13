@@ -24,14 +24,14 @@ struct ResultView: View {
 
     func redo() {
         if let coordinator {
-            coordinator.perform(.redo)
+            coordinator.castVote(.redo)
         } else {
             viewModel.selectRedo()
         }
     }
     func finish() {
         if let coordinator {
-            coordinator.perform(.finish)
+            coordinator.castVote(.finish)
         } else {
             viewModel.selectFinish()
         }

@@ -33,12 +33,14 @@ final class GameViewLocalPlayTests: XCTestCase {
         return model
     }
 
-    private func joinPeer(_ coordinator: LocalPlayCoordinator) {
+    @discardableResult
+    private func joinPeer(_ coordinator: LocalPlayCoordinator) -> PeerHandle {
         let peer = PeerHandle(id: UUID())
         coordinator.handle(.connected(peer))
         coordinator.handle(.received(.hello(.init(protocolVersion: LocalPlayProtocol.version,
                                                    clientID: UUID(), sessionID: nil,
                                                    reconnectToken: nil)), from: peer))
+        return peer
     }
 
     private func texts(in value: Any) -> [String] {
@@ -74,7 +76,7 @@ final class GameViewLocalPlayTests: XCTestCase {
         let model = GameViewModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
-        joinPeer(coordinator)
+        let peer = joinPeer(coordinator)
         joinPeer(coordinator)
 
         XCTAssertTrue(coordinator.perform(.startRound))
@@ -98,6 +100,9 @@ final class GameViewLocalPlayTests: XCTestCase {
         XCTAssertFalse(view.inputsDisabled)
         XCTAssertTrue(view.canMix)
         view.mix()
+        XCTAssertEqual(model.phase, .playing)
+        coordinator.handle(.received(.input(.init(sessionID: coordinator.sessionID!, roundID: model.roundID!,
+            actionID: UUID(), action: .vote(action: .mix, votingID: coordinator.voting!.id))), from: peer))
         XCTAssertEqual(model.phase, .result)
         model.pauseTimer()
         model.removeKeyMonitor()

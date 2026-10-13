@@ -426,19 +426,6 @@ final class LocalPlayCoordinator {
            let session, session.seats.count == PlayerID.allCases.count,
            session.seats.allSatisfy({ $0.status == .connected }), !session.paused {
             switch action {
-            case .mix:
-                guard viewModel.phase == .playing, let mix = viewModel.round?.mix,
-                      !mix.isLocked, !mix.units.isEmpty else { return false }
-                viewModel.pressMixButton()
-                return viewModel.phase == .result
-            case .redo:
-                guard viewModel.phase == .result, viewModel.round?.mix.isLocked == true else { return false }
-                viewModel.selectRedo()
-                return viewModel.phase == .playing
-            case .finish:
-                guard viewModel.phase == .result, viewModel.mixResult != nil else { return false }
-                viewModel.selectFinish()
-                return viewModel.phase == .score
             case .newRound:
                 guard viewModel.phase == .score else { return false }
                 viewModel.startNewRound()
@@ -489,13 +476,22 @@ final class LocalPlayCoordinator {
         switch input.action {
         case .vote:
             guard let proposed = proposedVoting(for: input, from: source) else { return false }
-            // shortcut: Task 9.2 consumes majority proposals atomically before any snapshot publication.
-            guard !proposed.votes.contains(where: { vote in
-                proposed.votes.filter { $0.action == vote.action }.count >= 2
-            }) else { return false }
-            voting = proposed
             acceptedActionIDs.insert(input.actionID)
-            publishChange()
+            if let decision = proposed.votes.first(where: { vote in
+                proposed.votes.filter { $0.action == vote.action }.count >= 2
+            })?.action {
+                guard isVoteEligible(decision) else { return false }
+                voting = decision == .finish || decision == .apply ? nil : .init(id: UUID(), votes: [])
+                switch decision {
+                case .mix: viewModel.pressMixButton()
+                case .finish: viewModel.selectFinish()
+                case .apply: viewModel.selectApply()
+                case .redo: viewModel.selectRedo()
+                }
+            } else {
+                voting = proposed
+                publishChange()
+            }
             return true
         case let .addColor(slot, observedColorID, epoch):
             guard viewModel.phase == .playing, viewModel.round?.mix.isLocked == false,

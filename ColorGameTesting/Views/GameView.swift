@@ -40,7 +40,7 @@ struct GameView: View {
 
     func mix() {
         if let coordinator {
-            _ = coordinator.perform(.mix)
+            _ = coordinator.castVote(.mix)
         } else {
             viewModel.pressMixButton()
         }

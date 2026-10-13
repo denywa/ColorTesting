@@ -16,12 +16,20 @@ final class ScoreViewLocalPlayTests: XCTestCase {
         func stop() {}
     }
 
-    private func joinPeer(_ coordinator: LocalPlayCoordinator) {
+    @discardableResult
+    private func joinPeer(_ coordinator: LocalPlayCoordinator) -> PeerHandle {
         let peer = PeerHandle(id: UUID())
         coordinator.handle(.connected(peer))
         coordinator.handle(.received(.hello(.init(protocolVersion: LocalPlayProtocol.version,
                                                    clientID: UUID(), sessionID: nil,
                                                    reconnectToken: nil)), from: peer))
+        return peer
+    }
+
+    private func peerVote(_ action: LocalVoteAction, coordinator: LocalPlayCoordinator,
+                          model: GameViewModel, peer: PeerHandle) {
+        coordinator.handle(.received(.input(.init(sessionID: coordinator.sessionID!, roundID: model.roundID!,
+            actionID: UUID(), action: .vote(action: action, votingID: coordinator.voting!.id))), from: peer))
     }
 
     private func buttonCount(in value: Any) -> Int {
@@ -60,13 +68,15 @@ final class ScoreViewLocalPlayTests: XCTestCase {
         let model = GameViewModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
-        joinPeer(coordinator)
+        let peer = joinPeer(coordinator)
         joinPeer(coordinator)
 
         XCTAssertTrue(coordinator.perform(.startRound))
         model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
-        XCTAssertTrue(coordinator.perform(.mix))
-        XCTAssertTrue(coordinator.perform(.finish))
+        XCTAssertTrue(coordinator.castVote(.mix))
+        peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
+        XCTAssertTrue(coordinator.castVote(.finish))
+        peerVote(.finish, coordinator: coordinator, model: model, peer: peer)
         let view = ScoreView(viewModel: model, coordinator: coordinator)
         XCTAssertNotNil(model.score)
         XCTAssertTrue(view.showsNewRound)

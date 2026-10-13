@@ -28,12 +28,20 @@ final class ResultViewLocalPlayTests: XCTestCase {
         return model
     }
 
-    private func joinPeer(_ coordinator: LocalPlayCoordinator) {
+    @discardableResult
+    private func joinPeer(_ coordinator: LocalPlayCoordinator) -> PeerHandle {
         let peer = PeerHandle(id: UUID())
         coordinator.handle(.connected(peer))
         coordinator.handle(.received(.hello(.init(protocolVersion: LocalPlayProtocol.version,
                                                    clientID: UUID(), sessionID: nil,
                                                    reconnectToken: nil)), from: peer))
+        return peer
+    }
+
+    private func peerVote(_ action: LocalVoteAction, coordinator: LocalPlayCoordinator,
+                          model: GameViewModel, peer: PeerHandle) {
+        coordinator.handle(.received(.input(.init(sessionID: coordinator.sessionID!, roundID: model.roundID!,
+            actionID: UUID(), action: .vote(action: action, votingID: coordinator.voting!.id))), from: peer))
     }
 
     private func texts(in value: Any) -> [String] {
@@ -74,12 +82,13 @@ final class ResultViewLocalPlayTests: XCTestCase {
         let model = GameViewModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
-        joinPeer(coordinator)
+        let peer = joinPeer(coordinator)
         joinPeer(coordinator)
 
         XCTAssertTrue(coordinator.perform(.startRound))
         model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
-        XCTAssertTrue(coordinator.perform(.mix))
+        XCTAssertTrue(coordinator.castVote(.mix))
+        peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
         let view = ResultView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.showsActions)
         XCTAssertEqual(buttonCount(in: view.body), 2)
@@ -96,11 +105,16 @@ final class ResultViewLocalPlayTests: XCTestCase {
         coordinator.setPaused(false)
         XCTAssertFalse(view.actionsDisabled)
         view.redo()
+        XCTAssertEqual(model.phase, .result)
+        peerVote(.redo, coordinator: coordinator, model: model, peer: peer)
         XCTAssertEqual(model.phase, .playing)
         XCTAssertTrue(model.round?.mix.units.isEmpty == true)
         model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[1])]
-        XCTAssertTrue(coordinator.perform(.mix))
+        XCTAssertTrue(coordinator.castVote(.mix))
+        peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
         view.finish()
+        XCTAssertEqual(model.phase, .result)
+        peerVote(.finish, coordinator: coordinator, model: model, peer: peer)
         XCTAssertEqual(model.phase, .score)
         XCTAssertNotNil(model.score)
         model.pauseTimer()

@@ -102,11 +102,12 @@ import XCTest
     }
 
     func testLegacyPhaseActionsAreRejectedOnWire() throws {
-        for action: LocalGameAction in [.mix, .finish, .redo] {
-            let input = WireMessage.input(.init(sessionID: sessionID, roundID: UUID(), actionID: UUID(), action: action))
-            XCTAssertThrowsError(try LocalMessageCodec().encode(input))
+        for action in ["mix", "finish", "redo"] {
+            let payload = Data("""
+            {"input":{"_0":{"sessionID":"\(sessionID)","roundID":"\(UUID())","actionID":"\(UUID())","action":{"\(action)":{}}}}}
+            """.utf8)
             var decoder = LocalMessageCodec()
-            XCTAssertThrowsError(try decoder.append(frame(JSONEncoder().encode(input))))
+            XCTAssertThrowsError(try decoder.append(frame(payload)))
         }
     }
 

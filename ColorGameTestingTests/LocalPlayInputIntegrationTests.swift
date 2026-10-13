@@ -94,7 +94,7 @@ final class LocalPlayInputIntegrationTests: XCTestCase {
         XCTAssertFalse(views[1].showsMixButton)
         XCTAssertFalse(views[2].showsMixButton)
         XCTAssertFalse(views[0].canMix)
-        XCTAssertFalse(peers[1].perform(.mix))
+        XCTAssertFalse(peers[1].castVote(.mix))
 
         let expected = [
             try XCTUnwrap(models[0].round?.assignments[.player1]?.primaryColor.id),
@@ -133,11 +133,14 @@ final class LocalPlayInputIntegrationTests: XCTestCase {
         await waitUntil { !peers[1].paused && !peers[2].paused }
         XCTAssertTrue(views[0].canMix)
         views[0].mix()
+        XCTAssertEqual(models[0].phase, .playing)
+        await waitUntil { peers[1].voting?.votes.count == 1 }
+        XCTAssertTrue(peers[1].castVote(.mix))
         await waitUntil { models.allSatisfy { $0.phase == .result } }
         XCTAssertEqual(models[0].round?.mix.units.map(\.color.id), hostColors)
         XCTAssertEqual(models[1].mixResult, models[0].mixResult)
         XCTAssertEqual(models[2].mixResult, models[0].mixResult)
-        XCTAssertFalse(peers[1].perform(.mix))
-        XCTAssertFalse(peers[2].perform(.mix))
+        XCTAssertFalse(peers[1].castVote(.mix))
+        XCTAssertFalse(peers[2].castVote(.mix))
     }
 }

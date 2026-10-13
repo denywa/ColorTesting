@@ -84,10 +84,6 @@ enum LocalGameAction: Codable {
     case startRound
     case addColor(slot: ColorSlot, observedColorID: UUID, assignmentEpoch: Int)
     case vote(action: LocalVoteAction, votingID: UUID)
-    // shortcut: Local callers retain direct phase actions until coordinator task 9.2; codec rejects them.
-    case mix
-    case redo
-    case finish
     case newRound
 }
 

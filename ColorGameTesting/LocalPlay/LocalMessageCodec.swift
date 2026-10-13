@@ -55,11 +55,6 @@ struct LocalMessageCodec {
         switch message {
         case .snapshot(let snapshot) where snapshot.protocolVersion != LocalPlayProtocol.version:
             throw LocalPlayError.versionMismatch
-        case .input(let input):
-            switch input.action {
-            case .mix, .redo, .finish: throw LocalPlayError.invalidMessage
-            default: break
-            }
         default:
             break
         }

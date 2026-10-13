@@ -265,7 +265,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Boundary: LocalPlayCoordinator vote acceptance_
   - _Depends: 7.1, 8.1_
   - _Requirements: 8.1, 8.2, 8.3, 8.8_
-- [ ] 9.2 Jalankan keputusan saat dua pilihan cocok
+- [x] 9.2 Jalankan keputusan saat dua pilihan cocok
   - Setelah setiap vote sah, jalankan tindakan tepat saat dua dari tiga pilihan cocok; bila dua pertama berbeda, biarkan vote ketiga menentukan mayoritas.
   - Jalankan tindakan tunggal melalui eligibility/transisi GameViewModel terhadap seluruh unit yang sudah diterima host; jangan menunggu vote ketiga setelah mayoritas.
   - Ganti/kosongkan ballot sebelum notifikasi snapshot hasil; pertahankan deduplikasi actionID sepanjang ronde dan tolak vote tertunda dari votingID sebelumnya, termasuk Auto Redo pada fase/roundID yang sama.
