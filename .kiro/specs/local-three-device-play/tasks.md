@@ -298,7 +298,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Boundary: SettingsView, GameView, ResultView, ScoreView, ContentView_
   - _Depends: 9.2, 9.3, 9.4_
   - _Requirements: 1.1, 1.4, 2.1, 2.4, 3.1, 3.2, 3.5, 5.1, 5.3, 5.6, 7.1, 7.2, 8.3_
-- [ ] 10.2 Jalankan tes protokol, mapper, coordinator, layar dan build platform
+- [x] 10.2 Jalankan tes protokol, mapper, coordinator, layar dan build platform
   - Uji Codable/framing/v1-v2 rejection, state mapper, vote duplicate/replacement/stale ID, host/client consensus, continued input, latest bowl, reconnect dan mode transitions.
   - Jalankan suite macOS dan build iOS; selesaikan kegagalan regresi pada test targets yang terdampak.
   - Selesai ketika tes flow/component yang relevan lulus dan target macOS serta iOS berhasil dibangun.
@@ -314,6 +314,9 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Requirements: 1.2, 1.3, 1.6, 1.7, 1.8, 2.2, 3.6, 3.7, 4.2, 4.4, 5.2, 5.4, 5.8, 6.1, 6.2, 6.3, 6.4, 6.5, 6.8, 6.9, 7.4, 8.4, 8.5, 8.6, 8.7_
 
 ## Implementation Notes
+
+- Validasi Playtesting Part II pada 13 Oktober 2026: tugas 7.1–10.2 selesai dengan review independen; suite macOS terbaru lulus 185/185 tanpa kegagalan atau skip, build iOS berhasil, dan plist kedua artefak memuat layanan Bonjour serta alasan izin jaringan lokal. Build iPhone Simulator terbaru berhasil dibuka sampai pilihan mode. Tugas 10.3 tetap menunggu laporan uji tiga perangkat fisik untuk versi voting ini; laporan baseline 6.5 tidak membuktikan fitur baru.
+- Perbaikan tombol jaringan pada 10.1: Apply/Redo memakai canVote dan castVote untuk seluruh peran; pilihan final menonaktifkan tindakan pada ballot yang sama, sedangkan input warna tetap aktif selama sesi tidak pause. Bukti otomatis tidak menggantikan uji sentuh perangkat fisik.
 
 - Validasi akhir 12 Oktober 2026: semua 32 subtugas selesai dan 40 kriteria penerimaan terpetakan; suite macOS terbaru lulus 139/139 tanpa kegagalan atau skip, build iOS berhasil, dan plist kedua hasil build memuat izin jaringan lokal serta layanan Bonjour `_colorgame._tcp`. Alur hidup aplikasi pada perangkat fisik didukung oleh laporan uji pengguna di bawah. Pemeriksaan kontrak koordinator–transport–mapper–UI dan batas arsitektur tidak menemukan penghalang integrasi.
 - Laporan uji manual pengguna untuk 6.5 pada 12 Oktober 2026: setidaknya tiga perangkat Apple fisik berada pada Wi-Fi yang sama; perangkat keempat ditolak saat sesi penuh. Pengguna melaporkan pembuatan dan penggabungan sesi, sinkronisasi campuran warna, pemutusan dan penyambungan kembali, serta fitur lain berfungsi. Bukti perangkat fisik berasal dari laporan pengguna, bukan pengamatan langsung agen.
