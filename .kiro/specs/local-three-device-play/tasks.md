@@ -232,6 +232,87 @@
   - _Depends: 6.4_
   - _Requirements: 1.2, 1.3, 1.6, 1.8, 4.1, 5.2, 6.1, 6.3, 6.4, 7.4_
 
+
+Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riwayat. Tugas baru berikut menambahkan mode, warna live, dan voting. Selesaikan round-flow terlebih dahulu, lalu verifikasi handoff Auto di `color-mixing-and-scoring` 6 sebelum mengubah protokol sesi.
+
+- [ ] 7. Tambahkan mode campur dan ballot ke kontrak pesan versi 2
+- [ ] 7.1 Kirim mode RYB, warna Auto, dan keadaan suara
+  - Naikkan versi protokol menjadi 2; tambahkan mode domain, warna live host, ballot dengan ID unik dan daftar pilihan bertipe.
+  - Jadikan Mix/Finish/Apply/Redo pilihan suara di payload aksi; pertahankan ID sesi, ronde, aksi, dan bentuk Hello/Reject untuk penolakan versi melalui handshake.
+  - Snapshot Settings/Manual/Auto/Score membawa state yang sesuai dan tetap dapat dibaca sebagai JSON dengan framing yang sama.
+  - Selesai ketika round-trip Codable dan codec mengangkut pesan suara/snapshot baru serta menolak build versi berbeda sebelum pertukaran snapshot.
+  - _Boundary: LocalPlayModels, LocalMessageCodec, LocalPlayProtocol_
+  - _Depends: round-flow-and-input 5.1, 5.2, 6.1, 6.2, 7.1, 7.2; color-mixing-and-scoring 6_
+  - _Requirements: 2.2, 3.7, 5.2, 5.4, 5.7, 6.3, 6.8, 8.1, 8.3_
+
+- [ ] 8. Validasi mode ronde, assignment, warna live dan ballot snapshot
+- [ ] 8.1 Tolak snapshot yang melanggar invarian mode atau suara
+  - Map mode dan warna live host ke state cermin klien tanpa menjalankan mixer atau scorer pada klien.
+  - Validasi hanya RYB, tiga pasangan unik yang masing-masing berisi warna berbeda, cakupan lima warna/satu duplikasi lintas pemain, nilai warna/skor, batas count, fase, lock, dan currentBlend.
+  - Validasi ID ballot, satu suara per kursi yang dikenal, aksi yang eligible, maksimal dua suara tertunda tanpa mayoritas, dan records yang boleh bertahan ketika kursi disconnected selama pause.
+  - Terapkan snapshot lengkap hanya setelah seluruh validasi lolos; snapshot invalid/parsial tidak mengubah view model atau voting klien.
+  - Selesai ketika pengujian mapper menerima setiap state Manual/Auto valid dan menolak fixtures invalid tanpa mutasi parsial.
+  - _Boundary: LocalGameSnapshotMapper_
+  - _Depends: 7.1_
+  - _Requirements: 2.2, 2.3, 2.5, 2.6, 2.7, 3.1, 3.7, 4.2, 5.2, 5.4, 5.7, 6.3, 6.4, 6.8, 8.3, 8.8_
+
+- [ ] 9. Terapkan penerimaan, konsensus, dan siklus ballot
+- [ ] 9.1 Catat satu pilihan final dari kursi yang sah
+  - Arahkan vote host dan peer ke validasi penerimaan yang sama pada MainActor; identifikasi pemain peer dari kursi koneksi, bukan klaim payload.
+  - Wajibkan sessionID, roundID, votingID, actionID baru, tiga kursi connected, sesi tidak pause, dan tindakan yang eligible pada mode/fase saat ini.
+  - Simpan maksimum satu pilihan per kursi; tolak vote kedua, pengganti, stale, invalid dan duplikat tanpa mengganti record sah.
+  - Selesai ketika snapshot memuat pilihan final yang tertunda beserta kursi/tindakannya dan acceptance tests membuktikan satu kursi tidak dapat mengubah suaranya.
+  - _Boundary: LocalPlayCoordinator vote acceptance_
+  - _Depends: 7.1, 8.1_
+  - _Requirements: 8.1, 8.2, 8.3, 8.8_
+- [ ] 9.2 Jalankan keputusan saat dua pilihan cocok
+  - Setelah setiap vote sah, jalankan tindakan tepat saat dua dari tiga pilihan cocok; bila dua pertama berbeda, biarkan vote ketiga menentukan mayoritas.
+  - Jalankan tindakan tunggal melalui eligibility/transisi GameViewModel terhadap seluruh unit yang sudah diterima host; jangan menunggu vote ketiga setelah mayoritas.
+  - Ganti/kosongkan ballot sebelum notifikasi snapshot hasil; pertahankan deduplikasi actionID sepanjang ronde dan tolak vote tertunda dari votingID sebelumnya, termasuk Auto Redo pada fase/roundID yang sama.
+  - New Round/settings/end-session tetap host-only; Mix/Finish/Apply/Redo tetap vote.
+  - Selesai ketika coordinator tests membuktikan dua cocok satu eksekusi, mayoritas setelah dua suara berbeda, tidak ada aksi ganda, dan snapshot mengandung fase/warna/skor terbaru.
+  - _Boundary: LocalPlayCoordinator majority resolution and GameViewModel action integration_
+  - _Depends: 9.1_
+  - _Requirements: 2.1, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 8.4, 8.5, 8.9_
+- [ ] 9.3 Pertahankan input warna dan gunakan bowl terkini saat vote tertunda
+  - Jangan pause timer atau menutup input warna karena vote tertunda; jangan menghapus atau mengubah pilihan sah ketika unit baru diterima atau assignment berganti.
+  - Serialisasi warna dan vote yang hampir bersamaan pada host; mayoritas Apply/Mix memakai urutan unit yang benar-benar telah diterima host sebelum vote kedua.
+  - Selesai ketika tes input/vote deterministik menambahkan warna di antara dua vote dan hasil tindakan sama dengan blend/rasio dari unit terbaru.
+  - _Boundary: LocalPlayCoordinator input/vote ordering and GameViewModel accepted-color path_
+  - _Depends: 9.1, 9.2_
+  - _Requirements: 3.2, 3.3, 3.4, 3.5, 3.6, 4.1, 4.3, 4.4, 8.6, 8.7_
+- [ ] 9.4 Pulihkan ballot setelah jeda atau reconnect
+  - Tolak vote/input baru ketika sesi pause; pertahankan votingID dan semua suara sah selama koneksi hilang.
+  - Kirim snapshot penuh berisi ballot dan ronde setelah perangkat dengan token kursi yang sama kembali, lalu lanjutkan timer/input setelah pengiriman berhasil.
+  - Selesai ketika transport palsu membuktikan records dipulihkan sebelum resume dan reconnect tidak mengeksekusi keputusan.
+  - _Boundary: LocalPlayCoordinator reconnect and LocalNetworkTransport integration_
+  - _Depends: 9.1, 9.2_
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.8, 6.9_
+
+- [ ] 10. Hubungkan suara ke layar dan validasi sesi lintas perangkat
+- [ ] 10.1 Tampilkan tindakan yang sesuai kursi dan mode
+  - Beri semua kursi tombol Mix saat Manual playing, Finish/Redo saat Manual result, dan Apply/Redo saat Auto playing; pilihan satu kursi final ditampilkan sebagai pending dan dinonaktifkan untuk ballot yang sama.
+  - Tetap aktifkan input warna yang sah saat vote tertunda; status menunjukkan siapa memilih tindakan apa dan bahwa dua suara sama menjalankan aksi.
+  - Pertahankan pengaturan/Start/New Round/End host-only, satu skor kelompok, status pause/retry, label aksesibel, dan solo langsung tanpa vote.
+  - Selesai ketika rendering/action tests menunjukkan hak tiap role, status suara yang sama dari snapshot, warna tetap dapat ditambahkan, dan solo masih bertindak langsung.
+  - _Boundary: SettingsView, GameView, ResultView, ScoreView, ContentView_
+  - _Depends: 9.2, 9.3, 9.4_
+  - _Requirements: 1.1, 1.4, 2.1, 2.4, 3.1, 3.2, 3.5, 5.1, 5.3, 5.6, 7.1, 7.2, 8.3_
+- [ ] 10.2 Jalankan tes protokol, mapper, coordinator, layar dan build platform
+  - Uji Codable/framing/v1-v2 rejection, state mapper, vote duplicate/replacement/stale ID, host/client consensus, continued input, latest bowl, reconnect dan mode transitions.
+  - Jalankan suite macOS dan build iOS; selesaikan kegagalan regresi pada test targets yang terdampak.
+  - Selesai ketika tes flow/component yang relevan lulus dan target macOS serta iOS berhasil dibangun.
+  - _Boundary: LocalMessageCodecTests, LocalGameSnapshotMapperTests, LocalPlayCoordinatorTests, LocalPlayInputIntegrationTests, local-play UI tests and Xcode build integration_
+  - _Depends: 7.1, 8.1, 9.1, 9.2, 9.3, 9.4, 10.1_
+  - _Requirements: 1.3, 1.5, 2.2, 2.5, 3.3, 3.4, 3.6, 3.7, 4.2, 4.4, 5.2, 5.4, 5.7, 5.8, 5.9, 5.10, 5.11, 6.3, 6.4, 6.6, 6.7, 6.8, 7.1, 7.3, 8.1, 8.2, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9_
+- [ ] 10.3 Verifikasi jaringan lokal teknis pada tiga perangkat
+  - Gunakan dua perangkat klien dan satu host pada Wi-Fi sama untuk uji penemuan/kursi, kontribusi serentak, vote dua pemain, Auto live color/Apply/Redo, dan penolakan build versi berbeda.
+  - Putuskan lalu pulihkan salah satu peer; periksa pause, ballot, warna/result/score, kursi dan countdown yang sama setelah reconnect.
+  - Selesai ketika satu ronde Manual dan Auto tersinkron pada tiga perangkat nyata, vote lama tidak dijalankan, dan kursi pulih sesuai kontrak.
+  - _Boundary: LocalNetworkTransport, LocalPlayCoordinator and end-to-end session integration_
+  - _Depends: 10.2_
+  - _Requirements: 1.2, 1.3, 1.6, 1.7, 1.8, 2.2, 3.6, 3.7, 4.2, 4.4, 5.2, 5.4, 5.8, 6.1, 6.2, 6.3, 6.4, 6.5, 6.8, 6.9, 7.4, 8.4, 8.5, 8.6, 8.7_
+
 ## Implementation Notes
 
 - Validasi akhir 12 Oktober 2026: semua 32 subtugas selesai dan 40 kriteria penerimaan terpetakan; suite macOS terbaru lulus 139/139 tanpa kegagalan atau skip, build iOS berhasil, dan plist kedua hasil build memuat izin jaringan lokal serta layanan Bonjour `_colorgame._tcp`. Alur hidup aplikasi pada perangkat fisik didukung oleh laporan uji pengguna di bawah. Pemeriksaan kontrak koordinator–transport–mapper–UI dan batas arsitektur tidak menemukan penghalang integrasi.
@@ -257,3 +338,4 @@
 - ResultView menampilkan hasil dan rincian campuran saat jeda, menyembunyikan Redo/Finish dari klien, serta mengirim tindakan host melalui koordinator.
 - ScoreView memakai satu nilai skor dari GameViewModel, menyembunyikan New Round pada klien, dan mengirim tindakan host melalui koordinator setelah jeda berakhir.
 - ContentView mempertahankan satu GameViewModel/koordinator, membuka pilihan mode saat awal atau setelah sesi lokal berakhir, dan merutekan lobi host/tamu serta layar fase melalui koordinator.
+- Verifikasi snapshot membandingkan jumlah per UUID, rasio, dan urutan kemunculan pertama; array unit berulang tidak mempertahankan urutan kejadian host setelah kompresi. Fixture A,A,B menjaga regresi ini.
