@@ -256,7 +256,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Depends: 7.1_
   - _Requirements: 2.2, 2.3, 2.5, 2.6, 2.7, 3.1, 3.7, 4.2, 5.2, 5.4, 5.7, 6.3, 6.4, 6.8, 8.3, 8.8_
 
-- [ ] 9. Terapkan penerimaan, konsensus, dan siklus ballot
+- [x] 9. Terapkan penerimaan, konsensus, dan siklus ballot
 - [x] 9.1 Catat satu pilihan final dari kursi yang sah
   - Arahkan vote host dan peer ke validasi penerimaan yang sama pada MainActor; identifikasi pemain peer dari kursi koneksi, bukan klaim payload.
   - Wajibkan sessionID, roundID, votingID, actionID baru, tiga kursi connected, sesi tidak pause, dan tindakan yang eligible pada mode/fase saat ini.
@@ -281,7 +281,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Boundary: LocalPlayCoordinator input/vote ordering and GameViewModel accepted-color path_
   - _Depends: 9.1, 9.2_
   - _Requirements: 3.2, 3.3, 3.4, 3.5, 3.6, 4.1, 4.3, 4.4, 8.6, 8.7_
-- [ ] 9.4 Pulihkan ballot setelah jeda atau reconnect
+- [x] 9.4 Pulihkan ballot setelah jeda atau reconnect
   - Tolak vote/input baru ketika sesi pause; pertahankan votingID dan semua suara sah selama koneksi hilang.
   - Kirim snapshot penuh berisi ballot dan ronde setelah perangkat dengan token kursi yang sama kembali, lalu lanjutkan timer/input setelah pengiriman berhasil.
   - Selesai ketika transport palsu membuktikan records dipulihkan sebelum resume dan reconnect tidak mengeksekusi keputusan.
