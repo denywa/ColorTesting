@@ -1,0 +1,181 @@
+# Implementation Plan
+
+Execution prerequisite: Complete the Playtesting Part II updates in `color-mixing-and-scoring`, `round-flow-and-input`, and `local-three-device-play` before implementing UI tasks that consume Manual/Auto mode, live blend, action eligibility, or per-player vote progress. If those typed contracts are absent, stop the dependent UI work and complete the owning spec; do not recreate game or vote rules in views.
+
+- [ ] 1. Establish iPhone presentation foundations
+- [ ] 1.1 Verify the upstream game and vote contracts
+  - Check the three owning specs and their implementation for typed Manual/Auto mix mode, current Auto blend, action eligibility, per-player vote progress, and pause/seat state exposed to the views.
+  - Run the available compile or focused model checks against those contracts before starting dependent UI tasks.
+  - This gate passes only when the named contracts exist and the checks succeed; otherwise record the missing contract and complete its owning spec before proceeding.
+  - _Boundary: GameViewModel and LocalPlayCoordinator contract gate_
+  - _Requirements: 2.2, 5.1, 6.3, 6.6_
+  - _Blocked: The approved upstream specs still lack Playtesting Part II contracts for Manual/Auto mode, live blend, action eligibility, and per-player vote progress. Update and review the owning specs, implement those contracts, then rerun this gate._
+- [ ] 1.2 Configure the iOS app for iPhone landscape
+  - Limit both iOS build configurations to iPhone devices and declare both landscape orientations.
+  - Preserve the local-network permission information and leave the macOS target configuration intact.
+  - The iOS target metadata identifies iPhone only and advertises landscape left and right, with no iPad device family.
+  - _Boundary: iOS target configuration_
+  - _Requirements: 3.1, 3.2_
+- [ ] 1.3 Define shared visual roles for the redesigned screens
+  - Provide consistent heading, primary and secondary action, status, player-role, and spacing treatments using the existing UI framework.
+  - Keep text treatments scalable for supported larger text settings.
+  - Keep the shared style limited to presentation so screens retain their own state and actions.
+  - The same visual roles can be applied to mode selection, setup, lobby, gameplay, result, and score without duplicating style decisions.
+  - _Boundary: PlaytestStyle_
+  - _Requirements: 1.2, 1.3, 7.6_
+- [ ] 1.4 Apply the shared screen hierarchy to phase routing
+  - Keep the existing mode and phase routing while placing the shared heading and action hierarchy around each routed screen.
+  - Preserve the distinction between direct one-device actions and three-device session controls.
+  - Moving between phases visibly changes the heading and available controls without losing the current game state.
+  - _Boundary: ContentView_
+  - _Depends: 1.3_
+  - _Requirements: 1.1, 1.2, 1.4, 1.5_
+
+- [ ] 2. Redesign setup and lobby screens
+- [ ] 2.1 (P) Clarify the play-mode choice
+  - Show one-device and three-device choices with the shared heading and action styles.
+  - Keep both choices distinct by name and visible selection affordance.
+  - A player can identify and activate either mode without relying on color alone.
+  - _Boundary: ModeSelectionView_
+  - _Depends: 1.4_
+  - _Requirements: 1.1, 1.3, 2.1, 7.6_
+- [ ] 2.2 (P) Present round settings and custom-request entry in landscape
+  - Make the selected mix mode, request, reassignment duration, and target-hint state visible before Start Round.
+  - Expose the selected mix mode as an accessibility value that updates when the choice changes.
+  - Keep custom-request fields, validation feedback, preview, Add, and Cancel readable in iPhone landscape.
+  - Setup remains usable on a small iPhone and macOS without changing request validation or storage behavior.
+  - _Boundary: SettingsView_
+  - _Depends: 1.1, 1.4_
+  - _Requirements: 1.1, 1.3, 2.2, 2.3, 2.4, 3.2, 7.4_
+- [ ] 2.3 (P) Clarify seats, connection state, and recovery in the lobby
+  - Show the local role and the status of all three seats with a clear waiting or error message.
+  - Expose each seat's current connection state to assistive technology and update it when a seat changes state.
+  - Keep the available retry, join, leave, or end action visible when a session changes state.
+  - The player can tell which seat is missing or disconnected and what action is available next.
+  - _Boundary: LocalLobbyView_
+  - _Depends: 1.4_
+  - _Requirements: 1.1, 1.3, 2.5, 2.6, 6.5, 7.4_
+
+- [ ] 3. Build the gameplay presentation
+- [ ] 3.1 (P) Preserve the Manual Mix ratio bowl
+  - Keep the current ingredient-proportion display for Manual Mix and make its accessible value describe the visible composition.
+  - Preserve the no-units state so the bowl does not imply a finished color before input.
+  - The Manual bowl shows the accepted mix composition and can be understood without sight alone.
+  - _Boundary: ColorBarView_
+  - _Depends: 1.3_
+  - _Requirements: 4.1, 7.2_
+- [ ] 3.2 (P) Arrange the three-device iPhone play area
+  - Place the request at upper left, bowl centrally, and only the local player's two color controls at the lower corners.
+  - Keep role, countdown, and primary action visible within safe areas on short and wide iPhone landscape sizes.
+  - Expose the current countdown and role through accessibility values that update as the shared state changes.
+  - The local player can reach both assigned colors without overlap, each control visibly and accessibly names its player and color, and the other players' controls are absent.
+  - _Boundary: GameView_
+  - _Depends: 1.2, 1.3_
+  - _Requirements: 3.3, 3.4, 3.5, 3.6, 7.1, 7.4_
+- [ ] 3.3 Preserve one-device and macOS input layouts
+  - Keep both assigned colors for all three players available in one-device play, with visible player/color text and accessible control names.
+  - Retain visible macOS keyboard assignments; show the target swatch beside its request only when the hint is enabled, with an accessible name identifying its color.
+  - All six one-device controls remain identifiable and usable, and hidden target color is not exposed visually or to assistive technology.
+  - _Boundary: GameView_
+  - _Depends: 3.2_
+  - _Requirements: 3.7, 7.1, 7.5, 7.7, 7.8_
+- [ ] 3.4 Present the Manual Mix gameplay action
+  - Keep Mix visible below the iPhone bowl and use upstream eligibility to disable it when unavailable.
+  - Preserve the ingredient-composition bowl during Manual play and forward Mix through the existing action route.
+  - The iPhone Mix action sits below the bowl and becomes unavailable when the shared mix is empty or play is paused.
+  - _Boundary: GameView_
+  - _Depends: 1.1, 3.1, 3.2_
+  - _Requirements: 1.5, 4.1, 4.2_
+- [ ] 3.5 Present the Auto Mix bowl and direct gameplay actions
+  - Use the upstream computed blend for each accepted contribution and show an empty bowl before input; announce the empty state or current blended color through the bowl's accessible name.
+  - Remove the ratio pie and Mix action in Auto Mix; show Apply and Redo beside the live gameplay bowl.
+  - An accepted tap visibly changes the blended bowl; eligible Apply and Redo controls forward the selected action through the existing route, and Redo visibly clears the bowl after the upstream state updates.
+  - _Boundary: GameView_
+  - _Depends: 1.1, 3.3, 3.4_
+  - _Requirements: 1.5, 5.1, 5.2, 5.3, 5.4, 5.5, 7.2_
+
+- [ ] 4. Present votes, results, and score
+- [ ] 4.1 Create the per-player vote display
+  - Render the selected action or waiting state for each of the three roles from the upstream vote-progress value.
+  - Give pending agreement and each role an accessible text label without counting or changing votes in the view.
+  - A pending action shows all three role statuses consistently on any connected device.
+  - _Boundary: VoteStatusView_
+  - _Depends: 1.1, 1.3_
+  - _Requirements: 6.2, 6.3, 6.4, 7.4_
+- [ ] 4.2 Connect gameplay vote controls and pause feedback
+  - Offer eligible Mix, Apply, or Redo votes to every player in three-device play and show the shared pending status.
+  - Disable play and vote controls while disconnected, and keep one-device actions direct with no vote display.
+  - Each device can submit its own eligible vote; a pause identifies the disconnected player without showing a completed action early.
+  - _Boundary: GameView_
+  - _Depends: 3.5, 4.1_
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
+- [ ] 4.3 (P) Present Manual result voting and comparison actions
+  - Show ingredient proportions and an accessibly named result color; keep Redo and Finish visible but disabled when upstream state disallows them.
+  - In three-device play, show each pending result-phase vote and disable actions during a connection pause.
+  - One-device Redo and Finish forward direct actions; in three-device play the result forwards votes and reflects the upstream pending or completed state without routing the next phase itself.
+  - _Boundary: ResultView_
+  - _Depends: 3.4, 4.1_
+  - _Requirements: 4.3, 4.4, 4.5, 6.1, 6.2, 6.3, 6.4, 6.6, 6.7, 7.3_
+- [ ] 4.4 (P) Refine the score comparison and next-round action
+  - Show the result and target side by side with the match score and a clearly ranked New Round action.
+  - Keep both swatches accessible and preserve the existing local-session authority for starting another round.
+  - The comparison and available next action remain readable on iPhone landscape and macOS.
+  - _Boundary: ScoreView_
+  - _Depends: 1.3_
+  - _Requirements: 1.1, 1.2, 1.6, 4.5, 5.4, 7.3_
+
+- [ ] 5. Integrate and validate the complete flow
+- [ ] 5.1 Wire screen state and actions across both mix modes
+  - Connect the completed setup, gameplay, result, vote, and score presentations through the existing phase routing.
+  - Use only the upstream mix mode, computed blend, valid-action, and vote-progress contracts; keep rules and vote counting out of views.
+  - Manual and Auto rounds each reach the correct comparison, and a new round returns to setup in both play modes.
+  - _Boundary: ContentView, GameView, ResultView, ScoreView_
+  - _Depends: 2.2, 3.5, 4.2, 4.3, 4.4_
+  - _Requirements: 1.4, 1.5, 1.6, 2.2, 4.5, 5.4, 6.1, 6.7_
+- [ ] 5.2 (P) Verify phase routing and mode selection
+  - Extend ContentView and ModeSelectionView tests for phase headings, primary actions, and distinct one-device and three-device choices.
+  - Check that phase changes update visible controls and unavailable actions remain disabled.
+  - The routing and mode tests fail if a screen loses its heading, primary action, or play-mode identity.
+  - _Boundary: ContentView and ModeSelectionView tests_
+  - _Depends: 5.1_
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1_
+- [ ] 5.3 (P) Verify setup and lobby presentations
+  - Extend SettingsView tests for mix-mode selection, request, duration, target hint, and the landscape custom-request form.
+  - Extend LocalLobbyView tests for role, all seat states, waiting or connection errors, and recovery actions.
+  - Check accessible mix-mode and per-seat connection values after state changes.
+  - The setup and lobby tests fail if a required setting, seat, error reason, or available next action is missing.
+  - _Boundary: SettingsView and LocalLobbyView tests_
+  - _Depends: 5.1_
+  - _Requirements: 1.1, 1.3, 2.2, 2.3, 2.4, 2.5, 2.6, 7.4_
+- [ ] 5.4 (P) Verify gameplay and color-accessibility states
+  - Extend GameView and ColorBarView tests for Manual ratios, the Auto live bowl, local-player controls, and one-device controls.
+  - Check bowl and color-control names, updated countdown values, target-hint secrecy, action eligibility, and macOS keyboard labels in rendered or inspected views.
+  - The gameplay tests fail if Auto shows a ratio pie, a hidden target color leaks, or an assigned control loses its player and color label.
+  - _Boundary: GameView and ColorBarView tests_
+  - _Depends: 5.1_
+  - _Requirements: 3.3, 3.4, 3.5, 3.7, 4.1, 4.2, 5.1, 5.2, 5.3, 5.5, 7.1, 7.2, 7.4, 7.5, 7.7, 7.8_
+- [ ] 5.5 (P) Verify vote and Manual result presentations
+  - Extend VoteStatusView and ResultView tests for per-role pending votes, pause feedback, ingredient proportions, and the resulting color.
+  - Check direct one-device result actions, three-device vote controls, and accessible result-color naming.
+  - The tests fail if a vote appears complete early, a disconnected player is unidentified, or the Manual result omits Redo or Finish.
+  - _Boundary: VoteStatusView and ResultView tests_
+  - _Depends: 5.1_
+  - _Requirements: 4.3, 4.4, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 7.3, 7.4_
+- [ ] 5.6 (P) Verify score comparison and next-round presentation
+  - Extend ScoreView tests for visible result and target colors, match score, and the ranked New Round action.
+  - Check accessible names for both comparison swatches and local-session authority for starting another round.
+  - The score tests fail if either color, the match score, or the available New Round action disappears.
+  - _Boundary: ScoreView tests_
+  - _Depends: 5.1_
+  - _Requirements: 1.6, 4.5, 5.4, 7.3_
+- [ ] 5.7 Validate iPhone landscape and macOS interaction
+  - Use a full Xcode toolchain to inspect built iPhone-only orientation metadata and run the macOS scheme's available XCTest checks.
+  - Exercise small and large iPhone landscape layouts in the simulator or on a device through setup, both mix modes, votes, pause, result, and score with larger text and VoiceOver; verify VoiceOver receives changed mix mode, countdown, seat connection, and vote status, noting the iOS scheme has no XCTest action.
+  - The built metadata, macOS tests, and representative iPhone paths pass; if full Xcode is unavailable, leave this task open and report the blocker.
+  - _Boundary: Cross-screen build and interaction validation_
+  - _Depends: 5.2, 5.3, 5.4, 5.5, 5.6_
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8_
+
+## Implementation Notes
+
+- Task 1.1: The existing `GameViewModel` and `LocalPlayCoordinator` lack the Playtesting Part II contracts expected by this UI design; complete `color-mixing-and-scoring`, `round-flow-and-input`, and `local-three-device-play` updates before wiring mode or vote UI. The focused macOS Xcode test attempt also exited 133 because the Observation macro plugin could not run under the current sandbox.

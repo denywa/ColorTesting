@@ -22,6 +22,7 @@ final class SettingsViewLocalPlayTests: XCTestCase {
     }
 
     private func texts(in value: Any) -> [String] {
+        if let heading = value as? PlaytestHeading { return texts(in: heading.body) }
         if let text = value as? Text { return [String(describing: text)] }
         return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
     }
@@ -36,7 +37,7 @@ final class SettingsViewLocalPlayTests: XCTestCase {
     private func startButton(in view: SettingsView) throws -> Button<Text> {
         try XCTUnwrap(buttons(in: view.body).first {
             String(describing: Mirror(reflecting: $0).children.first { $0.label == "label" }!.value)
-                .contains("Start Round")
+                .contains("Start Run")
         })
     }
 
@@ -94,7 +95,7 @@ final class SettingsViewLocalPlayTests: XCTestCase {
     func testSoloSettingsExposeFixedRYBAndBothMixModes() {
         let model = GameViewModel()
         let labels = texts(in: SettingsView(viewModel: model).body)
-        for label in ["Palette: RYB", "Manual Mix", "Auto Mix", "Random", "15s", "30s", "45s", "60s", "90s", "Show Target Color Hint"] {
+        for label in ["Palette: RYB", "Manual Mix", "Auto Mix", "Request Library", "15s", "30s", "45s", "60s", "90s", "Show Target Color Hint"] {
             XCTAssertTrue(labels.contains { $0.contains(label) }, "Missing \(label)")
         }
         XCTAssertFalse(labels.contains { $0.contains("CMYK") })

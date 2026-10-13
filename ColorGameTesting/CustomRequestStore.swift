@@ -33,24 +33,36 @@ struct CustomRequestStore {
         let id: UUID
         let text: String
         let hex: String
+        let difficulty: Int?
     }
 
     private static let storageKey = "customColorRequests.v1"
+    private static let deletedBuiltInsKey = "deletedBuiltInColorRequests.v1"
     let defaults: UserDefaults
+
+    func loadDeletedBuiltIns() -> Set<UUID> {
+        Set((defaults.stringArray(forKey: Self.deletedBuiltInsKey) ?? []).compactMap(UUID.init(uuidString:)))
+    }
+
+    func saveDeletedBuiltIns(_ ids: Set<UUID>) {
+        defaults.set(ids.map(\.uuidString).sorted(), forKey: Self.deletedBuiltInsKey)
+    }
 
     func load() -> [ColorRequest] {
         guard let data = defaults.data(forKey: Self.storageKey),
               let records = try? JSONDecoder().decode([Record].self, from: data) else { return [] }
         return records.compactMap { record in
             guard !record.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  let color = ColorHex.sRGB(record.hex) else { return nil }
-            return ColorRequest(id: record.id, text: record.text, targetSRGB: color)
+                  let color = ColorHex.sRGB(record.hex),
+                  let difficulty = RequestDifficulty(rawValue: record.difficulty ?? 1) else { return nil }
+            return ColorRequest(id: record.id, text: record.text, targetSRGB: color, difficulty: difficulty)
         }
     }
 
     func save(_ requests: [ColorRequest]) -> Bool {
         let records = requests.map {
-            Record(id: $0.id, text: $0.text, hex: ColorHex.string(from: $0.targetSRGB))
+            Record(id: $0.id, text: $0.text, hex: ColorHex.string(from: $0.targetSRGB),
+                   difficulty: $0.difficulty.rawValue)
         }
         guard let data = try? JSONEncoder().encode(records) else { return false }
         defaults.set(data, forKey: Self.storageKey)

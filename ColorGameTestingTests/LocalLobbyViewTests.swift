@@ -36,6 +36,7 @@ final class LocalLobbyViewTests: XCTestCase {
     }
 
     private func texts(in value: Any) -> [String] {
+        if let heading = value as? PlaytestHeading { return texts(in: heading.body) }
         if let text = value as? Text { return [String(describing: text)] }
         return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
     }
@@ -81,10 +82,10 @@ final class LocalLobbyViewTests: XCTestCase {
         let (coordinator, _) = makeLobby()
         try coordinator.startHosting()
         let initial = texts(in: LocalLobbyView(coordinator: coordinator).body)
-        XCTAssertTrue(initial.contains { $0.contains("Your role: Player 1 (Host)") })
-        XCTAssertTrue(initial.contains { $0.contains("Player 1 (Host): Connected") })
-        XCTAssertTrue(initial.contains { $0.contains("Player 2: Waiting") })
-        XCTAssertTrue(initial.contains { $0.contains("Player 3: Waiting") })
+        XCTAssertFalse(initial.contains { $0.contains("Your role:") })
+        XCTAssertEqual(LocalLobbyView(coordinator: coordinator).status(for: .host), .connected)
+        XCTAssertEqual(LocalLobbyView(coordinator: coordinator).status(for: .player2), .waiting)
+        XCTAssertEqual(LocalLobbyView(coordinator: coordinator).status(for: .player3), .waiting)
         XCTAssertTrue(buttons(in: LocalLobbyView(coordinator: coordinator).body).contains { label(of: $0).contains("End Session") })
 
         let peer = PeerHandle(id: UUID())
@@ -94,7 +95,7 @@ final class LocalLobbyViewTests: XCTestCase {
                                                    reconnectToken: nil)), from: peer))
         coordinator.handle(.disconnected(peer))
         let waiting = texts(in: LocalLobbyView(coordinator: coordinator).body)
-        XCTAssertTrue(waiting.contains { $0.contains("Player 2: Disconnected") })
+        XCTAssertEqual(LocalLobbyView(coordinator: coordinator).status(for: .player2), .disconnected)
         XCTAssertTrue(waiting.contains { $0.contains("Waiting for Player 2") })
     }
 
@@ -172,10 +173,10 @@ final class LocalLobbyViewTests: XCTestCase {
 
         let guest = texts(in: LocalLobbyView(coordinator: coordinator).body)
         let guestButtons = buttons(in: LocalLobbyView(coordinator: coordinator).body).map(label)
-        XCTAssertTrue(guest.contains { $0.contains("Your role: Player 2") })
-        XCTAssertTrue(guest.contains { $0.contains("Player 1 (Host): Connected") })
-        XCTAssertTrue(guest.contains { $0.contains("Player 2: Connected") })
-        XCTAssertTrue(guest.contains { $0.contains("Player 3: Waiting") })
+        XCTAssertFalse(guest.contains { $0.contains("Your role:") })
+        XCTAssertEqual(LocalLobbyView(coordinator: coordinator).status(for: .host), .connected)
+        XCTAssertEqual(LocalLobbyView(coordinator: coordinator).status(for: .player2), .connected)
+        XCTAssertEqual(LocalLobbyView(coordinator: coordinator).status(for: .player3), .waiting)
         XCTAssertTrue(guestButtons.contains { $0.contains("Leave Session") })
         XCTAssertFalse(guestButtons.contains { $0.contains("Create Session") })
         XCTAssertFalse(guestButtons.contains { $0.contains("End Session") })
@@ -184,7 +185,7 @@ final class LocalLobbyViewTests: XCTestCase {
 
         coordinator.handle(.disconnected(peer))
         let disconnected = texts(in: LocalLobbyView(coordinator: coordinator).body)
-        XCTAssertTrue(disconnected.contains { $0.contains("Player 1 (Host): Disconnected") })
+        XCTAssertEqual(LocalLobbyView(coordinator: coordinator).status(for: .host), .disconnected)
         XCTAssertTrue(disconnected.contains { $0.contains("Waiting for host") })
         press("Leave Session", in: buttons(in: LocalLobbyView(coordinator: coordinator).body))
         for _ in 0..<50 where coordinator.role != nil { await Task.yield() }

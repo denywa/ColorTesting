@@ -64,7 +64,7 @@ final class GameViewLocalPlayTests: XCTestCase {
             let view = GameView(viewModel: model, coordinator: coordinator)
             XCTAssertEqual(view.visiblePlayers, [role.playerID])
             XCTAssertNotNil(model.round?.assignments[role.playerID])
-            XCTAssertTrue(texts(in: view.body).contains { $0.contains("Your role: Player") })
+            XCTAssertFalse(texts(in: view.content(size: CGSize(width: 900, height: 500))).contains { $0.contains("Your role: Player") })
             if role != .host {
                 XCTAssertTrue(view.showsMixButton)
                 XCTAssertFalse(view.canMix)
@@ -91,7 +91,7 @@ final class GameViewLocalPlayTests: XCTestCase {
         coordinator.setPaused(true)
         XCTAssertTrue(view.inputsDisabled)
         XCTAssertFalse(view.canMix)
-        XCTAssertTrue(texts(in: view.body).contains { $0.contains("Paused") })
+        XCTAssertTrue(texts(in: view.content(size: CGSize(width: 900, height: 500))).contains { $0.contains("Paused") })
         model.addColor(player: .player1, slot: .primary)
         XCTAssertEqual(model.round?.mix.units.count, 1)
         view.mix()

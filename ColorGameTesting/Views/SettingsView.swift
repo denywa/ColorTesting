@@ -3,26 +3,35 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var viewModel: GameViewModel
     let coordinator: LocalPlayCoordinator?
+    var embedded = false
     @State private var showingAddRequest = false
 
-    init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil) {
+    init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil, embedded: Bool = false) {
         self.viewModel = viewModel
         self.coordinator = coordinator
+        self.embedded = embedded
     }
 
     var canStartRound: Bool {
-        coordinator?.canStartRound ?? viewModel.canConfirm
+        coordinator?.canStartRun ?? viewModel.canStartRun
     }
 
     var body: some View {
-        VStack(spacing: 20) {
+        Group {
+            if embedded { settingsContent }
+            else { ScrollView(.vertical) { settingsContent } }
+        }
+        .sheet(isPresented: $showingAddRequest) {
+            AddRequestView(viewModel: viewModel)
+        }
+    }
+    private var settingsContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if let coordinator, coordinator.role != .host {
                 Text("Waiting for the host to start the round")
                 Text("Players connected: \(coordinator.seatStatus.filter { $0.status == .connected }.count) of 3")
             } else {
-                Text("Color Mixing")
-                    .font(.largeTitle)
-                    .bold()
+                PlaytestHeading(title: "Color Mixing", subtitle: "Set the round. Make something together.")
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Palette: RYB")
@@ -35,30 +44,16 @@ struct SettingsView: View {
                         Text("Auto Mix").tag(MixMode.auto)
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityValue(viewModel.selectedMixMode == .manual ? "Manual Mix" : "Auto Mix")
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Choose a color request")
-                        .font(.headline)
-                    HStack {
-                        Picker("Color Request", selection: $viewModel.selectedRequestID) {
-                            Text("Random").tag(nil as UUID?)
-                            ForEach(viewModel.availableRequests) { request in
-                                Text(request.text).tag(request.id as UUID?)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                .playtestCard()
 
-                        Button {
-                            showingAddRequest = true
-                        } label: {
-                            Label("Add", systemImage: "plus")
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityLabel("Add color request")
-                    }
-                }
+                DisclosureGroup("Request Library") { requestLibrary }
+                    .font(.subheadline.bold())
+                    .playtestCard()
+
+                RunSettingsView(viewModel: viewModel)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Game Settings")
@@ -79,27 +74,71 @@ struct SettingsView: View {
                 
                     Toggle("Show Target Color Hint", isOn: $viewModel.showTargetColor)
                 }
-                .padding()
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+                .playtestCard()
 
-                Button("Start Round") {
+                if !viewModel.missingRequestLevels.isEmpty {
+                    Text("Add a request for \(viewModel.missingRequestLevels.map { "Level \($0.rawValue)" }.joined(separator: ", ")) before starting, or change the Day schedule.")
+                        .font(.caption).foregroundStyle(PlaytestStyle.accent)
+                }
+                Button("Start Run") {
                     if let coordinator {
-                        coordinator.perform(.startRound)
+                        coordinator.perform(.startRun)
                     } else {
-                        viewModel.confirmSettings()
+                        viewModel.startEndlessRun()
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PlaytestButtonStyle())
                 .disabled(!canStartRound)
             }
         }
         .padding()
-        .frame(maxWidth: 420)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $showingAddRequest) {
-            AddRequestView(viewModel: viewModel)
-        }
+        .frame(maxWidth: 720)
+        .frame(maxWidth: .infinity)
     }
+
+    private var requestLibrary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Difficulty Level", selection: $viewModel.selectedRequestLevel) {
+                ForEach(RequestDifficulty.allCases, id: \.self) { difficulty in
+                    Text(difficulty.title)
+                        .font(.caption)
+                        .tag(difficulty)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityValue(viewModel.selectedRequestLevel.title)
+            Text("\(viewModel.requestsForSelectedLevel.count) requests · Days use their configured levels")
+                .font(.caption).foregroundStyle(PlaytestStyle.muted)
+            DisclosureGroup("View requests in this level") {
+                ForEach(viewModel.requestsForSelectedLevel) { request in
+                    HStack(spacing: 12) {
+                        Text(request.text).font(.callout)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button(role: .destructive) {
+                            viewModel.deleteRequest(id: request.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                                .labelStyle(.iconOnly)
+                                .frame(minWidth: 44, minHeight: 44)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Delete request: \(request.text)")
+                    }
+                }
+            }
+            HStack {
+                Button {
+                    showingAddRequest = true
+                } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Add color request")
+            }
+        }
+
+    }
+
 }
 
 private struct AddRequestView: View {
@@ -107,6 +146,12 @@ private struct AddRequestView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var requestText = ""
     @State private var hex = ""
+    @State private var difficulty: RequestDifficulty
+
+    init(viewModel: GameViewModel) {
+        self.viewModel = viewModel
+        _difficulty = State(initialValue: viewModel.selectedRequestLevel)
+    }
 
     private var color: SIMD3<Double>? { ColorHex.sRGB(hex) }
     private var canAdd: Bool {
@@ -116,6 +161,12 @@ private struct AddRequestView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Picker("Difficulty Level", selection: $difficulty) {
+                    ForEach(RequestDifficulty.allCases, id: \.self) { level in
+                        Text(level.title).tag(level)
+                    }
+                }
+                .accessibilityValue(difficulty.title)
                 TextField("Request text", text: $requestText,
                           prompt: Text("e.g. Sunset red"))
                 TextField("Hex color", text: $hex, prompt: Text("#FF8C32"))
@@ -145,7 +196,7 @@ private struct AddRequestView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        if viewModel.addCustomRequest(text: requestText, hex: hex) {
+                        if viewModel.addCustomRequest(text: requestText, hex: hex, difficulty: difficulty) {
                             dismiss()
                         }
                     }
@@ -153,7 +204,10 @@ private struct AddRequestView: View {
                 }
             }
         }
-        .frame(minWidth: 320, minHeight: 280)
+        .tint(PlaytestStyle.accent)
+        #if os(macOS)
+        .frame(minWidth: 420, minHeight: 320)
+        #endif
     }
 }
 

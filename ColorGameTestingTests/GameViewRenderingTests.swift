@@ -36,7 +36,7 @@ final class GameViewRenderingTests: XCTestCase {
         viewModel.round = originalRound
         viewModel.timerSecondsRemaining = 12
         let changedTimer = try renderedPixels(of: viewModel)
-        XCTAssertNotEqual(initial, changedTimer, "The countdown must be visible")
+        XCTAssertEqual(initial, changedTimer, "The color reassignment countdown is intentionally hidden")
 
         viewModel.timerSecondsRemaining = viewModel.reassignmentDuration
         viewModel.round?.mix.units.removeAll()
@@ -95,10 +95,10 @@ final class GameViewRenderingTests: XCTestCase {
         let model = makeFixture(mode: .auto)
         model.round?.mix.units.removeAll()
         var view = GameView(viewModel: model)
-        XCTAssertFalse(containsChart(view.body))
+        XCTAssertFalse(containsChart(view.content(size: CGSize(width: 900, height: 500))))
         XCTAssertFalse(view.showsMixButton)
-        XCTAssertTrue(texts(in: view.body).contains { $0.contains("Add a color to start mixing") })
-        XCTAssertEqual(Set(buttons(in: view.body).map(buttonTitle)), ["Apply", "Redo"])
+        XCTAssertTrue(texts(in: view.content(size: CGSize(width: 900, height: 500))).contains { $0.contains("Add a color") })
+        XCTAssertEqual(Set(buttons(in: view.content(size: CGSize(width: 900, height: 500))).map(buttonTitle)), ["Apply", "Redo"])
         XCTAssertFalse(view.canApply)
         XCTAssertFalse(view.canRedo)
         let empty = try renderedPixels(of: model)
@@ -106,8 +106,8 @@ final class GameViewRenderingTests: XCTestCase {
         model.addColor(player: .player1, slot: .primary)
         view = GameView(viewModel: model)
         XCTAssertNotNil(model.currentBlend)
-        XCTAssertFalse(containsChart(view.body))
-        XCTAssertFalse(texts(in: view.body).contains { $0.contains("Add a color to start mixing") })
+        XCTAssertFalse(containsChart(view.content(size: CGSize(width: 900, height: 500))))
+        XCTAssertFalse(texts(in: view.content(size: CGSize(width: 900, height: 500))).contains { $0.contains("Add a color") })
         XCTAssertTrue(view.canApply)
         XCTAssertTrue(view.canRedo)
         let live = try renderedPixels(of: model)
@@ -123,7 +123,7 @@ final class GameViewRenderingTests: XCTestCase {
         let model = makeFixture(mode: .auto)
         model.round?.mix.units.removeAll()
         for name in ["Apply", "Redo"] {
-            try pressButton(name, in: GameView(viewModel: model).body)
+            try pressButton(name, in: GameView(viewModel: model).content(size: CGSize(width: 900, height: 500)))
             XCTAssertEqual(model.phase, .playing)
             XCTAssertTrue(model.round?.mix.units.isEmpty == true)
         }
@@ -132,7 +132,7 @@ final class GameViewRenderingTests: XCTestCase {
         let requestID = model.round?.request.id
         let primaryIDs = PlayerID.allCases.map { model.round?.assignments[$0]?.primaryColor.id }
         let secondaryIDs = PlayerID.allCases.map { model.round?.assignments[$0]?.secondaryColor.id }
-        try pressButton("Redo", in: GameView(viewModel: model).body)
+        try pressButton("Redo", in: GameView(viewModel: model).content(size: CGSize(width: 900, height: 500)))
         XCTAssertEqual(model.phase, .playing)
         XCTAssertTrue(model.round?.mix.units.isEmpty == true)
         XCTAssertNil(model.currentBlend)
@@ -142,7 +142,7 @@ final class GameViewRenderingTests: XCTestCase {
         XCTAssertEqual(model.timerSecondsRemaining, 17)
         model.addColor(player: .player1, slot: .secondary)
         let blend = model.currentBlend
-        try pressButton("Apply", in: GameView(viewModel: model).body)
+        try pressButton("Apply", in: GameView(viewModel: model).content(size: CGSize(width: 900, height: 500)))
         XCTAssertEqual(model.phase, .score)
         XCTAssertEqual(model.mixResult, blend)
         XCTAssertNotNil(model.score)
@@ -154,10 +154,9 @@ final class GameViewRenderingTests: XCTestCase {
     func testManualGameplayRetainsChartAndMixAndHintChangesRendering() throws {
         let model = makeFixture()
         let view = GameView(viewModel: model)
-        XCTAssertTrue(containsChart(view.body))
+        XCTAssertTrue(containsChart(view.content(size: CGSize(width: 900, height: 500))))
         XCTAssertTrue(view.showsMixButton)
-        XCTAssertTrue(buttons(in: view.body).isEmpty,
-                      "Manual actions remain in the existing MixButton component")
+        XCTAssertEqual(Set(buttons(in: view.content(size: CGSize(width: 900, height: 500))).map(buttonTitle)), ["Mix"])
         let withoutHint = try renderedPixels(of: model)
         model.showTargetColor = true
         XCTAssertNotEqual(withoutHint, try renderedPixels(of: model))
@@ -166,11 +165,13 @@ final class GameViewRenderingTests: XCTestCase {
     }
 
     private func containsChart(_ value: Any) -> Bool {
+        if let bowl = value as? MixingBowlView { return containsChart(bowl.body) }
         if value is ColorBarView { return true }
         return Mirror(reflecting: value).children.contains { containsChart($0.value) }
     }
 
     private func texts(in value: Any) -> [String] {
+        if let bowl = value as? MixingBowlView { return texts(in: bowl.body) }
         if let text = value as? Text { return [String(describing: text)] }
         return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
     }
@@ -183,7 +184,7 @@ final class GameViewRenderingTests: XCTestCase {
     private func buttonTitle(_ button: Button<Text>) -> String {
         let label = Mirror(reflecting: button).children.first { $0.label == "label" }!.value
         let text = String(describing: label)
-        return text.contains("Apply") ? "Apply" : text.contains("Redo") ? "Redo" : text
+        return text.contains("Apply") ? "Apply" : text.contains("Redo") ? "Redo" : text.contains("Mix") ? "Mix" : text
     }
 
     private func pressButton(_ title: String, in value: Any) throws {

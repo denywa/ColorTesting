@@ -10,6 +10,7 @@ final class GameViewModel {
     private enum ControlMode {
         case solo, host(PlayerID), client(PlayerID)
     }
+    @ObservationIgnored private var remainingRequestIDs: [Int: [UUID]] = [:]
     @ObservationIgnored private var controlMode: ControlMode = .solo
     @ObservationIgnored var didChange: (() -> Void)?
     @ObservationIgnored private var localInputHandler: ((PlayerID, ColorSlot) -> Void)?
@@ -56,11 +57,27 @@ final class GameViewModel {
         set {
             guard canMutateRules else { return }
             storedSelectedRequestID = newValue
+            if phase == .settings, let request = availableRequests.first(where: { $0.id == newValue }) {
+                storedSelectedRequestLevel = request.difficulty
+            }
             notifyHostChange()
         }
     }
     private var storedSelectedRequestID: UUID?
+    var selectedRequestLevel: RequestDifficulty {
+        get { storedSelectedRequestLevel }
+        set {
+            guard canMutateRules, phase == .settings, newValue != storedSelectedRequestLevel else { return }
+            storedSelectedRequestLevel = newValue
+            if !requestsForSelectedLevel.contains(where: { $0.id == storedSelectedRequestID }) {
+                storedSelectedRequestID = nil
+            }
+            notifyHostChange()
+        }
+    }
+    private var storedSelectedRequestLevel: RequestDifficulty = .level1
     private(set) var customRequests: [ColorRequest]
+    private var deletedBuiltInRequestIDs: Set<UUID>
     var reassignmentDuration: Int {
         get { storedReassignmentDuration }
         set {
@@ -90,20 +107,41 @@ final class GameViewModel {
     private(set) var roundID: UUID?
     private(set) var assignmentEpoch: Int?
 
+    var runConfiguration: EndlessRunConfiguration {
+        get { storedRunConfiguration }
+        set {
+            guard canMutateRules, phase == .settings, newValue.isValid else { return }
+            storedRunConfiguration = newValue
+            notifyHostChange()
+        }
+    }
+    private var storedRunConfiguration = EndlessRunConfiguration()
+    private(set) var run: EndlessRunState?
+    @ObservationIgnored private var runTimer: Timer?
+    @ObservationIgnored private var runClock = RunBudgetClock()
+    @ObservationIgnored private var runPaused = false
+    @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private let customRequestStore: CustomRequestStore
     #if os(macOS)
     @ObservationIgnored private var keyMonitor: Any?
     #endif
 
-    init(requestDefaults: UserDefaults = .standard) {
+    init(requestDefaults: UserDefaults = .standard, now: @escaping () -> Date = { Date(timeIntervalSince1970: ProcessInfo.processInfo.systemUptime) }) {
+        self.now = now
         let store = CustomRequestStore(defaults: requestDefaults)
         customRequestStore = store
         customRequests = store.load()
+        deletedBuiltInRequestIDs = store.loadDeletedBuiltIns()
     }
 
-    var availableRequests: [ColorRequest] { ColorData.requestPool + customRequests }
-    var canConfirm: Bool { canMutateRules && phase == .settings && !availableRequests.isEmpty }
+    var availableRequests: [ColorRequest] {
+        ColorData.requestPool.filter { !deletedBuiltInRequestIDs.contains($0.id) } + customRequests
+    }
+    var requestsForSelectedLevel: [ColorRequest] {
+        availableRequests.filter { $0.difficulty == selectedRequestLevel }
+    }
+    var canConfirm: Bool { canMutateRules && phase == .settings && !requestsForSelectedLevel.isEmpty }
     var canMix: Bool {
         phase == .playing && round?.mixMode == .manual
             && round?.mix.isLocked == false && round?.mix.units.isEmpty == false
@@ -135,10 +173,13 @@ final class GameViewModel {
                             localInputHandler: @escaping (PlayerID, ColorSlot) -> Void) {
         controlMode = isHost ? .host(localPlayer) : .client(localPlayer)
         self.localInputHandler = localInputHandler
-        if !isHost { pauseTimer() }
+        if !isHost { pauseSessionClocks() }
     }
 
     func endLocalPlay() {
+        stopRunBudget()
+        run = nil
+        runPaused = false
         pauseTimer()
         removeKeyMonitor()
         controlMode = .solo
@@ -155,8 +196,12 @@ final class GameViewModel {
     func applyRemoteState(_ state: GameState, phase: GamePhase,
                           timerSecondsRemaining: Int, reassignmentDuration: Int,
                           showTargetColor: Bool, roundID: UUID? = nil,
-                          assignmentEpoch: Int? = nil) {
+                          assignmentEpoch: Int? = nil, run: EndlessRunState? = nil,
+                          runConfiguration: EndlessRunConfiguration = .init()) {
         guard case .client = controlMode else { return }
+        stopRunBudget()
+        self.run = run
+        storedRunConfiguration = runConfiguration
         pauseTimer()
         gameState = state
         storedPhase = phase
@@ -170,7 +215,7 @@ final class GameViewModel {
 
     @discardableResult
     func acceptColor(_ color: NamedColor, for player: PlayerID) -> Bool {
-        guard case .host = controlMode, phase == .playing,
+        guard case .host = controlMode, acceptRunAction(), phase == .playing,
               round?.mix.isLocked == false, let model = round?.colorModel,
               let paletteColor = ColorData.colors(for: model).first(where: { $0.id == color.id }),
               round?.assignments[player] != nil else { return false }
@@ -179,15 +224,34 @@ final class GameViewModel {
     }
 
     @discardableResult
-    func addCustomRequest(text: String, hex: String) -> Bool {
+    func addCustomRequest(text: String, hex: String, difficulty: RequestDifficulty? = nil) -> Bool {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canMutateRules, phase == .settings, !trimmedText.isEmpty,
               let color = ColorHex.sRGB(hex) else { return false }
-        let request = ColorRequest(id: UUID(), text: trimmedText, targetSRGB: color)
+        let request = ColorRequest(id: UUID(), text: trimmedText, targetSRGB: color,
+                                   difficulty: difficulty ?? selectedRequestLevel)
         let updatedRequests = customRequests + [request]
         guard customRequestStore.save(updatedRequests) else { return false }
         customRequests = updatedRequests
         selectedRequestID = request.id
+        return true
+    }
+
+    @discardableResult
+    func deleteRequest(id: UUID) -> Bool {
+        guard canMutateRules, phase == .settings,
+              let request = availableRequests.first(where: { $0.id == id }) else { return false }
+        if ColorData.requestPool.contains(where: { $0.id == id }) {
+            deletedBuiltInRequestIDs.insert(id)
+            customRequestStore.saveDeletedBuiltIns(deletedBuiltInRequestIDs)
+        } else {
+            let updated = customRequests.filter { $0.id != id }
+            guard customRequestStore.save(updated) else { return false }
+            customRequests = updated
+        }
+        if storedSelectedRequestID == id { storedSelectedRequestID = nil }
+        remainingRequestIDs.removeValue(forKey: request.difficulty.rawValue)
+        notifyHostChange()
         return true
     }
 
@@ -200,11 +264,8 @@ final class GameViewModel {
 
     func confirmSettings() {
         guard canConfirm else { return }
-        assert(!ColorData.requestPool.isEmpty, "The color request pool must not be empty")
-        let request = availableRequests.first { $0.id == selectedRequestID }
-            ?? availableRequests.randomElement()
-            ?? ColorRequest(id: UUID(), text: "Mix a warm sunset",
-                            targetSRGB: SIMD3(0.96, 0.51, 0.32))
+        guard let request = requestsForSelectedLevel.first(where: { $0.id == selectedRequestID })
+            ?? requestsForSelectedLevel.randomElement() else { return }
         gameState = GameState(
             selectedModel: .ryb,
             selectedMixMode: selectedMixMode,
@@ -246,6 +307,7 @@ final class GameViewModel {
             localInputHandler?(player, slot)
             return
         }
+        guard acceptRunAction() else { return }
         let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
         appendAcceptedColor(color)
     }
@@ -259,7 +321,7 @@ final class GameViewModel {
     }
 
     func timerTick() {
-        guard canMutateRules, phase == .playing, round?.mix.isLocked == false else { return }
+        guard canMutateRules, !runPaused, phase == .playing, round?.mix.isLocked == false else { return }
         if timerSecondsRemaining > 0 {
             timerSecondsRemaining -= 1
         }
@@ -316,7 +378,7 @@ final class GameViewModel {
     }
 
     func pressMixButton() {
-        guard canMutateRules, canMix, let round else { return }
+        guard canMutateRules, acceptRunAction(), canMix, let round else { return }
         self.round?.mix.isLocked = true
         pauseTimer()
         removeKeyMonitor()
@@ -326,7 +388,7 @@ final class GameViewModel {
     }
 
     func selectApply() {
-        guard canMutateRules, canApply, let round else { return }
+        guard canMutateRules, acceptRunAction(), canApply, let round else { return }
         let result = ColorMixer.blend(round.mix.units, model: round.colorModel)
         mixResult = result
         self.round?.mix.isLocked = true
@@ -336,11 +398,12 @@ final class GameViewModel {
         pauseTimer()
         removeKeyMonitor()
         phase = .score
+        recordRunGrade()
         notifyHostChange()
     }
 
     func selectRedo() {
-        guard canMutateRules, canRedo else { return }
+        guard canMutateRules, acceptRunAction(), canRedo else { return }
         round?.mix.units.removeAll()
         round?.mix.isLocked = false
         gameState.currentBlend = nil
@@ -353,18 +416,20 @@ final class GameViewModel {
     }
 
     func selectFinish() {
-        guard canMutateRules, canFinish, let mixResult,
+        guard canMutateRules, acceptRunAction(), canFinish, let mixResult,
               let target = round?.request.targetSRGB else { return }
         let resultLab = ColorConverter.sRGBToLab(mixResult)
         let targetLab = ColorConverter.sRGBToLab(target)
         score = ScoreCalculator.matchPercentage(resultLab, targetLab)
         pauseTimer()
         phase = .score
+        recordRunGrade()
         notifyHostChange()
     }
 
     func startNewRound() {
         guard canMutateRules, canNewRound else { return }
+        if run != nil { continueRun(); return }
         pauseTimer()
         removeKeyMonitor()
         gameState = GameState()
@@ -374,6 +439,182 @@ final class GameViewModel {
         timerSecondsRemaining = reassignmentDuration
         phase = .settings
         notifyHostChange()
+    }
+
+    var missingRequestLevels: [RequestDifficulty] {
+        RequestDifficulty.allCases.filter { level in
+            runConfiguration.templates.contains { $0.levels.contains(level) } &&
+            !availableRequests.contains { $0.difficulty == level }
+        }
+    }
+    var canStartRun: Bool {
+        canMutateRules && phase == .settings && runConfiguration.isValid && missingRequestLevels.isEmpty
+    }
+    var canContinueRun: Bool {
+        canMutateRules && phase == .score && run?.status != .gameOver && run?.hasGrade == true
+    }
+
+    func startEndlessRun() {
+        guard canStartRun else { return }
+        stopRunBudget()
+        runPaused = false
+        remainingRequestIDs.removeAll()
+        run = EndlessRunState(configuration: runConfiguration)
+        beginRunRequest(resetBudget: true)
+    }
+
+    func continueRun() {
+        guard canMutateRules else { return }
+        refreshRunBudget()
+        guard canContinueRun, let current = run else { return }
+        let newDay = current.status == .dayComplete
+        if newDay {
+            guard run?.advanceDay() == true else { return }
+        } else { run?.outcome = nil }
+        beginRunRequest(resetBudget: newDay || current.configuration.timerMode == .client)
+    }
+
+    func restartRun() {
+        guard canMutateRules, phase == .gameOver else { return }
+        returnToSettings(publish: false)
+        startEndlessRun()
+    }
+
+    func returnToSettings(publish: Bool = true) {
+        guard canMutateRules else { return }
+        stopRunBudget()
+        pauseTimer()
+        removeKeyMonitor()
+        run = nil
+        runPaused = false
+        gameState.round = nil
+        gameState.currentBlend = nil
+        gameState.mixResult = nil
+        gameState.score = nil
+        roundID = nil
+        assignmentEpoch = nil
+        storedSelectedRequestID = nil
+        timerSecondsRemaining = reassignmentDuration
+        phase = .settings
+        if publish { notifyHostChange() }
+    }
+
+    private func beginRunRequest(resetBudget: Bool, timeoutNotice: Bool = false) {
+        guard let run else { return }
+        let pool = availableRequests.filter { $0.difficulty == run.currentLevel }
+        let level = run.currentLevel.rawValue
+        var remaining = remainingRequestIDs[level] ?? []
+        if remaining.isEmpty {
+            remaining = pool.map(\.id).shuffled()
+            // Avoid an immediate repeat where two shuffle cycles meet.
+            if remaining.count > 1, remaining.last == round?.request.id {
+                remaining.swapAt(0, remaining.count - 1)
+            }
+        }
+        guard let id = remaining.popLast(), let request = pool.first(where: { $0.id == id }) else { return }
+        remainingRequestIDs[level] = remaining
+        let assignments = randomAssignments(for: .ryb)
+        pauseTimer()
+        gameState.round = Round(request: request, colorModel: .ryb, mixMode: selectedMixMode,
+                                assignments: assignments, mix: Mix())
+        gameState.currentBlend = nil
+        gameState.mixResult = nil
+        gameState.score = nil
+        roundID = UUID()
+        assignmentEpoch = 0
+        timerSecondsRemaining = reassignmentDuration
+        self.run?.outcome = timeoutNotice ? .timedOut : nil
+        phase = .playing
+        if resetBudget {
+            runClock.start(seconds: run.configuration.budget, at: now())
+            self.run?.remainingSeconds = run.configuration.budget
+        }
+        startTimer()
+        installKeyMonitor()
+        scheduleRunBudget()
+        notifyHostChange()
+    }
+
+    private func recordRunGrade() {
+        guard let score, run?.grade(score) == true else { return }
+        if run?.status == .gameOver { finishRun() }
+        else if run?.status == .dayComplete || run?.configuration.timerMode == .client {
+            stopRunBudget()
+        }
+    }
+
+    private func acceptRunAction() -> Bool {
+        guard !runPaused else { return false }
+        let previousID = roundID
+        refreshRunBudget(publishRemaining: false)
+        return previousID == roundID && phase != .gameOver
+    }
+
+    private var budgetShouldRun: Bool {
+        guard let run, run.status == .active, !runPaused else { return false }
+        return run.configuration.timerMode == .day || (phase == .playing || phase == .result)
+    }
+
+    private func scheduleRunBudget() {
+        guard canMutateRules, budgetShouldRun, runTimer == nil else { return }
+        if !runClock.isRunning { runClock.resume(at: now()) }
+        let scheduled = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshRunBudget() }
+        }
+        runTimer = scheduled
+        RunLoop.main.add(scheduled, forMode: .common)
+    }
+
+    func refreshRunBudget(publishRemaining: Bool = true) {
+        guard canMutateRules, budgetShouldRun, runClock.isRunning else { return }
+        let remaining = Int(ceil(runClock.remaining(at: now())))
+        if remaining == 0 {
+            run?.remainingSeconds = 0
+            if run?.configuration.timerMode == .day {
+                run?.expireDay()
+                finishRun()
+                notifyHostChange()
+            } else {
+                run?.clientTimedOut()
+                if run?.status == .gameOver { finishRun(); notifyHostChange() }
+                else { beginRunRequest(resetBudget: true, timeoutNotice: true) }
+            }
+        } else if run?.remainingSeconds != remaining {
+            run?.remainingSeconds = remaining
+            if publishRemaining { notifyHostChange() }
+        }
+    }
+
+    private func finishRun() {
+        stopRunBudget()
+        pauseTimer()
+        removeKeyMonitor()
+        round?.mix.isLocked = true
+        phase = .gameOver
+    }
+
+    private func stopRunBudget() {
+        let instant = now()
+        runClock.pause(at: instant)
+        if run != nil && run?.failure != .dayTimeExpired {
+            run?.remainingSeconds = Int(ceil(runClock.remaining(at: instant)))
+        }
+        runTimer?.invalidate()
+        runTimer = nil
+    }
+
+    func pauseSessionClocks() {
+        if canMutateRules { refreshRunBudget() }
+        pauseTimer()
+        stopRunBudget()
+        runPaused = true
+    }
+
+    func resumeSessionClocks() {
+        guard canMutateRules else { return }
+        runPaused = false
+        resumeTimer()
+        scheduleRunBudget()
     }
 
     private var canMutateRules: Bool {
@@ -415,5 +656,6 @@ final class GameViewModel {
         }
         #endif
         timer?.invalidate()
+        runTimer?.invalidate()
     }
 }

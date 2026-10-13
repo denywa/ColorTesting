@@ -39,6 +39,7 @@ enum GamePhase {
     case playing
     case result
     case score
+    case gameOver
 }
 
 enum ColorSlot {

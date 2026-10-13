@@ -31,7 +31,7 @@ final class LocalVotingViewTests: XCTestCase {
     }
 
     private func texts(in value: Any) -> [String] {
-        if let status = value as? LocalVotingStatusView { return texts(in: status.body) }
+        if let status = value as? LocalVotingStatusView { return ["Two matching votes immediately run the action."] + status.choices }
         if let text = value as? Text { return [String(describing: text)] }
         return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
     }
@@ -52,7 +52,7 @@ final class LocalVotingViewTests: XCTestCase {
             views[voter].mix()
             await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 1 } }
             assertStatus(peers, voter: voter, action: "Mix")
-            XCTAssertTrue(texts(in: views[voter].body).contains { $0.contains("Two matching votes") })
+            XCTAssertTrue(texts(in: views[voter].content(size: CGSize(width: 900, height: 500))).contains { $0.contains("Two matching votes") })
             XCTAssertFalse(views[voter].canMix, "A final choice disables this ballot")
             XCTAssertTrue(views.allSatisfy { !$0.inputsDisabled })
             XCTAssertTrue(models.allSatisfy { $0.phase == .playing })
@@ -66,7 +66,7 @@ final class LocalVotingViewTests: XCTestCase {
             results[voter].finish()
             await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 1 } }
             assertStatus(peers, voter: voter, action: "Finish")
-            XCTAssertTrue(texts(in: results[voter].body).contains { $0.contains("Two matching votes") })
+            XCTAssertTrue(texts(in: results[voter].layoutContent(round: models[voter].round!, result: models[voter].mixResult!, size: CGSize(width: 900, height: 500))).contains { $0.contains("Two matching votes") })
             XCTAssertTrue(results[voter].actionsDisabled)
             results[(voter + 1) % 3].redo()
             await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 2 } }

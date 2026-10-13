@@ -91,8 +91,8 @@ import XCTest
         XCTAssertEqual(try first.append(frame.dropFirst(3)).count, 1)
     }
 
-    func testVersionTwoContractAndVotePayload() throws {
-        XCTAssertEqual(LocalPlayProtocol.version, 2)
+    func testVersionThreeContractAndVotePayload() throws {
+        XCTAssertEqual(LocalPlayProtocol.version, 3)
         let ballot = UUID()
         let input = Data("""
         {"input":{"_0":{"sessionID":"\(sessionID)","roundID":"\(UUID())","actionID":"\(UUID())","action":{"vote":{"action":"apply","votingID":"\(ballot)"}}}}}
@@ -122,7 +122,7 @@ import XCTest
                 let voting: LocalVotingState? = phase == .playing || phase == .result
                     ? .init(id: ballot, votes: [.init(player: .player1, action: mode == .auto ? .apply : .mix),
                                                .init(player: .player3, action: .redo)]) : nil
-                let snapshot = GameSnapshot(protocolVersion: 2, sessionID: sessionID, snapshotRevision: 3,
+                let snapshot = GameSnapshot(protocolVersion: LocalPlayProtocol.version, sessionID: sessionID, snapshotRevision: 3,
                     phase: phase, roundID: active ? UUID() : nil, selectedModel: .ryb, mixMode: mode,
                     target: active ? .init(id: UUID(), text: "Target", sRGB: .init(red: 0.1, green: 0.2, blue: 0.3)) : nil,
                     reassignmentDuration: 8, showTargetColor: true, timerSecondsRemaining: 4,

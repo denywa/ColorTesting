@@ -20,7 +20,7 @@ struct LocalGameSnapshotMapper {
             selectedModel: viewModel.selectedModel,
             mixMode: round?.mixMode ?? viewModel.selectedMixMode,
             target: round.map { .init(id: $0.request.id, text: $0.request.text,
-                                      sRGB: .init($0.request.targetSRGB)) },
+                                      sRGB: .init($0.request.targetSRGB), difficulty: $0.request.difficulty) },
             reassignmentDuration: viewModel.reassignmentDuration,
             showTargetColor: viewModel.showTargetColor,
             timerSecondsRemaining: viewModel.timerSecondsRemaining,
@@ -38,7 +38,8 @@ struct LocalGameSnapshotMapper {
             voting: voting,
             score: viewModel.score,
             paused: session.paused,
-            seatStatus: session.seats.map { .init(player: $0.role.playerID, status: $0.status) }
+            seatStatus: session.seats.map { .init(player: $0.role.playerID, status: $0.status) },
+            runConfiguration: viewModel.runConfiguration, run: viewModel.run
         )
         _ = try state(from: snapshot)
         return snapshot
@@ -52,7 +53,8 @@ struct LocalGameSnapshotMapper {
                                    reassignmentDuration: snapshot.reassignmentDuration,
                                    showTargetColor: snapshot.showTargetColor,
                                    roundID: snapshot.roundID,
-                                   assignmentEpoch: snapshot.assignmentEpoch)
+                                   assignmentEpoch: snapshot.assignmentEpoch, run: snapshot.run,
+                                   runConfiguration: snapshot.runConfiguration)
     }
 
     private func state(from snapshot: GameSnapshot) throws -> GameState {
@@ -66,11 +68,12 @@ struct LocalGameSnapshotMapper {
               snapshot.score.map({ $0.isFinite && (0...100).contains($0) }) ?? true,
               snapshot.mixResult.map({ $0.isValidColor }) ?? true,
               snapshot.currentBlend.map({ $0.isValidColor }) ?? true,
-              snapshot.selectedModel == .ryb else {
+              snapshot.selectedModel == .ryb, snapshot.runConfiguration.isValid,
+              snapshot.run.map({ $0.isValid && $0.configuration == snapshot.runConfiguration }) ?? true else {
             throw LocalPlayError.invalidMessage
         }
         if snapshot.phase == .settings {
-            guard snapshot.roundID == nil, snapshot.target == nil,
+            guard snapshot.run == nil, snapshot.roundID == nil, snapshot.target == nil,
                   snapshot.assignmentEpoch == nil, snapshot.assignments.isEmpty,
                   snapshot.mixEntries.isEmpty, !snapshot.mixLocked,
                   snapshot.mixResult == nil, snapshot.currentBlend == nil,
@@ -87,6 +90,29 @@ struct LocalGameSnapshotMapper {
               Set(snapshot.assignments.map(\.player)).count == PlayerID.allCases.count else {
             throw LocalPlayError.invalidMessage
         }
+        if let run = snapshot.run {
+            guard target.difficulty == run.currentLevel else { throw LocalPlayError.invalidMessage }
+            switch snapshot.phase {
+            case .settings: throw LocalPlayError.invalidMessage
+            case .playing:
+                guard run.status == .active, !run.hasGrade else { throw LocalPlayError.invalidMessage }
+            case .result:
+                guard run.status == .active, !run.hasGrade else { throw LocalPlayError.invalidMessage }
+            case .score:
+                guard run.status != .gameOver, run.hasGrade, let score = snapshot.score,
+                      (run.outcome == .passed) == (score >= run.configuration.passingScore),
+                      (run.outcome != .passed || run.completed > 0),
+                      (run.outcome != .failed || run.mistakes > 0) else { throw LocalPlayError.invalidMessage }
+            case .gameOver:
+                guard run.status == .gameOver else { throw LocalPlayError.invalidMessage }
+                if run.hasGrade {
+                    guard let score = snapshot.score,
+                          (run.outcome == .passed) == (score >= run.configuration.passingScore) else {
+                        throw LocalPlayError.invalidMessage
+                    }
+                } else if snapshot.score != nil { throw LocalPlayError.invalidMessage }
+            }
+        } else if snapshot.phase == .gameOver { throw LocalPlayError.invalidMessage }
         let palette = Dictionary(uniqueKeysWithValues: ColorData.colors(for: model).map { ($0.id, $0) })
         var assignments: [PlayerID: PlayerAssignment] = [:]
         for entry in snapshot.assignments {
@@ -133,6 +159,13 @@ struct LocalGameSnapshotMapper {
                   snapshot.mixResult != nil, snapshot.currentBlend == nil, snapshot.score == nil else {
                 throw LocalPlayError.invalidMessage
             }
+        case .gameOver:
+            guard snapshot.mixLocked, snapshot.currentBlend == nil, snapshot.voting == nil else {
+                throw LocalPlayError.invalidMessage
+            }
+            if snapshot.score != nil {
+                guard !units.isEmpty, snapshot.mixResult != nil else { throw LocalPlayError.invalidMessage }
+            }
         case .score:
             guard snapshot.mixLocked, !units.isEmpty,
                   snapshot.mixResult != nil, snapshot.currentBlend == nil,
@@ -156,7 +189,7 @@ struct LocalGameSnapshotMapper {
                       eligible.contains(vote.action) else { throw LocalPlayError.invalidMessage }
             }
         }
-        let request = ColorRequest(id: target.id, text: target.text, targetSRGB: target.sRGB.vector)
+        let request = ColorRequest(id: target.id, text: target.text, targetSRGB: target.sRGB.vector, difficulty: target.difficulty)
         let round = Round(request: request, colorModel: model, mixMode: snapshot.mixMode, assignments: assignments,
                           mix: Mix(units: units, isLocked: snapshot.mixLocked))
         return GameState(selectedModel: model, selectedMixMode: snapshot.mixMode, round: round,

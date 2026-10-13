@@ -53,6 +53,13 @@ final class LocalPlayCoordinator {
         session?.seats.allSatisfy { $0.status == .connected } == true
     }
 
+    var canStartRun: Bool {
+        role == .host && hostIsForeground && connectionStatus == .connected &&
+        recoveringPeers.isEmpty && viewModel.canStartRun && (1...3600).contains(viewModel.reassignmentDuration) &&
+        session?.paused == false && session?.seats.count == 3 &&
+        session?.seats.allSatisfy { $0.status == .connected } == true
+    }
+
     var seatStatus: [GameSnapshot.SeatStatus] {
         if role == .host {
             return session?.seats.map { .init(player: $0.role.playerID, status: $0.status) } ?? []
@@ -70,7 +77,7 @@ final class LocalPlayCoordinator {
     func leaveSession() async {
         guard !endingSession else { return }
         endingSession = true
-        viewModel.pauseTimer()
+        viewModel.pauseSessionClocks()
         viewModel.didChange = nil
         if role == .host, let sessionID {
             for task in Array(outboundTasks.values) { await task.value }
@@ -275,7 +282,7 @@ final class LocalPlayCoordinator {
 
     private func recordAssignment() {
         guard role == .host else { return }
-        if viewModel.phase == .settings || viewModel.phase == .score { voting = nil }
+        if viewModel.phase == .settings || viewModel.phase == .score || viewModel.phase == .gameOver { voting = nil }
         if historyRoundID != viewModel.roundID {
             historyRoundID = viewModel.roundID
             if viewModel.roundID != nil && (viewModel.phase == .playing || viewModel.phase == .result) {
@@ -369,7 +376,7 @@ final class LocalPlayCoordinator {
         guard current.paused != shouldPause else { return }
         current.paused = shouldPause
         session = current
-        if shouldPause { viewModel.pauseTimer() } else { viewModel.resumeTimer() }
+        if shouldPause { viewModel.pauseSessionClocks() } else { viewModel.resumeSessionClocks() }
         publishChange()
     }
 
@@ -417,6 +424,19 @@ final class LocalPlayCoordinator {
     @discardableResult
     func perform(_ action: LocalGameAction) -> Bool {
         guard !endingSession else { return false }
+        if case .returnToLobby = action {
+            guard role == .host, connectionStatus == .connected, var current = session else { return false }
+            pauseRequested = false
+            current.paused = false
+            session = current
+            viewModel.returnToSettings()
+            return viewModel.phase == .settings
+        }
+        if case .startRun = action {
+            guard canStartRun else { return false }
+            viewModel.startEndlessRun()
+            return viewModel.run != nil && viewModel.phase == .playing
+        }
         if case .startRound = action {
             guard canStartRound else { return false }
             viewModel.confirmSettings()
@@ -426,10 +446,18 @@ final class LocalPlayCoordinator {
            let session, session.seats.count == PlayerID.allCases.count,
            session.seats.allSatisfy({ $0.status == .connected }), !session.paused {
             switch action {
+            case .continueRun:
+                guard viewModel.canContinueRun else { return false }
+                viewModel.continueRun()
+                return viewModel.phase == .playing
+            case .restartRun:
+                guard viewModel.phase == .gameOver else { return false }
+                viewModel.restartRun()
+                return viewModel.phase == .playing
             case .newRound:
                 guard viewModel.phase == .score else { return false }
                 viewModel.startNewRound()
-                return viewModel.phase == .settings
+                return viewModel.phase == .settings || viewModel.phase == .playing
             default: break
             }
         }
@@ -465,6 +493,7 @@ final class LocalPlayCoordinator {
     }
 
     private func acceptInput(_ input: WireMessage.Input, from source: SessionRole) -> Bool {
+        if role == .host && !paused { viewModel.refreshRunBudget() }
         guard role == .host, let session, hostIsForeground, recoveringPeers.isEmpty,
               connectionStatus == .connected,
               input.sessionID == session.sessionID,
@@ -598,7 +627,7 @@ final class LocalPlayCoordinator {
                                     paused: shouldPause,
                                     snapshotRevision: current.snapshotRevision + 1)
         if current.paused != shouldPause {
-            if shouldPause { viewModel.pauseTimer() } else { viewModel.resumeTimer() }
+            if shouldPause { viewModel.pauseSessionClocks() } else { viewModel.resumeSessionClocks() }
         }
         broadcastSnapshot()
     }

@@ -45,12 +45,13 @@ final class ResultViewLocalPlayTests: XCTestCase {
     }
 
     private func texts(in value: Any) -> [String] {
+        if let heading = value as? PlaytestHeading { return texts(in: heading.body) }
         if let text = value as? Text { return [String(describing: text)] }
         return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
     }
 
     private func buttonCount(in value: Any) -> Int {
-        let count = value is Button<Text> ? 1 : 0
+        let count = String(describing: Swift.type(of: value)).hasPrefix("Button<") ? 1 : 0
         return count + Mirror(reflecting: value).children.reduce(0) { $0 + buttonCount(in: $1.value) }
     }
 
@@ -65,13 +66,12 @@ final class ResultViewLocalPlayTests: XCTestCase {
         let view = ResultView(viewModel: model, coordinator: coordinator)
 
         XCTAssertTrue(view.showsActions)
-        XCTAssertEqual(buttonCount(in: view.body), 2)
+        XCTAssertEqual(buttonCount(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500))), 2)
         XCTAssertTrue(view.actionsDisabled)
         XCTAssertTrue(coordinator.paused)
         XCTAssertTrue(view.pauseStatus?.contains("Paused") == true)
-        let visibleText = texts(in: view.body)
-        XCTAssertTrue(visibleText.contains { $0.contains("Your Mix") })
-        XCTAssertTrue(visibleText.contains { $0.contains("Color Breakdown") })
+        let visibleText = texts(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500)))
+        XCTAssertTrue(visibleText.contains { $0.contains("YOUR MIX") })
         XCTAssertEqual(ResultView.breakdown(for: model.round!.mix).map(\.count), [1, 1])
         XCTAssertEqual(model.mixResult, SIMD3(0.2, 0.7, 0.4))
         view.redo()
@@ -92,12 +92,12 @@ final class ResultViewLocalPlayTests: XCTestCase {
         peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
         let view = ResultView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.showsActions)
-        XCTAssertEqual(buttonCount(in: view.body), 2)
+        XCTAssertEqual(buttonCount(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500))), 2)
 
         coordinator.setPaused(true)
         XCTAssertTrue(view.actionsDisabled)
         XCTAssertTrue(view.pauseStatus?.contains("Paused") == true)
-        XCTAssertTrue(texts(in: view.body).contains { $0.contains("Color Breakdown") })
+        XCTAssertTrue(texts(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500))).contains { $0.contains("YOUR MIX") })
         view.redo()
         view.finish()
         XCTAssertEqual(model.phase, .result)

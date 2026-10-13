@@ -2,44 +2,35 @@
 
 ## Problem
 
-The project owner and future contributors need a clear baseline of the complete playtest session. Setup choices, three-player controls, reassignment, and phase changes span several files, and no spec currently defines their shared behavior.
+Playtesting Part II changes the shared round rules: RYB is the only palette, a player cannot hold the same color twice, and groups can choose Manual Mix or Auto Mix. The baseline spec still describes palette selection and a Manual-only phase flow.
 
 ## Current State
 
-In single-device mode, the app moves from settings to play, result, score, and back to settings for a new round. A round uses one shared mix and three players with two assigned color slots each. macOS uses keyboard input and iOS uses touch controls. Settings choose the color model, target request, reassignment duration, and optional target hint. The view model handles timed color reassignment, mix locking, redo, finish, and reset. A separate `local-three-device-play` spec covers the newer networked mode.
+A single-device round chooses CMYK or RYB, assigns five colors plus one duplicate across six slots, and reassigns them on a timer. Players add units to one mix, then use Mix, Redo, Finish, and New Round. The duplicate may land twice with one player. Auto Mix does not exist.
 
 ## Desired Outcome
 
-A source-grounded spec describes the current session flow and input contract across both platforms, including how it consumes request and color-result capabilities, without turning current implementation details into new feature requests.
+A round always uses RYB. Each player's pair contains two distinct colors at start and after reassignment; the one repeated color belongs to two different players. Manual Mix keeps the current result step. Auto Mix updates its blended bowl after each contribution and lets players Apply to score or Redo directly during play. Manual is the default for new settings. One-device actions remain direct.
 
 ## Approach
 
-Document the implemented phase state machine and player actions using `ContentView`, `GameViewModel`, `GameState`, `GameModels`, `KeyRouter`, relevant views, and tests. Keep algorithm and persistence ownership in their adjacent specs.
+Update the existing round state and view-model transitions, keeping calculation in `color-mixing-and-scoring` and three-device vote authority in `local-three-device-play`. Preserve the timer, targets, key routing, and saved-request behavior unless the new rule requires a change.
 
 ## Scope
 
-- **In**: Setup options, request selection, round creation, player assignment and input, shared mix updates, timer and reassignment behavior, phase transitions, redo, finish, and new-round reset.
-- **Out**: Request validation/storage internals, blend and score formulas, three-device local-network behavior, separate player scores, analytics, or new gameplay rules.
+- **In**: RYB-only setup, mix-mode selection and round state, distinct pairs, accepted input, timer/reassignment, and direct one-device mode-specific transitions.
+- **Out**: Color formulas, request persistence, network messages, votes, separate player scores, analytics, and history.
 
 ## Boundary Candidates
 
-- `GameViewModel` and state models own round mutations, timing, and transitions.
-- Views and `KeyRouter` translate platform-specific player actions into view-model calls.
-
-## Out of Boundary
-
-This spec consumes target requests and computed color results but does not own their persistence or calculation rules.
+- Round state and the view model own assignments, action eligibility, timing, and phase changes.
+- Views forward direct one-device actions and display state; the local coordinator owns three-device votes.
 
 ## Upstream / Downstream
 
-- **Upstream**: `custom-color-requests` supplies optional custom targets; `color-mixing-and-scoring` supplies blend and scoring behavior.
-- **Downstream**: Future playtest-driven changes can refine session setup, controls, pacing, and flow against this baseline.
-
-## Existing Spec Touchpoints
-
-- **Extends**: None; no specs exist yet.
-- **Adjacent**: Custom request lifecycle and color result calculations remain in their respective specs. `local-three-device-play` owns mode selection, lobby, host/client coordination, network input, and synchronized phase display.
+- **Upstream**: `custom-color-requests` supplies targets; `color-mixing-and-scoring` supplies RYB blend and score.
+- **Downstream**: `local-three-device-play` synchronizes round mode and transitions; `modern-playtest-ui` presents them.
 
 ## Constraints
 
-Describe existing macOS and iOS behavior and actual tests. A session is local, with three fixed players and transient round state. Do not infer unimplemented telemetry, history, or networking.
+Keep the three-player shared mix transient and preserve macOS keyboard and iPhone touch input paths. Do not duplicate color math or vote rules in views.

@@ -84,13 +84,14 @@ final class ContentViewTests: XCTestCase {
         try coordinator.startHosting()
         let content = ContentView(viewModel: model, coordinator: coordinator,
                                   selectedMode: .threeDevices)
-        XCTAssertEqual(content.localSessionExitTitle, "End Session")
+        XCTAssertEqual(content.localSessionExitTitle, "Lobby")
 
         for phase in [GamePhase.playing, .result, .score] {
             model.phase = phase
             let phaseOnly: Data = switch phase {
             case .playing: try renderedPixels(of: GameView(viewModel: model, coordinator: coordinator))
             case .result: try renderedPixels(of: ResultView(viewModel: model, coordinator: coordinator))
+            case .gameOver: try renderedPixels(of: GameOverView(viewModel: model, coordinator: coordinator))
             case .score: try renderedPixels(of: ScoreView(viewModel: model, coordinator: coordinator))
             case .settings: try renderedPixels(of: SettingsView(viewModel: model, coordinator: coordinator))
             }
@@ -188,7 +189,7 @@ final class ContentViewTests: XCTestCase {
     }
 
     private func renderedPixels<Content: View>(of content: Content) throws -> Data {
-        let hostingView = NSHostingView(rootView: content)
+        let hostingView = NSHostingView(rootView: content.foregroundStyle(PlaytestStyle.ink).tint(PlaytestStyle.accent).background(PlaytestStyle.canvas.ignoresSafeArea()).preferredColorScheme(.light))
         hostingView.frame = NSRect(x: 0, y: 0, width: 720, height: 600)
         return try renderedPixels(of: hostingView)
     }

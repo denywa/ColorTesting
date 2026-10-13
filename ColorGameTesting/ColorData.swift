@@ -1,9 +1,29 @@
 import Foundation
 
+enum RequestDifficulty: Int, CaseIterable, Codable {
+    case level1 = 1, level2 = 2, level3 = 3
+
+    var title: String {
+        switch self {
+        case .level1: "Level 1 — Easy"
+        case .level2: "Level 2 — Medium"
+        case .level3: "Level 3 — Hard"
+        }
+    }
+}
+
 struct ColorRequest: Identifiable {
     let id: UUID
     let text: String
     let targetSRGB: SIMD3<Double>
+    let difficulty: RequestDifficulty
+
+    init(id: UUID, text: String, targetSRGB: SIMD3<Double>, difficulty: RequestDifficulty = .level1) {
+        self.id = id
+        self.text = text
+        self.targetSRGB = targetSRGB
+        self.difficulty = difficulty
+    }
 }
 
 enum ColorData {
@@ -27,19 +47,19 @@ enum ColorData {
 
     static let requestPool: [ColorRequest] = [
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000001")!,
-                     text: "Glossy mocha brown", targetSRGB: sRGB(hex: 0x4A3B32)),
+                     text: "Glossy mocha brown", targetSRGB: sRGB(hex: 0x4A3B32), difficulty: .level3),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000002")!,
-                     text: "Milk tea", targetSRGB: sRGB(hex: 0xC8B19A)),
+                     text: "Milk tea", targetSRGB: sRGB(hex: 0xC8B19A), difficulty: .level3),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000003")!,
-                     text: "Honey blonde", targetSRGB: sRGB(hex: 0xF6D48B)),
+                     text: "Honey blonde", targetSRGB: sRGB(hex: 0xF6D48B), difficulty: .level2),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000004")!,
-                     text: "Lavender", targetSRGB: sRGB(hex: 0xC8B4F4)),
+                     text: "Lavender", targetSRGB: sRGB(hex: 0xC8B4F4), difficulty: .level2),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000005")!,
-                     text: "Sky blue", targetSRGB: sRGB(hex: 0x87CEFA)),
+                     text: "Sky blue", targetSRGB: sRGB(hex: 0x87CEFA), difficulty: .level2),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000006")!,
-                     text: "Red blood", targetSRGB: sRGB(hex: 0xB22222)),
+                     text: "Red blood", targetSRGB: sRGB(hex: 0xB22222), difficulty: .level1),
         ColorRequest(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000007")!,
-                     text: "Juicy orange", targetSRGB: sRGB(hex: 0xFF8C32))
+                     text: "Juicy orange", targetSRGB: sRGB(hex: 0xFF8C32), difficulty: .level1)
     ]
 
     private static func sRGB(hex: UInt32) -> SIMD3<Double> {

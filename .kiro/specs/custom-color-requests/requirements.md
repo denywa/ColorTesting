@@ -2,15 +2,15 @@
 
 ## Project Description (Input)
 
-The project owner and future contributors need an accurate baseline for how playtesters add and reuse target requests. The settings screen already accepts a name and hex color, while the app validates, stores, and offers the resulting request for later rounds. This specification records that current lifecycle and its contract with round setup.
+The project owner and future contributors need an accurate baseline for how playtesters add and reuse target requests. The settings screen already accepts a name and hex color, while the app validates, stores, and offers the resulting request for later rounds. This specification covers that lifecycle and its extension to three difficulty pools for playtesting.
 
 ## Introduction
 
-Players can add a named target color during setup and reuse it after restarting the app. This baseline defines entry, validation, local retention, and availability alongside built-in requests.
+Players can add a named target color during setup and reuse it after restarting the app. The app groups built-in and custom requests into three temporary difficulty levels, filters setup choices by level, and retains new requests with their assigned level.
 
 ## Boundary Context
 
-- **In scope:** Custom request entry, validation, local retention, loading, and exposure as a target choice.
+- **In scope:** Custom request entry, validation, local retention, loading, difficulty classification, and exposure as a level-filtered target choice.
 - **Out of scope:** Request deletion or editing, remote catalog synchronization, player input, mixing, scoring, and phase transitions beyond the setup contract.
 - **Adjacent expectations:** Round setup consumes the available request list and chosen target. In three-device play, the host may use its local custom target for a shared round; the network mode owns transmission of that round target and does not copy the host's saved catalog to guests.
 
@@ -55,7 +55,27 @@ Players can add a named target color during setup and reuse it after restarting 
 
 #### Acceptance Criteria
 
-1. While choosing a request, the ColorGameTesting app shall offer built-in and locally loaded custom requests in the target picker, along with a Random choice.
+1. While choosing a request, the ColorGameTesting app shall offer built-in and locally loaded custom requests from the selected difficulty level in the target picker, along with a Random choice.
 2. When a custom request is successfully added, the ColorGameTesting app shall select it as the current target choice.
 3. When the player starts a round with a selected custom request, the ColorGameTesting app shall use that request's identity, name, and target color for the round.
-4. When Random is selected at round start, the ColorGameTesting app shall choose a target from the available built-in and custom requests.
+4. When Random is selected at round start, the ColorGameTesting app shall choose a target only from the selected difficulty level’s available built-in and custom requests.
+
+### Requirement 5: Select and manage three difficulty pools
+
+**Objective:** As the playtest developer, I want to choose a request difficulty and assign new requests to it so that I can test levels while preparing new copywriting.
+
+#### Acceptance Criteria
+
+1. The ColorGameTesting app shall provide Level 1 — Easy, Level 2 — Medium, and Level 3 — Hard, preserving all existing built-in request IDs, prompt text and target colors. The initial groups are Red blood/Juicy orange; Sky blue/Lavender/Honey blonde; Glossy mocha brown/Milk tea, respectively.
+2. When a new app session opens settings, the ColorGameTesting app shall select Level 1 and offer a level selector to the player authorized to configure the round.
+3. When the selected level changes, the ColorGameTesting app shall filter request choices to that level and clear a previously selected request belonging to another level.
+4. When the Add Color Request form opens, the ColorGameTesting app shall initialize its level selector to the settings level and allow the developer to choose any of the three levels.
+5. When a custom request is saved, the ColorGameTesting app shall retain its level along with its identity, text and target, switch settings to that level, and select the new request; reloading the app shall preserve the saved level.
+6. When previously saved custom data contains no level, the ColorGameTesting app shall load those requests into Level 1 while preserving their identity, text and target color.
+7. When New Round returns to settings, the ColorGameTesting app shall retain the selected level for repeated testing while preserving the existing Manual Mix reset behavior.
+8. While three-device play is active, the ColorGameTesting app shall restrict request-level selection and catalog additions to the host; the selected target shall still synchronize through the existing network flow without writing to client catalogs.
+9. The ColorGameTesting app shall preserve the existing mixing, assignments, voting, scoring, and request-validation rules when selecting a level.
+
+## Request deletion update
+
+Solo players and the host may delete built-in or custom requests from the settings library. Custom entries are removed from saved records; built-in deletions are stored as stable ID exclusions on that device. Clear deleted selections and cached selection queues. Deletion is settings-only and does not change active rounds or guest libraries. Empty configured levels disable Start Run and show guidance to add requests or edit the schedule.

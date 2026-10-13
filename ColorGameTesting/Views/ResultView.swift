@@ -3,10 +3,13 @@ import SwiftUI
 struct ResultView: View {
     let viewModel: GameViewModel
     let coordinator: LocalPlayCoordinator?
+    var exitAction: (() -> Void)?
+    @State private var showingFullRequest = false
 
-    init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil) {
+    init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil, exitAction: (() -> Void)? = nil) {
         self.viewModel = viewModel
         self.coordinator = coordinator
+        self.exitAction = exitAction
     }
 
     var showsActions: Bool {
@@ -16,6 +19,8 @@ struct ResultView: View {
         if let coordinator { return !coordinator.canVote(.finish) && !coordinator.canVote(.redo) }
         return false
     }
+    var canRedo: Bool { coordinator?.canVote(.redo) ?? viewModel.canRedo }
+    var canFinish: Bool { coordinator?.canVote(.finish) ?? viewModel.canFinish }
     var pauseStatus: String? {
         guard coordinator?.paused == true else { return nil }
         if let missing = coordinator?.seatStatus.first(where: { $0.status == .disconnected }) {
@@ -40,7 +45,7 @@ struct ResultView: View {
         }
     }
 
-    static func breakdown(for mix: Mix) -> [(color: NamedColor, percentage: Double, count: Int)] {
+    static func breakdown(for mix: Mix) -> [(color: NamedColor, count: Int)] {
         var colors: [NamedColor] = []
         var counts: [UUID: Int] = [:]
 
@@ -51,95 +56,103 @@ struct ResultView: View {
             counts[unit.color.id, default: 0] += 1
         }
 
-        let ratios = mix.ratios
-        return colors.map { color in
-            let percentage = ((ratios[color.id] ?? 0) * 1_000).rounded() / 10
-            return (color, percentage, counts[color.id] ?? 0)
-        }
+        return colors.map { ($0, counts[$0.id] ?? 0) }
     }
 
     var body: some View {
+        Group {
         if let round = viewModel.round, let result = viewModel.mixResult {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Text("Your Mix")
-                        .font(.largeTitle)
-                        .bold()
-
-                    if let pauseStatus {
-                        Text(pauseStatus)
-                            .font(.headline)
-                            .accessibilityLabel(pauseStatus)
-                    }
-
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(red: result.x, green: result.y, blue: result.z))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 260)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 16)
-                                .strokeBorder(.primary, lineWidth: 1)
-                        }
-                        .accessibilityLabel(
-                            "Mixed color result, red \(Int((result.x * 100).rounded())) percent, " +
-                            "green \(Int((result.y * 100).rounded())) percent, " +
-                            "blue \(Int((result.z * 100).rounded())) percent"
-                        )
-
-                    Text("Color Breakdown")
-                        .font(.title2)
-                        .bold()
-
-                    Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 12) {
-                        GridRow {
-                            Text("Color")
-                            Text("Percentage")
-                                .gridColumnAlignment(.trailing)
-                            Text("Units")
-                                .gridColumnAlignment(.trailing)
-                        }
-                        .font(.headline)
-
-                        ForEach(Self.breakdown(for: round.mix), id: \.color.id) { row in
-                            GridRow {
-                                Text(row.color.name)
-                                Text("\(row.percentage.formatted(.number.precision(.fractionLength(1))))%")
-                                Text(row.count, format: .number)
-                            }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel(
-                                "\(row.color.name), \(row.percentage.formatted(.number.precision(.fractionLength(1)))) " +
-                                "percent, \(row.count) units"
-                            )
-                        }
-                    }
-                    .font(.body)
-
-                    if let coordinator {
-                        LocalVotingStatusView(coordinator: coordinator)
-                    }
-
-                    if showsActions {
-                        HStack(spacing: 16) {
-                            Button("Redo", action: redo)
-                                .buttonStyle(.bordered)
-                            Button("Finish", action: finish)
-                                .buttonStyle(.borderedProminent)
-                        }
-                        .font(.headline)
-                        .controlSize(.large)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .disabled(actionsDisabled)
-                    }
-                }
-                .padding()
-                .frame(maxWidth: 760)
-                .frame(maxWidth: .infinity)
+            GeometryReader { geometry in
+                layoutContent(round: round, result: result, size: geometry.size)
             }
         } else {
             ContentUnavailableView("No Mix Result", systemImage: "paintpalette")
         }
+        }
+        .allowsHitTesting(!showingFullRequest)
+        .accessibilityHidden(showingFullRequest)
+        .overlay {
+            if showingFullRequest {
+                RequestNoticeView(request: viewModel.round?.request.text ?? "", message: "Current client request", targetHint: viewModel.showTargetColor ? viewModel.round?.request.targetSRGB : nil) {
+                    showingFullRequest = false
+                }
+            }
+        }
     }
+
+    func layoutContent(round: Round, result: SIMD3<Double>, size: CGSize) -> some View {
+        let sideWidth = min(190, max(120, size.width * 0.25))
+        let cardHeight = min(100, max(70, size.height * 0.26))
+        let bowlSize = max(80, min(PlaytestStyle.maximumBowlSize, size.height - (coordinator == nil ? PlaytestStyle.soloBowlAllowance : 160), size.width - sideWidth * 2 - 60))
+        let counts = Dictionary(uniqueKeysWithValues: Self.breakdown(for: round.mix).map { ($0.color.id, $0.count) })
+        let dotSize = max(14, min(24, (size.height - 180) / 5))
+        let actionWidth = min(220, max(sideWidth, size.width * 0.35))
+        return VStack(spacing: 6) {
+            RunHeaderView(run: viewModel.run, exitTitle: coordinator == nil || coordinator?.role == .host ? "Lobby" : "Leave",
+                          exitAccessibilityLabel: coordinator == nil ? "Back to Settings" : coordinator?.role == .host ? "Back to Settings and Lobby" : "Leave Session", exitAction: exitAction)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    RequestCardView(request: round.request, showHint: viewModel.showTargetColor,
+                                    height: cardHeight, showFullRequest: { showingFullRequest = true })
+                    Spacer(minLength: 0)
+                }
+                .frame(width: sideWidth)
+                VStack(spacing: 6) {
+                    if let pauseStatus {
+                        Text(pauseStatus).font(.caption).multilineTextAlignment(.center).lineLimit(2)
+                            .foregroundStyle(PlaytestStyle.accent)
+                    }
+                    Spacer(minLength: 0)
+                    MixingBowlView(size: bowlSize, color: result)
+                    Text("YOUR MIX").font(.headline)
+                        .padding(.horizontal, 22).frame(height: 44)
+                        .background(PlaytestStyle.accent.opacity(0.1), in: Capsule())
+                        .accessibilityAddTraits(.isHeader)
+                    if coordinator != nil { Color.clear.frame(height: 21).accessibilityHidden(true) }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, coordinator == nil ? PlaytestStyle.soloKeyboardRowHeight : 0)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(ColorData.rybPalette) { color in
+                            let count = counts[color.id, default: 0]
+                            HStack(spacing: 10) {
+                                Circle().fill(Color(red: color.sRGB.x, green: color.sRGB.y, blue: color.sRGB.z))
+                                    .frame(width: dotSize, height: dotSize)
+                                    .overlay(Circle().strokeBorder(.black.opacity(0.35), lineWidth: 1.5))
+                                Text("\(count)").font(.caption.bold().monospacedDigit())
+                            }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("\(color.name), \(count) \(count == 1 ? "unit" : "units")")
+                        }
+                    }
+                    .padding(.bottom, coordinator == nil ? PlaytestStyle.soloKeyboardRowHeight : 0)
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if let coordinator { LocalVotingStatusView(coordinator: coordinator, compact: true) }
+                        if showsActions {
+                            HStack(spacing: 10) {
+                                Button(action: redo) { Text("Redo").frame(maxWidth: .infinity) }
+                                    .buttonStyle(PlaytestButtonStyle(primary: false)).disabled(!canRedo)
+                                Button(action: finish) { Text("Finish").frame(maxWidth: .infinity) }
+                                    .buttonStyle(PlaytestButtonStyle()).disabled(!canFinish)
+                            }
+                        }
+                    }
+                    .frame(width: actionWidth)
+                    .frame(width: sideWidth, alignment: .trailing)
+                }
+                .frame(width: sideWidth)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+
 }
 
 #Preview {

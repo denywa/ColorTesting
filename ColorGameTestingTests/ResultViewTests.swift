@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class ResultViewTests: XCTestCase {
-    func testBreakdownUsesFirstContributionOrderExactCountsAndOneDecimalPercentages() {
+    func testBreakdownUsesFirstContributionOrderAndExactCounts() {
         let red = ColorData.rybPalette[0]
         let yellow = ColorData.rybPalette[1]
         let mix = Mix(units: [
@@ -17,15 +17,14 @@ final class ResultViewTests: XCTestCase {
 
         XCTAssertEqual(rows.map(\.color.id), [yellow.id, red.id])
         XCTAssertEqual(rows.map(\.count), [3, 1])
-        XCTAssertEqual(rows.map(\.percentage), [75.0, 25.0])
 
         let thirds = ResultView.breakdown(for: Mix(units: [
             ColorUnit(color: red), ColorUnit(color: yellow), ColorUnit(color: red)
         ]))
-        XCTAssertEqual(thirds.map(\.percentage), [66.7, 33.3])
+        XCTAssertEqual(thirds.map(\.count), [2, 1])
     }
 
-    func testDisplayedPercentagesRoundEachColorIndependently() {
+    func testBreakdownCountsEveryPaletteColor() {
         let colors = ColorData.rybPalette
         let counts = [1, 1, 3, 8, 1]
         let units = zip(colors, counts).flatMap { color, count in
@@ -35,8 +34,7 @@ final class ResultViewTests: XCTestCase {
         let rows = ResultView.breakdown(for: Mix(units: units))
 
         XCTAssertEqual(rows.map(\.count), counts)
-        XCTAssertEqual(rows.map(\.percentage), [7.1, 7.1, 21.4, 57.1, 7.1])
-        XCTAssertTrue(rows.allSatisfy { ($0.percentage * 10).rounded() == $0.percentage * 10 })
+        XCTAssertEqual(rows.map(\.color.id), colors.map(\.id))
     }
 
     func testRenderedResultRespondsToSwatchAndBreakdownChanges() throws {
@@ -50,7 +48,7 @@ final class ResultViewTests: XCTestCase {
         viewModel.mixResult = SIMD3(0.2, 0.7, 0.4)
         viewModel.round?.mix.units.append(ColorUnit(color: ColorData.rybPalette[1]))
         let changedBreakdown = try render(viewModel)
-        XCTAssertNotEqual(original, changedBreakdown, "The table must show updated counts and ratios")
+        XCTAssertNotEqual(original, changedBreakdown, "The color dots must show updated unit counts")
     }
 
     func testMissingResultOrRoundShowsNoMixResultInsteadOfBreakdown() throws {
