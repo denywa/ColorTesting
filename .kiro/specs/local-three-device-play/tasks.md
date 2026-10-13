@@ -245,8 +245,8 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Depends: round-flow-and-input 5.1, 5.2, 6.1, 6.2, 7.1, 7.2; color-mixing-and-scoring 6_
   - _Requirements: 2.2, 3.7, 5.2, 5.4, 5.7, 6.3, 6.8, 8.1, 8.3_
 
-- [ ] 8. Validasi mode ronde, assignment, warna live dan ballot snapshot
-- [ ] 8.1 Tolak snapshot yang melanggar invarian mode atau suara
+- [x] 8. Validasi mode ronde, assignment, warna live dan ballot snapshot
+- [x] 8.1 Tolak snapshot yang melanggar invarian mode atau suara
   - Map mode dan warna live host ke state cermin klien tanpa menjalankan mixer atau scorer pada klien.
   - Validasi hanya RYB, tiga pasangan unik yang masing-masing berisi warna berbeda, cakupan lima warna/satu duplikasi lintas pemain, nilai warna/skor, batas count, fase, lock, dan currentBlend.
   - Validasi ID ballot, satu suara per kursi yang dikenal, aksi yang eligible, maksimal dua suara tertunda tanpa mayoritas, dan records yang boleh bertahan ketika kursi disconnected selama pause.
@@ -340,3 +340,4 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
 - ContentView mempertahankan satu GameViewModel/koordinator, membuka pilihan mode saat awal atau setelah sesi lokal berakhir, dan merutekan lobi host/tamu serta layar fase melalui koordinator.
 - Verifikasi snapshot membandingkan jumlah per UUID, rasio, dan urutan kemunculan pertama; array unit berulang tidak mempertahankan urutan kejadian host setelah kompresi. Fixture A,A,B menjaga regresi ini.
 - Task 7.1 mempertahankan sementara kasus aksi lokal Mix/Redo/Finish agar pemanggil lama tetap dikompilasi; codec v2 menolak ketiganya saat encode/decode. Hapus kompatibilitas lokal pada task 9.2 dan arahkan UI ke vote.
+- Task 8.1 menghubungkan ballot kosong pada awal ronde dan pada snapshot normal/recovery; voting serta revisi klien hanya berubah setelah mapper berhasil. Konsensus dan rotasi keputusan dilanjutkan pada task 9.1–9.2.

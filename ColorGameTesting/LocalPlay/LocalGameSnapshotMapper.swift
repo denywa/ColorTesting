@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 struct LocalGameSnapshotMapper {
-    func makeSnapshot(from viewModel: GameViewModel, session: SessionState) throws -> GameSnapshot {
+    func makeSnapshot(from viewModel: GameViewModel, session: SessionState, voting: LocalVotingState?) throws -> GameSnapshot {
         let round = viewModel.round
         let mix = round?.mix.units ?? []
         var counts: [UUID: Int] = [:]
@@ -35,7 +35,7 @@ struct LocalGameSnapshotMapper {
             mixLocked: round?.mix.isLocked ?? false,
             mixResult: viewModel.mixResult.map(GameSnapshot.RGB.init),
             currentBlend: viewModel.currentBlend.map(GameSnapshot.RGB.init),
-            voting: nil,
+            voting: voting,
             score: viewModel.score,
             paused: session.paused,
             seatStatus: session.seats.map { .init(player: $0.role.playerID, status: $0.status) }
@@ -64,16 +64,19 @@ struct LocalGameSnapshotMapper {
               snapshot.seatStatus.contains(where: { $0.player == .player1 }),
               Set(snapshot.seatStatus.map(\.player)).count == snapshot.seatStatus.count,
               snapshot.score.map({ $0.isFinite && (0...100).contains($0) }) ?? true,
-              snapshot.mixResult.map({ $0.isValidColor }) ?? true else {
+              snapshot.mixResult.map({ $0.isValidColor }) ?? true,
+              snapshot.currentBlend.map({ $0.isValidColor }) ?? true,
+              snapshot.selectedModel == .ryb else {
             throw LocalPlayError.invalidMessage
         }
         if snapshot.phase == .settings {
             guard snapshot.roundID == nil, snapshot.target == nil,
                   snapshot.assignmentEpoch == nil, snapshot.assignments.isEmpty,
                   snapshot.mixEntries.isEmpty, !snapshot.mixLocked,
-                  snapshot.mixResult == nil, snapshot.score == nil,
+                  snapshot.mixResult == nil, snapshot.currentBlend == nil,
+                  snapshot.voting == nil, snapshot.score == nil,
                   !snapshot.paused else { throw LocalPlayError.invalidMessage }
-            return GameState()
+            return GameState(selectedModel: .ryb, selectedMixMode: snapshot.mixMode)
         }
 
         guard let model = snapshot.selectedModel, let target = snapshot.target,
@@ -88,13 +91,17 @@ struct LocalGameSnapshotMapper {
         var assignments: [PlayerID: PlayerAssignment] = [:]
         for entry in snapshot.assignments {
             guard let primary = palette[entry.primaryColorID],
-                  let secondary = palette[entry.secondaryColorID] else {
+                  let secondary = palette[entry.secondaryColorID],
+                  primary.id != secondary.id else {
                 throw LocalPlayError.invalidMessage
             }
             assignments[entry.player] = PlayerAssignment(player: entry.player,
                                                          primaryColor: primary,
                                                          secondaryColor: secondary)
         }
+        let assignedIDs = snapshot.assignments.flatMap { [$0.primaryColorID, $0.secondaryColorID] }
+        let frequencies = Dictionary(grouping: assignedIDs, by: { $0 }).values.map(\.count).sorted()
+        guard frequencies == [1, 1, 1, 1, 2] else { throw LocalPlayError.invalidMessage }
         var units: [ColorUnit] = []
         var orderedColors: [(NamedColor, Int)] = []
         var seen: Set<UUID> = []
@@ -116,24 +123,44 @@ struct LocalGameSnapshotMapper {
         case .settings:
             throw LocalPlayError.invalidMessage
         case .playing:
-            guard !snapshot.mixLocked, snapshot.mixResult == nil, snapshot.score == nil else {
+            guard !snapshot.mixLocked, snapshot.mixResult == nil, snapshot.score == nil,
+                  (snapshot.mixMode == .manual ? snapshot.currentBlend == nil :
+                    (snapshot.currentBlend != nil) == !units.isEmpty) else {
                 throw LocalPlayError.invalidMessage
             }
         case .result:
-            guard snapshot.mixLocked, !units.isEmpty,
-                  snapshot.mixResult != nil, snapshot.score == nil else {
+            guard snapshot.mixMode == .manual, snapshot.mixLocked, !units.isEmpty,
+                  snapshot.mixResult != nil, snapshot.currentBlend == nil, snapshot.score == nil else {
                 throw LocalPlayError.invalidMessage
             }
         case .score:
             guard snapshot.mixLocked, !units.isEmpty,
-                  snapshot.mixResult != nil, snapshot.score != nil else {
+                  snapshot.mixResult != nil, snapshot.currentBlend == nil,
+                  snapshot.voting == nil, snapshot.score != nil else {
                 throw LocalPlayError.invalidMessage
             }
         }
+        if snapshot.phase == .playing || snapshot.phase == .result {
+            guard let voting = snapshot.voting, voting.votes.count <= 2,
+                  Set(voting.votes.map(\.player)).count == voting.votes.count,
+                  Set(voting.votes.map(\.action)).count == voting.votes.count else {
+                throw LocalPlayError.invalidMessage
+            }
+            let eligible: Set<LocalVoteAction>
+            if snapshot.phase == .result { eligible = [.finish, .redo] }
+            else if units.isEmpty { eligible = [] }
+            else { eligible = snapshot.mixMode == .manual ? [.mix] : [.apply, .redo] }
+            for vote in voting.votes {
+                guard let seat = snapshot.seatStatus.first(where: { $0.player == vote.player }),
+                      seat.status == .connected || (snapshot.paused && seat.status == .disconnected),
+                      eligible.contains(vote.action) else { throw LocalPlayError.invalidMessage }
+            }
+        }
         let request = ColorRequest(id: target.id, text: target.text, targetSRGB: target.sRGB.vector)
-        let round = Round(request: request, colorModel: model, mixMode: .manual, assignments: assignments,
+        let round = Round(request: request, colorModel: model, mixMode: snapshot.mixMode, assignments: assignments,
                           mix: Mix(units: units, isLocked: snapshot.mixLocked))
-        return GameState(selectedModel: model, round: round,
+        return GameState(selectedModel: model, selectedMixMode: snapshot.mixMode, round: round,
+                         currentBlend: snapshot.currentBlend?.vector,
                          mixResult: snapshot.mixResult?.vector, score: snapshot.score)
     }
 }

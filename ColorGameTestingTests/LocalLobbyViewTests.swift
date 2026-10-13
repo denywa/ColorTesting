@@ -152,9 +152,9 @@ final class LocalLobbyViewTests: XCTestCase {
         let wrongSession = try SessionState(sessionID: UUID(), seats: snapshotSession.seats,
                                             paused: false, snapshotRevision: 2)
         coordinator.handle(.received(.snapshot(try LocalGameSnapshotMapper().makeSnapshot(
-            from: GameViewModel(), session: wrongSession)), from: recoveredPeer))
+            from: GameViewModel(), session: wrongSession, voting: nil)), from: recoveredPeer))
         XCTAssertEqual(coordinator.error, .disconnected)
-        let snapshot = try LocalGameSnapshotMapper().makeSnapshot(from: GameViewModel(), session: snapshotSession)
+        let snapshot = try LocalGameSnapshotMapper().makeSnapshot(from: GameViewModel(), session: snapshotSession, voting: nil)
         coordinator.handle(.received(.snapshot(snapshot), from: recoveredPeer))
         XCTAssertNil(coordinator.error)
         XCTAssertFalse(buttons(in: LocalLobbyView(coordinator: coordinator).body).contains { label(of: $0).contains("Try Again") })

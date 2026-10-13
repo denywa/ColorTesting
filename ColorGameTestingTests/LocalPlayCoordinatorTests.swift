@@ -489,7 +489,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         let game = try await activeGame()
         let mapper = LocalGameSnapshotMapper()
         func assertConverged() async throws {
-            let host = try mapper.makeSnapshot(from: game.hostModel, session: XCTUnwrap(game.host.session))
+            let host = try mapper.makeSnapshot(from: game.hostModel, session: XCTUnwrap(game.host.session), voting: game.host.voting)
             await waitUntil {
                 game.second.latestSnapshot?.snapshotRevision == host.snapshotRevision &&
                 game.third.latestSnapshot?.snapshotRevision == host.snapshotRevision
@@ -548,10 +548,32 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         let alienSession = try SessionState(sessionID: UUID(), seats: hostSession.seats,
                                             paused: hostSession.paused,
                                             snapshotRevision: currentRevision + 1)
-        let wrongSession = try LocalGameSnapshotMapper().makeSnapshot(from: game.hostModel, session: alienSession)
+        let wrongSession = try LocalGameSnapshotMapper().makeSnapshot(from: game.hostModel, session: alienSession, voting: game.host.voting)
         game.second.handle(.received(.snapshot(wrongSession), from: hostHandle))
         XCTAssertEqual(game.second.latestSnapshot?.snapshotRevision, currentRevision)
         XCTAssertEqual(game.secondModel.timerSecondsRemaining, currentSeconds)
+    }
+
+    func testInvalidSnapshotPreservesClientVotingRevisionAndRound() async throws {
+        let game = try await activeGame()
+        await waitUntil { game.second.latestSnapshot?.phase == .playing }
+        let before = try XCTUnwrap(game.second.latestSnapshot)
+        let ballotID = try XCTUnwrap(game.second.voting?.id)
+        let peer = try XCTUnwrap(game.secondTransport.connected.first)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(before)) as? [String: Any])
+        object["snapshotRevision"] = before.snapshotRevision + 1
+        object["timerSecondsRemaining"] = 1
+        object["voting"] = ["id": UUID().uuidString,
+                            "votes": [["player": "player1", "action": "finish"]]]
+        let invalid = try JSONDecoder().decode(GameSnapshot.self, from: JSONSerialization.data(withJSONObject: object))
+        game.second.handle(.received(.snapshot(invalid), from: peer))
+        XCTAssertEqual(game.second.latestSnapshot?.snapshotRevision, before.snapshotRevision)
+        XCTAssertEqual(game.second.voting?.id, ballotID)
+        XCTAssertEqual(game.second.voting?.votes.count, 0)
+        XCTAssertEqual(game.secondModel.roundID, before.roundID)
+        XCTAssertEqual(game.secondModel.timerSecondsRemaining, before.timerSecondsRemaining)
+        XCTAssertEqual(game.secondModel.phase, .playing)
+        XCTAssertEqual(game.second.error, .invalidMessage)
     }
 
     func testPhaseAndPauseChangesBroadcastFullSnapshots() async throws {
@@ -584,7 +606,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         let game = try await joinedGame()
         let mapper = LocalGameSnapshotMapper()
         func assertConverged(_ phase: GamePhase) async throws {
-            let host = try mapper.makeSnapshot(from: game.hostModel, session: XCTUnwrap(game.host.session))
+            let host = try mapper.makeSnapshot(from: game.hostModel, session: XCTUnwrap(game.host.session), voting: game.host.voting)
             await waitUntil {
                 game.second.latestSnapshot?.snapshotRevision == host.snapshotRevision &&
                 game.third.latestSnapshot?.snapshotRevision == host.snapshotRevision
@@ -617,7 +639,7 @@ final class LocalPlayCoordinatorTests: XCTestCase {
                 XCTAssertEqual(model.round?.request.id, game.hostModel.round?.request.id)
                 XCTAssertEqual(model.timerSecondsRemaining, game.hostModel.timerSecondsRemaining)
                 let reconstructed = try mapper.makeSnapshot(from: model,
-                                                            session: XCTUnwrap(game.host.session)).mixEntries
+                                                            session: XCTUnwrap(game.host.session), voting: game.host.voting).mixEntries
                 XCTAssertEqual(reconstructed.map(\.colorID), host.mixEntries.map(\.colorID))
                 XCTAssertEqual(reconstructed.map(\.count), host.mixEntries.map(\.count))
                 XCTAssertEqual(model.mixResult, game.hostModel.mixResult)

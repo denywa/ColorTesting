@@ -12,6 +12,7 @@ final class LocalPlayCoordinator {
     private(set) var connectionStatus: SessionStatus = .waiting
     private(set) var error: LocalPlayError?
     private(set) var latestSnapshot: GameSnapshot?
+    private(set) var voting: LocalVotingState?
 
     private let viewModel: GameViewModel
     private let transport: any LocalPeerTransport
@@ -99,6 +100,7 @@ final class LocalPlayCoordinator {
         connectionStatus = .waiting
         error = nil
         latestSnapshot = nil
+        voting = nil
         clientID = UUID()
         reconnectToken = nil
         hostPeer = nil
@@ -135,6 +137,7 @@ final class LocalPlayCoordinator {
         welcomedPeers.removeAll()
         outboundTasks.removeAll()
         latestSnapshot = nil
+        voting = nil
         hostIsForeground = true
         pauseRequested = false
         recoveringPeers.removeAll()
@@ -252,6 +255,7 @@ final class LocalPlayCoordinator {
                     do {
                         try snapshotMapper.apply(snapshot, to: viewModel)
                         latestSnapshot = snapshot
+                        voting = snapshot.voting
                         awaitingSnapshot = false
                         error = nil
                     } catch {
@@ -271,8 +275,12 @@ final class LocalPlayCoordinator {
 
     private func recordAssignment() {
         guard role == .host else { return }
+        if viewModel.phase == .settings || viewModel.phase == .score { voting = nil }
         if historyRoundID != viewModel.roundID {
             historyRoundID = viewModel.roundID
+            if viewModel.roundID != nil && (viewModel.phase == .playing || viewModel.phase == .result) {
+                voting = .init(id: UUID(), votes: [])
+            }
             assignmentHistory.removeAll()
             acceptedActionIDs.removeAll()
         }
@@ -295,7 +303,7 @@ final class LocalPlayCoordinator {
             viewModel.timerSecondsRemaining = viewModel.reassignmentDuration
         }
         do {
-            let snapshot = try snapshotMapper.makeSnapshot(from: viewModel, session: session)
+            let snapshot = try snapshotMapper.makeSnapshot(from: viewModel, session: session, voting: voting)
             latestSnapshot = snapshot
             for peer in welcomedPeers { enqueue(.snapshot(snapshot), to: peer) }
         } catch {
@@ -516,7 +524,7 @@ final class LocalPlayCoordinator {
             guard let self, !self.endingSession, self.peersByRole[assigned] == peer else { return }
             self.welcomedPeers.insert(peer)
             guard let session = self.session,
-                  let snapshot = try? self.snapshotMapper.makeSnapshot(from: self.viewModel, session: session) else {
+                  let snapshot = try? self.snapshotMapper.makeSnapshot(from: self.viewModel, session: session, voting: self.voting) else {
                 self.transport.disconnect(peer)
                 return
             }
