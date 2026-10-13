@@ -144,6 +144,7 @@ The checked tasks above record the existing round-flow baseline. Playtesting Par
   - Extend domain/flow tests for defaults, selected/random targets, color-pair invariants, input guards, timer/reassignment, Manual lifecycle, Auto Apply/Redo and New Round retention/reset.
   - Exercise empty actions, wrong modes/phases, currentBlend clearing/freezing, and the latest blend at Apply; keep custom-request and single-device routing regressions.
   - Done when focused macOS XCTest cases cover each transition and an iOS build/simulator smoke confirms the existing six solo controls still work.
+  - _Blocked: Interactive iOS smoke requires manual verification; Simulator is unavailable through the supported UI automation surface. macOS tests (160) and iOS build/launch passed._
   - _Boundary: GameModelsTests, GameStateTests, GameViewModelTests, GameViewModelFlowTests, GameViewRenderingTests, ContentViewTests_
   - _Depends: 5.1, 5.2, 6.1, 6.2, 7.1_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_

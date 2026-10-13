@@ -80,7 +80,7 @@ The checked tasks above establish the pre-Part-II baseline. The tasks below add 
   - _Depends: 5.1_
   - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-- [ ] 6. Verify live Auto color and Apply across the round-calculation seam
+- [x] 6. Verify live Auto color and Apply across the round-calculation seam
   - After round-flow supplies currentBlend, verify every accepted unit is included immediately, the empty bowl is nil and never displays the mixer’s empty-input fallback, and Apply scores the latest accepted full mix.
   - Add only missing integration assertions to the existing round-flow test seam; leave round state transitions and mixer ownership in their respective specs.
   - Done when tests compare live and applied values with the same RYB helper and prove an empty Auto bowl exposes no calculated color.
