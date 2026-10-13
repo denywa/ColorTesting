@@ -66,7 +66,7 @@ final class GameViewLocalPlayTests: XCTestCase {
             XCTAssertNotNil(model.round?.assignments[role.playerID])
             XCTAssertTrue(texts(in: view.body).contains { $0.contains("Your role: Player") })
             if role != .host {
-                XCTAssertFalse(view.showsMixButton)
+                XCTAssertTrue(view.showsMixButton)
                 XCTAssertFalse(view.canMix)
             }
         }
@@ -108,7 +108,7 @@ final class GameViewLocalPlayTests: XCTestCase {
         model.removeKeyMonitor()
     }
 
-    func testNetworkAutoActionsRemainUnavailableUntilVotingIntegration() {
+    func testNetworkActionsRequireAnActiveJoinedSession() {
         let model = makeModel(mode: .auto)
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         let view = GameView(viewModel: model, coordinator: coordinator)

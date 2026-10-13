@@ -91,8 +91,8 @@ final class LocalPlayInputIntegrationTests: XCTestCase {
 
         let views = zip(models, peers).map { GameView(viewModel: $0.0, coordinator: $0.1) }
         XCTAssertEqual(views.map(\.visiblePlayers), [[.player1], [.player2], [.player3]])
-        XCTAssertFalse(views[1].showsMixButton)
-        XCTAssertFalse(views[2].showsMixButton)
+        XCTAssertTrue(views[1].showsMixButton)
+        XCTAssertTrue(views[2].showsMixButton)
         XCTAssertFalse(views[0].canMix)
         XCTAssertFalse(peers[1].castVote(.mix))
 

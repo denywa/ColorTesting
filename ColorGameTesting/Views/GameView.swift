@@ -15,27 +15,26 @@ struct GameView: View {
     }
 
     var inputsDisabled: Bool { coordinator?.paused == true }
-    var showsMixButton: Bool {
-        (viewModel.round?.mixMode == .manual) &&
-        (coordinator == nil || coordinator?.role == .host)
-    }
+    var showsMixButton: Bool { viewModel.round?.mixMode == .manual }
 
-    var canMix: Bool {
-        viewModel.canMix &&
-        (coordinator == nil || (coordinator?.role == .host && !inputsDisabled))
-    }
-
-    var canApply: Bool { coordinator == nil && viewModel.canApply }
-    var canRedo: Bool { coordinator == nil && viewModel.canRedo }
+    var canMix: Bool { coordinator?.canVote(.mix) ?? viewModel.canMix }
+    var canApply: Bool { coordinator?.canVote(.apply) ?? viewModel.canApply }
+    var canRedo: Bool { coordinator?.canVote(.redo) ?? viewModel.canRedo }
 
     func apply() {
-        guard canApply else { return }
-        viewModel.selectApply()
+        if let coordinator {
+            coordinator.castVote(.apply)
+        } else {
+            viewModel.selectApply()
+        }
     }
 
     func redo() {
-        guard canRedo else { return }
-        viewModel.selectRedo()
+        if let coordinator {
+            coordinator.castVote(.redo)
+        } else {
+            viewModel.selectRedo()
+        }
     }
 
     func mix() {
@@ -176,6 +175,10 @@ struct GameView: View {
                     }
                     .disabled(inputsDisabled)
                     .opacity(inputsDisabled ? 0.5 : 1)
+
+                    if let coordinator {
+                        LocalVotingStatusView(coordinator: coordinator)
+                    }
 
                     HStack {
                         TimerBadge(secondsRemaining: viewModel.timerSecondsRemaining)

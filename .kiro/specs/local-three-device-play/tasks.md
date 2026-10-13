@@ -290,7 +290,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.8, 6.9_
 
 - [ ] 10. Hubungkan suara ke layar dan validasi sesi lintas perangkat
-- [ ] 10.1 Tampilkan tindakan yang sesuai kursi dan mode
+- [x] 10.1 Tampilkan tindakan yang sesuai kursi dan mode
   - Beri semua kursi tombol Mix saat Manual playing, Finish/Redo saat Manual result, dan Apply/Redo saat Auto playing; pilihan satu kursi final ditampilkan sebagai pending dan dinonaktifkan untuk ballot yang sama.
   - Tetap aktifkan input warna yang sah saat vote tertunda; status menunjukkan siapa memilih tindakan apa dan bahwa dua suara sama menjalankan aksi.
   - Pertahankan pengaturan/Start/New Round/End host-only, satu skor kelompok, status pause/retry, label aksesibel, dan solo langsung tanpa vote.

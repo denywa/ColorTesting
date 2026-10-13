@@ -54,7 +54,7 @@ final class ResultViewLocalPlayTests: XCTestCase {
         return count + Mirror(reflecting: value).children.reduce(0) { $0 + buttonCount(in: $1.value) }
     }
 
-    func testClientKeepsResultAndBreakdownWithoutHostActionsWhilePaused() {
+    func testClientKeepsResultBreakdownAndDisabledVotingActionsWhilePaused() {
         let model = resultModel()
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         coordinator.startBrowsing()
@@ -64,8 +64,9 @@ final class ResultViewLocalPlayTests: XCTestCase {
                                                     reconnectToken: UUID())), from: peer))
         let view = ResultView(viewModel: model, coordinator: coordinator)
 
-        XCTAssertFalse(view.showsActions)
-        XCTAssertEqual(buttonCount(in: view.body), 0)
+        XCTAssertTrue(view.showsActions)
+        XCTAssertEqual(buttonCount(in: view.body), 2)
+        XCTAssertTrue(view.actionsDisabled)
         XCTAssertTrue(coordinator.paused)
         XCTAssertTrue(view.pauseStatus?.contains("Paused") == true)
         let visibleText = texts(in: view.body)

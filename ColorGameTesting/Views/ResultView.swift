@@ -10,9 +10,12 @@ struct ResultView: View {
     }
 
     var showsActions: Bool {
-        coordinator == nil || coordinator?.role == .host
+        viewModel.round?.mixMode == .manual
     }
-    var actionsDisabled: Bool { coordinator?.paused == true }
+    var actionsDisabled: Bool {
+        if let coordinator { return !coordinator.canVote(.finish) && !coordinator.canVote(.redo) }
+        return false
+    }
     var pauseStatus: String? {
         guard coordinator?.paused == true else { return nil }
         if let missing = coordinator?.seatStatus.first(where: { $0.status == .disconnected }) {
@@ -111,6 +114,10 @@ struct ResultView: View {
                         }
                     }
                     .font(.body)
+
+                    if let coordinator {
+                        LocalVotingStatusView(coordinator: coordinator)
+                    }
 
                     if showsActions {
                         HStack(spacing: 16) {
