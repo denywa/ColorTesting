@@ -289,7 +289,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Depends: 9.1, 9.2_
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.8, 6.9_
 
-- [ ] 10. Hubungkan suara ke layar dan validasi sesi lintas perangkat
+- [x] 10. Hubungkan suara ke layar dan validasi sesi lintas perangkat
 - [x] 10.1 Tampilkan tindakan yang sesuai kursi dan mode
   - Beri semua kursi tombol Mix saat Manual playing, Finish/Redo saat Manual result, dan Apply/Redo saat Auto playing; pilihan satu kursi final ditampilkan sebagai pending dan dinonaktifkan untuk ballot yang sama.
   - Tetap aktifkan input warna yang sah saat vote tertunda; status menunjukkan siapa memilih tindakan apa dan bahwa dua suara sama menjalankan aksi.
@@ -305,7 +305,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Boundary: LocalMessageCodecTests, LocalGameSnapshotMapperTests, LocalPlayCoordinatorTests, LocalPlayInputIntegrationTests, local-play UI tests and Xcode build integration_
   - _Depends: 7.1, 8.1, 9.1, 9.2, 9.3, 9.4, 10.1_
   - _Requirements: 1.3, 1.5, 2.2, 2.5, 3.3, 3.4, 3.6, 3.7, 4.2, 4.4, 5.2, 5.4, 5.7, 5.8, 5.9, 5.10, 5.11, 6.3, 6.4, 6.6, 6.7, 6.8, 7.1, 7.3, 8.1, 8.2, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9_
-- [ ] 10.3 Verifikasi jaringan lokal teknis pada tiga perangkat
+- [x] 10.3 Verifikasi jaringan lokal teknis pada tiga perangkat
   - Gunakan dua perangkat klien dan satu host pada Wi-Fi sama untuk uji penemuan/kursi, kontribusi serentak, vote dua pemain, Auto live color/Apply/Redo, dan penolakan build versi berbeda.
   - Putuskan lalu pulihkan salah satu peer; periksa pause, ballot, warna/result/score, kursi dan countdown yang sama setelah reconnect.
   - Selesai ketika satu ronde Manual dan Auto tersinkron pada tiga perangkat nyata, vote lama tidak dijalankan, dan kursi pulih sesuai kontrak.
@@ -315,7 +315,8 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
 
 ## Implementation Notes
 
-- Validasi Playtesting Part II pada 13 Oktober 2026: tugas 7.1–10.2 selesai dengan review independen; suite macOS terbaru lulus 185/185 tanpa kegagalan atau skip, build iOS berhasil, dan plist kedua artefak memuat layanan Bonjour serta alasan izin jaringan lokal. Build iPhone Simulator terbaru berhasil dibuka sampai pilihan mode. Tugas 10.3 tetap menunggu laporan uji tiga perangkat fisik untuk versi voting ini; laporan baseline 6.5 tidak membuktikan fitur baru.
+- Validasi Playtesting Part II pada 13 Oktober 2026: tugas 7.1–10.3 selesai dengan review independen; regresi akhir lulus 185/185 tanpa kegagalan atau skip (`/private/tmp/network-10-3-review.log`). Build iOS berhasil, dan plist kedua artefak memuat layanan Bonjour serta alasan izin jaringan lokal. Build iPhone Simulator terbaru berhasil dibuka sampai pilihan mode. Validasi integrasi berstatus GO setelah laporan perangkat fisik pengguna diterima.
+- Laporan manual pengguna untuk 10.3: pengguna menjawab “yes it works” pada permintaan eksplisit membangun ulang versi terbaru di tiga perangkat fisik pada Wi-Fi yang sama dan memeriksa Manual Mix/Redo/Finish, Auto Redo/Apply, eksekusi dua suara cocok, input warna setelah suara pertama, pemulihan suara/warna/kursi/countdown saat reconnect, serta penolakan perangkat keempat dan build protokol lama. Ini merupakan bukti yang dilaporkan pengguna, bukan pengamatan langsung agen. Review independen menerima bukti tersebut dan memverifikasi regresi pada kode produksi yang sama.
 - Perbaikan tombol jaringan pada 10.1: Apply/Redo memakai canVote dan castVote untuk seluruh peran; pilihan final menonaktifkan tindakan pada ballot yang sama, sedangkan input warna tetap aktif selama sesi tidak pause. Bukti otomatis tidak menggantikan uji sentuh perangkat fisik.
 
 - Validasi akhir 12 Oktober 2026: semua 32 subtugas selesai dan 40 kriteria penerimaan terpetakan; suite macOS terbaru lulus 139/139 tanpa kegagalan atau skip, build iOS berhasil, dan plist kedua hasil build memuat izin jaringan lokal serta layanan Bonjour `_colorgame._tcp`. Alur hidup aplikasi pada perangkat fisik didukung oleh laporan uji pengguna di bawah. Pemeriksaan kontrak koordinator–transport–mapper–UI dan batas arsitektur tidak menemukan penghalang integrasi.

@@ -4,9 +4,9 @@ Tanggal: 13 Oktober 2026. Cakupan: protokol v2, Manual/Auto Mix, voting final de
 
 ## Validation Report
 
-- DECISION: MANUAL_VERIFY_REQUIRED
+- DECISION: GO
 - MECHANICAL_RESULTS:
-  - Tests: PASS — suite macOS penuh, exit 0; 185 lulus, 0 gagal, 0 skip. Review independen terakhir: `/private/tmp/network-10-2-review.log`.
+  - Tests: PASS — suite macOS penuh, exit 0; 185 lulus, 0 gagal, 0 skip. Review independen terakhir: `/private/tmp/network-10-3-review.log`.
   - Build iOS: PASS — target Simulator, exit 0; `/private/tmp/network-10-2-ios.log`.
   - Konfigurasi jaringan: plist kedua artefak memuat layanan Bonjour `_colorgame._tcp` dan alasan izin jaringan lokal.
   - TBD/TODO grep: CLEAN pada implementasi jaringan dan komponen status voting baru.
@@ -18,30 +18,32 @@ Tanggal: 13 Oktober 2026. Cakupan: protokol v2, Manual/Auto Mix, voting final de
   - Boundary audit: bersih; perhitungan warna/skor tetap pada domain, voting pada koordinator, validasi snapshot pada mapper, dan tampilan pada SwiftUI. Tidak ada dependensi Network atau ballot pada domain ronde.
 - COVERAGE:
   - Requirements mapped: 59/59 kriteria memiliki jalur implementasi dan pemetaan tugas/tes; pemetaan bukan klaim bahwa seluruh kriteria telah diverifikasi pada perangkat fisik.
-  - Coverage gaps: bukti perangkat fisik untuk versi voting baru pada tugas 10.3 belum tersedia. Laporan baseline 6.5 hanya berlaku pada versi sebelumnya.
+  - Coverage gaps: tidak ada penghalang tersisa. Bukti fisik versi voting terbaru berasal dari konfirmasi pengguna untuk tugas 10.3; sumber dan batas pengamatan dijelaskan di bawah.
 - DESIGN:
   - Architecture drift: tidak ditemukan.
   - Dependency direction: domain/model → mapper/codec/transport → koordinator → UI dipertahankan.
   - File Structure Plan: komponen jaringan tetap di LocalPlay; LocalVotingStatusView adalah komponen presentasi bersama GameView dan ResultView.
 - OWNERSHIP: LOCAL
 - UPSTREAM_SPEC: N/A
-- BLOCKED_TASKS: tidak ada anotasi blocked; tugas 10.3 dan kelompok 10 tetap belum selesai karena uji manual wajib belum dilaporkan.
-- NEXT_STEP: jalankan checklist tiga perangkat berikut pada build terbaru dan catat hasil sebelum menetapkan GO.
+- BLOCKED_TASKS: tidak ada; seluruh subtugas selesai.
+- NEXT_STEP: implementasi voting siap digunakan untuk playtesting. Desain visual modern dan orientasi iPhone tetap merupakan cakupan spesifikasi modern-playtest-ui.
 
 ## Pemetaan Kebutuhan
 
 | Kriteria | Implementasi dan bukti otomatis |
 | --- | --- |
-| 1.1–1.8 | ModeSelection/LocalLobby, koordinator kursi, transport Bonjour; tes ContentView, coordinator dan transport. Penemuan/izin Wi-Fi nyata perlu 10.3. |
+| 1.1–1.8 | ModeSelection/LocalLobby, koordinator kursi, transport Bonjour; tes ContentView, coordinator dan transport, serta laporan manual pengguna 10.3. |
 | 2.1–2.7 | SettingsView, kontrol host, GameViewModel dan mapper; tes pengaturan, katalog kustom lokal, default Manual dan snapshot. |
 | 3.1–3.7 | GameView, input per kursi, assignmentHistory dan live blend; tes input integration, coordinator dan voting UI. |
 | 4.1–4.4 | Timer/epoch domain dan snapshot host; tes input di batas reassignment, preservasi unit dan countdown. |
 | 5.1–5.11 | Eligibility domain, keputusan host, Game/Result/Score; tes semua tindakan dua suara, mayoritas suara ketiga, reset dan New Round host-only. |
-| 6.1–6.9 | Pause, recovery token, antrean Welcome/snapshot, dan lifecycle; tes pengiriman recovery ditahan/gagal lalu retry, suara final dan deduplikasi setelah reconnect. Wi-Fi fisik perlu 10.3. |
+| 6.1–6.9 | Pause, recovery token, antrean Welcome/snapshot, dan lifecycle; tes pengiriman recovery ditahan/gagal lalu retry, suara final dan deduplikasi setelah reconnect, serta laporan manual pengguna 10.3. |
 | 7.1–7.4 | Kontrol solo langsung, satu skor, routing awal dan transport lokal; tes solo/ContentView/transport serta smoke launch terbaru. |
 | 8.1–8.9 | Ballot bertipe, validasi host, ID aksi, rotasi sebelum mutasi, status UI; tes suara final/pengganti/stale, dua/ketiga suara, input pending, bowl terbaru dan ballot baru. |
 
 ## Checklist Manual Tugas 10.3
+
+Status: diterima melalui laporan pengguna. Pengguna menjawab “yes it works” pada permintaan eksplisit menguji build terbaru di tiga perangkat fisik, alur Manual/Auto dengan dua suara, kontribusi saat pending, reconnect, perangkat keempat, dan penolakan protokol lama. Agen tidak mengamati perangkat tersebut langsung. Review independen menyetujui penutupan 10.3 dan mengulang suite macOS penuh pada kode yang sama; build iOS dan smoke sebelumnya tetap berlaku karena sumber aplikasi tidak berubah.
 
 Pasang build terbaru pada tiga perangkat fisik di Wi-Fi yang sama; gunakan satu host dan dua klien.
 
