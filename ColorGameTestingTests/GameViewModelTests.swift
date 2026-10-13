@@ -65,10 +65,18 @@ final class GameViewModelTests: XCTestCase {
             viewModel.showTargetColor = true
             viewModel.selectMixMode(mode)
             viewModel.confirmSettings()
-            // Auto scoring arrives in task 6.2; exercise the existing score reset seam.
-            viewModel.phase = .score
-            viewModel.mixResult = SIMD3(0.1, 0.2, 0.3)
-            viewModel.score = 50
+            viewModel.addColor(player: .player1, slot: .primary)
+            if mode == .manual {
+                viewModel.pressMixButton()
+                XCTAssertEqual(viewModel.phase, .result)
+                viewModel.selectFinish()
+            } else {
+                viewModel.selectApply()
+            }
+            XCTAssertEqual(viewModel.phase, .score)
+            XCTAssertTrue(viewModel.round?.mix.isLocked == true)
+            XCTAssertNotNil(viewModel.mixResult)
+            XCTAssertNotNil(viewModel.score)
             viewModel.startNewRound()
             XCTAssertEqual(viewModel.phase, .settings)
             XCTAssertEqual(viewModel.selectedModel, .ryb)
@@ -77,6 +85,7 @@ final class GameViewModelTests: XCTestCase {
             XCTAssertNil(viewModel.roundID)
             XCTAssertNil(viewModel.assignmentEpoch)
             XCTAssertNil(viewModel.selectedRequestID)
+            XCTAssertNil(viewModel.currentBlend)
             XCTAssertNil(viewModel.mixResult)
             XCTAssertNil(viewModel.score)
             XCTAssertEqual(viewModel.reassignmentDuration, 90)
