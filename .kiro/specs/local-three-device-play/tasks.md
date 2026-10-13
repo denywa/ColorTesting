@@ -257,7 +257,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Requirements: 2.2, 2.3, 2.5, 2.6, 2.7, 3.1, 3.7, 4.2, 5.2, 5.4, 5.7, 6.3, 6.4, 6.8, 8.3, 8.8_
 
 - [ ] 9. Terapkan penerimaan, konsensus, dan siklus ballot
-- [ ] 9.1 Catat satu pilihan final dari kursi yang sah
+- [x] 9.1 Catat satu pilihan final dari kursi yang sah
   - Arahkan vote host dan peer ke validasi penerimaan yang sama pada MainActor; identifikasi pemain peer dari kursi koneksi, bukan klaim payload.
   - Wajibkan sessionID, roundID, votingID, actionID baru, tiga kursi connected, sesi tidak pause, dan tindakan yang eligible pada mode/fase saat ini.
   - Simpan maksimum satu pilihan per kursi; tolak vote kedua, pengganti, stale, invalid dan duplikat tanpa mengganti record sah.
@@ -341,3 +341,4 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
 - Verifikasi snapshot membandingkan jumlah per UUID, rasio, dan urutan kemunculan pertama; array unit berulang tidak mempertahankan urutan kejadian host setelah kompresi. Fixture A,A,B menjaga regresi ini.
 - Task 7.1 mempertahankan sementara kasus aksi lokal Mix/Redo/Finish agar pemanggil lama tetap dikompilasi; codec v2 menolak ketiganya saat encode/decode. Hapus kompatibilitas lokal pada task 9.2 dan arahkan UI ke vote.
 - Task 8.1 menghubungkan ballot kosong pada awal ronde dan pada snapshot normal/recovery; voting serta revisi klien hanya berubah setelah mapper berhasil. Konsensus dan rotasi keputusan dilanjutkan pada task 9.1–9.2.
+- Task 9.1 memvalidasi kandidat ballot melalui proposedVoting; kandidat mayoritas belum dikomit atau diterbitkan sampai task 9.2 mengonsumsi keputusan secara atomik. Record tertunda tetap final per kursi.

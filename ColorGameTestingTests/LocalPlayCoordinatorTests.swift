@@ -1051,4 +1051,116 @@ final class LocalPlayCoordinatorTests: XCTestCase {
         try host.startHosting()
         XCTAssertNotEqual(host.sessionID, oldSessionID)
     }
+    func testFirstVoteFromEverySeatPublishesFinalChoice() async throws {
+        for seat in 0..<3 {
+            let game = try await activeGame()
+            game.hostModel.addColor(player: .player1, slot: .primary)
+            await waitUntil { game.second.latestSnapshot?.snapshotRevision == game.host.session?.snapshotRevision && game.third.latestSnapshot?.snapshotRevision == game.host.session?.snapshotRevision }
+            let voters = [game.host, game.second, game.third]
+            let voter = voters[seat]
+            let units = game.hostModel.round?.mix.units.count
+            XCTAssertTrue(voter.canVote(.mix))
+            XCTAssertTrue(voter.castVote(.mix))
+            if seat != 0 {
+                XCTAssertTrue(voter.voting?.votes.isEmpty == true)
+                XCTAssertTrue(game.host.voting?.votes.isEmpty == true)
+            }
+            await waitUntil { game.host.voting?.votes.count == 1 && game.second.voting?.votes.count == 1 && game.third.voting?.votes.count == 1 }
+            for coordinator in voters {
+                XCTAssertEqual(coordinator.voting?.votes.first?.player, voter.role?.playerID)
+                XCTAssertEqual(coordinator.voting?.votes.first?.action, .mix)
+            }
+            XCTAssertFalse(voter.canVote(.mix))
+            XCTAssertFalse(voter.castVote(.mix))
+            XCTAssertEqual(game.hostModel.round?.mix.units.count, units)
+            XCTAssertEqual(game.hostModel.phase, .playing)
+            await game.host.leaveSession()
+        }
+    }
+
+    func testVoteEligibilityAndSplitPendingRecordsInManualResultAndAuto() async throws {
+        for mode in [MixMode.manual, .auto] {
+            let game = try await joinedGame()
+            game.hostModel.selectMixMode(mode)
+            XCTAssertTrue(game.host.perform(.startRound))
+            for action in LocalVoteAction.allCases { XCTAssertFalse(game.host.canVote(action)) }
+            game.hostModel.addColor(player: .player1, slot: .primary)
+            if mode == .manual {
+                XCTAssertTrue(game.host.canVote(.mix))
+                XCTAssertFalse(game.host.canVote(.finish))
+                XCTAssertFalse(game.host.canVote(.apply))
+                XCTAssertFalse(game.host.canVote(.redo))
+                XCTAssertTrue(game.host.perform(.mix))
+            }
+            let choice: LocalVoteAction = mode == .manual ? .finish : .apply
+            XCTAssertTrue(game.host.canVote(choice))
+            XCTAssertTrue(game.host.canVote(.redo))
+            XCTAssertFalse(game.host.canVote(.mix))
+            XCTAssertFalse(game.host.canVote(mode == .manual ? .apply : .finish))
+            XCTAssertTrue(game.host.castVote(choice))
+            XCTAssertFalse(game.host.castVote(.redo))
+            XCTAssertEqual(game.host.voting?.votes.first?.action, choice)
+            await waitUntil { game.second.voting?.votes.count == 1 }
+            XCTAssertTrue(game.second.castVote(.redo))
+            await waitUntil { game.third.voting?.votes.count == 2 }
+            XCTAssertFalse(game.second.castVote(choice))
+            let replacement = WireMessage.input(.init(sessionID: game.host.sessionID!,
+                roundID: game.hostModel.roundID!, actionID: UUID(),
+                action: .vote(action: choice, votingID: game.host.voting!.id)))
+            try await game.secondTransport.send(replacement, to: try XCTUnwrap(game.secondTransport.connected.first))
+            XCTAssertEqual(game.host.voting?.votes.map(\.player), [.player1, .player2])
+            XCTAssertEqual(game.host.voting?.votes.map(\.action), [choice, .redo])
+            XCTAssertNoThrow(try LocalGameSnapshotMapper().makeSnapshot(from: game.hostModel, session: try XCTUnwrap(game.host.session), voting: game.host.voting))
+            XCTAssertEqual(game.hostModel.phase, mode == .manual ? .result : .playing)
+            await game.host.leaveSession()
+        }
+    }
+
+    func testInvalidStaleReplayReplacementPausedAndUnknownVotesPreserveRecord() async throws {
+        let game = try await activeGame()
+        game.hostModel.addColor(player: .player1, slot: .primary)
+        let ballot = try XCTUnwrap(game.host.voting?.id)
+        let peer = try XCTUnwrap(game.secondTransport.connected.first)
+        let actionID = UUID()
+        func vote(_ action: LocalVoteAction = .mix, id: UUID = UUID(), ballotID: UUID? = nil,
+                  sessionID: UUID? = nil, roundID: UUID? = nil) -> WireMessage {
+            .input(.init(sessionID: sessionID ?? game.host.sessionID!,
+                         roundID: roundID ?? game.hostModel.roundID!, actionID: id,
+                         action: .vote(action: action, votingID: ballotID ?? ballot)))
+        }
+        for invalid in [vote(.finish), vote(.apply), vote(.redo), vote(ballotID: UUID()),
+                        vote(sessionID: UUID()), vote(roundID: UUID())] {
+            try await game.secondTransport.send(invalid, to: peer)
+        }
+        game.host.handle(.received(vote(), from: PeerHandle(id: UUID())))
+        game.host.setPaused(true)
+        try await game.secondTransport.send(vote(), to: peer)
+        XCTAssertFalse(game.host.castVote(.mix))
+        XCTAssertTrue(game.host.voting?.votes.isEmpty == true)
+        game.host.setPaused(false)
+        let valid = vote(id: actionID)
+        try await game.secondTransport.send(valid, to: peer)
+        XCTAssertEqual(game.host.voting?.votes.count, 1)
+        let revision = game.host.latestSnapshot?.snapshotRevision
+        for rejected in [valid, vote(), vote(.redo)] {
+            try await game.secondTransport.send(rejected, to: peer)
+        }
+        try await game.thirdTransport.send(vote(id: actionID), to: peer)
+        XCTAssertEqual(game.host.voting?.votes.count, 1)
+        XCTAssertEqual(game.host.voting?.votes.first?.player, .player2)
+        XCTAssertEqual(game.host.voting?.votes.first?.action, .mix)
+        XCTAssertEqual(game.host.latestSnapshot?.snapshotRevision, revision)
+        game.host.hostWillEnterBackground()
+        XCTAssertFalse(game.host.canVote(.mix))
+        XCTAssertFalse(game.host.castVote(.mix))
+        try await game.thirdTransport.send(vote(), to: peer)
+        XCTAssertEqual(game.host.voting?.votes.count, 1)
+        game.host.appDidBecomeActive()
+        game.thirdTransport.stop()
+        try await game.secondTransport.send(vote(), to: peer)
+        XCTAssertFalse(game.host.canVote(.mix))
+        XCTAssertEqual(game.host.voting?.votes.first?.player, .player2)
+        XCTAssertEqual(game.host.voting?.votes.count, 1)
+    }
+
 }

@@ -388,6 +388,32 @@ final class LocalPlayCoordinator {
         perform(.addColor(slot: slot, observedColorID: color.id, assignmentEpoch: epoch))
     }
 
+    func canVote(_ action: LocalVoteAction) -> Bool {
+        guard !endingSession, let role, voting != nil,
+              connectionStatus == .connected, !paused,
+              seatStatus.count == PlayerID.allCases.count,
+              seatStatus.allSatisfy({ $0.status == .connected }),
+              voting?.votes.contains(where: { $0.player == role.playerID }) == false,
+              role != .host || (hostIsForeground && recoveringPeers.isEmpty),
+              role == .host || (!awaitingSnapshot && hostPeer != nil) else { return false }
+        return isVoteEligible(action)
+    }
+
+    private func isVoteEligible(_ action: LocalVoteAction) -> Bool {
+        switch action {
+        case .mix: return viewModel.canMix
+        case .finish: return viewModel.canFinish
+        case .apply: return viewModel.canApply
+        case .redo: return viewModel.canRedo
+        }
+    }
+
+    @discardableResult
+    func castVote(_ action: LocalVoteAction) -> Bool {
+        guard canVote(action), let voting else { return false }
+        return perform(.vote(action: action, votingID: voting.id))
+    }
+
     @discardableResult
     func perform(_ action: LocalGameAction) -> Bool {
         guard !endingSession else { return false }
@@ -420,16 +446,20 @@ final class LocalPlayCoordinator {
             default: break
             }
         }
-        guard let role, let sessionID,
-              let roundID = viewModel.roundID, viewModel.phase == .playing,
-              viewModel.round?.mix.isLocked == false,
+        guard let role, let sessionID, let roundID = viewModel.roundID,
               connectionStatus == .connected, !paused,
               (role == .host || !awaitingSnapshot) else { return false }
-        guard case let .addColor(slot, observedColorID, epoch) = action,
-              epoch == viewModel.assignmentEpoch,
-              let assignment = viewModel.round?.assignments[role.playerID],
-              (slot == .primary ? assignment.primaryColor.id : assignment.secondaryColor.id) == observedColorID else {
-            return false
+        switch action {
+        case let .vote(voteAction, votingID):
+            guard canVote(voteAction), voting?.id == votingID else { return false }
+        case let .addColor(slot, observedColorID, epoch):
+            guard viewModel.phase == .playing, viewModel.round?.mix.isLocked == false,
+                  epoch == viewModel.assignmentEpoch,
+                  let assignment = viewModel.round?.assignments[role.playerID],
+                  (slot == .primary ? assignment.primaryColor.id : assignment.secondaryColor.id) == observedColorID else {
+                return false
+            }
+        default: return false
         }
         let input = WireMessage.Input(sessionID: sessionID, roundID: roundID,
                                       actionID: UUID(), action: action)
@@ -448,21 +478,44 @@ final class LocalPlayCoordinator {
     }
 
     private func acceptInput(_ input: WireMessage.Input, from source: SessionRole) -> Bool {
-        guard role == .host, let session,
+        guard role == .host, let session, hostIsForeground, recoveringPeers.isEmpty,
+              connectionStatus == .connected,
               input.sessionID == session.sessionID,
               input.roundID == viewModel.roundID,
               session.seats.count == PlayerID.allCases.count,
               session.seats.allSatisfy({ $0.status == .connected }),
-              !session.paused, viewModel.phase == .playing,
-              viewModel.round?.mix.isLocked == false,
-              !acceptedActionIDs.contains(input.actionID),
-              case let .addColor(slot, observedColorID, epoch) = input.action,
-              let assignment = assignmentHistory[epoch]?[source.playerID] else { return false }
-        let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
-        guard color.id == observedColorID,
-              viewModel.acceptColor(color, for: source.playerID) else { return false }
-        acceptedActionIDs.insert(input.actionID)
-        return true
+              session.seats.contains(where: { $0.role == source }),
+              !session.paused, !acceptedActionIDs.contains(input.actionID) else { return false }
+        switch input.action {
+        case .vote:
+            guard let proposed = proposedVoting(for: input, from: source) else { return false }
+            // shortcut: Task 9.2 consumes majority proposals atomically before any snapshot publication.
+            guard !proposed.votes.contains(where: { vote in
+                proposed.votes.filter { $0.action == vote.action }.count >= 2
+            }) else { return false }
+            voting = proposed
+            acceptedActionIDs.insert(input.actionID)
+            publishChange()
+            return true
+        case let .addColor(slot, observedColorID, epoch):
+            guard viewModel.phase == .playing, viewModel.round?.mix.isLocked == false,
+                  let assignment = assignmentHistory[epoch]?[source.playerID] else { return false }
+            let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
+            guard color.id == observedColorID,
+                  viewModel.acceptColor(color, for: source.playerID) else { return false }
+            acceptedActionIDs.insert(input.actionID)
+            return true
+        default: return false
+        }
+    }
+
+    private func proposedVoting(for input: WireMessage.Input, from source: SessionRole) -> LocalVotingState? {
+        guard case let .vote(action, votingID) = input.action,
+              var proposed = voting, proposed.id == votingID,
+              !proposed.votes.contains(where: { $0.player == source.playerID }),
+              isVoteEligible(action) else { return nil }
+        proposed.votes.append(.init(player: source.playerID, action: action))
+        return proposed
     }
 
     private func accept(_ hello: WireMessage.Hello, from peer: PeerHandle) {
