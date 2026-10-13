@@ -18,6 +18,7 @@ struct LocalGameSnapshotMapper {
             phase: viewModel.phase,
             roundID: viewModel.roundID,
             selectedModel: viewModel.selectedModel,
+            mixMode: round?.mixMode ?? viewModel.selectedMixMode,
             target: round.map { .init(id: $0.request.id, text: $0.request.text,
                                       sRGB: .init($0.request.targetSRGB)) },
             reassignmentDuration: viewModel.reassignmentDuration,
@@ -33,6 +34,8 @@ struct LocalGameSnapshotMapper {
             mixEntries: order.map { .init(colorID: $0, count: counts[$0]!) },
             mixLocked: round?.mix.isLocked ?? false,
             mixResult: viewModel.mixResult.map(GameSnapshot.RGB.init),
+            currentBlend: viewModel.currentBlend.map(GameSnapshot.RGB.init),
+            voting: nil,
             score: viewModel.score,
             paused: session.paused,
             seatStatus: session.seats.map { .init(player: $0.role.playerID, status: $0.status) }

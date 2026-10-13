@@ -235,8 +235,8 @@
 
 Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riwayat. Tugas baru berikut menambahkan mode, warna live, dan voting. Selesaikan round-flow terlebih dahulu, lalu verifikasi handoff Auto di `color-mixing-and-scoring` 6 sebelum mengubah protokol sesi.
 
-- [ ] 7. Tambahkan mode campur dan ballot ke kontrak pesan versi 2
-- [ ] 7.1 Kirim mode RYB, warna Auto, dan keadaan suara
+- [x] 7. Tambahkan mode campur dan ballot ke kontrak pesan versi 2
+- [x] 7.1 Kirim mode RYB, warna Auto, dan keadaan suara
   - Naikkan versi protokol menjadi 2; tambahkan mode domain, warna live host, ballot dengan ID unik dan daftar pilihan bertipe.
   - Jadikan Mix/Finish/Apply/Redo pilihan suara di payload aksi; pertahankan ID sesi, ronde, aksi, dan bentuk Hello/Reject untuk penolakan versi melalui handshake.
   - Snapshot Settings/Manual/Auto/Score membawa state yang sesuai dan tetap dapat dibaca sebagai JSON dengan framing yang sama.
@@ -339,3 +339,4 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
 - ScoreView memakai satu nilai skor dari GameViewModel, menyembunyikan New Round pada klien, dan mengirim tindakan host melalui koordinator setelah jeda berakhir.
 - ContentView mempertahankan satu GameViewModel/koordinator, membuka pilihan mode saat awal atau setelah sesi lokal berakhir, dan merutekan lobi host/tamu serta layar fase melalui koordinator.
 - Verifikasi snapshot membandingkan jumlah per UUID, rasio, dan urutan kemunculan pertama; array unit berulang tidak mempertahankan urutan kejadian host setelah kompresi. Fixture A,A,B menjaga regresi ini.
+- Task 7.1 mempertahankan sementara kasus aksi lokal Mix/Redo/Finish agar pemanggil lama tetap dikompilasi; codec v2 menolak ketiganya saat encode/decode. Hapus kompatibilitas lokal pada task 9.2 dan arahkan UI ke vote.

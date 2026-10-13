@@ -1,7 +1,7 @@
 import Foundation
 
 enum LocalPlayProtocol {
-    static let version = 1
+    static let version = 2
 }
 
 enum PlayMode {
@@ -64,9 +64,27 @@ struct PeerHandle: Hashable {
     let id: UUID
 }
 
+enum LocalVoteAction: String, Codable, CaseIterable {
+    case mix, finish, apply, redo
+}
+
+struct LocalVotingState: Codable {
+    struct Vote: Codable {
+        let player: PlayerID
+        let action: LocalVoteAction
+    }
+
+    let id: UUID
+    var votes: [Vote]
+}
+
+extension MixMode: Codable {}
+
 enum LocalGameAction: Codable {
     case startRound
     case addColor(slot: ColorSlot, observedColorID: UUID, assignmentEpoch: Int)
+    case vote(action: LocalVoteAction, votingID: UUID)
+    // shortcut: Local callers retain direct phase actions until coordinator task 9.2; codec rejects them.
     case mix
     case redo
     case finish
@@ -108,6 +126,7 @@ struct GameSnapshot: Codable {
     let phase: GamePhase
     let roundID: UUID?
     let selectedModel: ColorModel?
+    let mixMode: MixMode
     let target: Target?
     let reassignmentDuration: Int
     let showTargetColor: Bool
@@ -117,6 +136,8 @@ struct GameSnapshot: Codable {
     let mixEntries: [MixEntry]
     let mixLocked: Bool
     let mixResult: RGB?
+    let currentBlend: RGB?
+    let voting: LocalVotingState?
     let score: Double?
     let paused: Bool
     let seatStatus: [SeatStatus]

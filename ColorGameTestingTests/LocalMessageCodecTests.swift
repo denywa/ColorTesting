@@ -60,7 +60,7 @@ import XCTest
     }
 
     func testOversizedEncodedPayloadIsRejected() throws {
-        let snapshot = GameSnapshot(protocolVersion: LocalPlayProtocol.version, sessionID: sessionID, snapshotRevision: 1, phase: .settings, roundID: nil, selectedModel: nil, target: .init(id: UUID(), text: String(repeating: "x", count: 1_048_576), sRGB: .init(red: 0, green: 0, blue: 0)), reassignmentDuration: 8, showTargetColor: false, timerSecondsRemaining: 8, assignmentEpoch: nil, assignments: [], mixEntries: [], mixLocked: false, mixResult: nil, score: nil, paused: false, seatStatus: [])
+        let snapshot = GameSnapshot(protocolVersion: LocalPlayProtocol.version, sessionID: sessionID, snapshotRevision: 1, phase: .settings, roundID: nil, selectedModel: nil, mixMode: .manual, target: .init(id: UUID(), text: String(repeating: "x", count: 1_048_576), sRGB: .init(red: 0, green: 0, blue: 0)), reassignmentDuration: 8, showTargetColor: false, timerSecondsRemaining: 8, assignmentEpoch: nil, assignments: [], mixEntries: [], mixLocked: false, mixResult: nil, currentBlend: nil, voting: nil, score: nil, paused: false, seatStatus: [])
         XCTAssertThrowsError(try LocalMessageCodec().encode(.snapshot(snapshot))) { error in
             XCTAssertEqual(error as? LocalPlayError, .invalidMessage)
         }
@@ -75,7 +75,7 @@ import XCTest
     }
 
     func testMismatchedSnapshotVersionIsRejected() throws {
-        let snapshot = GameSnapshot(protocolVersion: LocalPlayProtocol.version + 1, sessionID: sessionID, snapshotRevision: 1, phase: .settings, roundID: nil, selectedModel: nil, target: nil, reassignmentDuration: 8, showTargetColor: false, timerSecondsRemaining: 8, assignmentEpoch: nil, assignments: [], mixEntries: [], mixLocked: false, mixResult: nil, score: nil, paused: false, seatStatus: [])
+        let snapshot = GameSnapshot(protocolVersion: LocalPlayProtocol.version + 1, sessionID: sessionID, snapshotRevision: 1, phase: .settings, roundID: nil, selectedModel: nil, mixMode: .manual, target: nil, reassignmentDuration: 8, showTargetColor: false, timerSecondsRemaining: 8, assignmentEpoch: nil, assignments: [], mixEntries: [], mixLocked: false, mixResult: nil, currentBlend: nil, voting: nil, score: nil, paused: false, seatStatus: [])
         var decoder = LocalMessageCodec()
         XCTAssertThrowsError(try decoder.append(frame(JSONEncoder().encode(WireMessage.snapshot(snapshot))))) { error in
             XCTAssertEqual(error as? LocalPlayError, .versionMismatch)
@@ -89,6 +89,108 @@ import XCTest
         XCTAssertTrue(try first.append(frame.prefix(3)).isEmpty)
         XCTAssertEqual(try second.append(frame).count, 1)
         XCTAssertEqual(try first.append(frame.dropFirst(3)).count, 1)
+    }
+
+    func testVersionTwoContractAndVotePayload() throws {
+        XCTAssertEqual(LocalPlayProtocol.version, 2)
+        let ballot = UUID()
+        let input = Data("""
+        {"input":{"_0":{"sessionID":"\(sessionID)","roundID":"\(UUID())","actionID":"\(UUID())","action":{"vote":{"action":"apply","votingID":"\(ballot)"}}}}}
+        """.utf8)
+        var decoder = LocalMessageCodec()
+        XCTAssertEqual(try decoder.append(frame(input)).count, 1)
+    }
+
+    func testLegacyPhaseActionsAreRejectedOnWire() throws {
+        for action: LocalGameAction in [.mix, .finish, .redo] {
+            let input = WireMessage.input(.init(sessionID: sessionID, roundID: UUID(), actionID: UUID(), action: action))
+            XCTAssertThrowsError(try LocalMessageCodec().encode(input))
+            var decoder = LocalMessageCodec()
+            XCTAssertThrowsError(try decoder.append(frame(JSONEncoder().encode(input))))
+        }
+    }
+
+    func testSnapshotModesAndPhasesRoundTripInPartialAndCombinedFrames() throws {
+        let codec = LocalMessageCodec()
+        var frames = Data()
+        let ballot = UUID()
+        for mode in MixMode.allCases {
+            for phase: GamePhase in [.settings, .playing, .result, .score] {
+                let active = phase != .settings
+                let live = active && mode == .auto && phase == .playing
+                let voting: LocalVotingState? = phase == .playing || phase == .result
+                    ? .init(id: ballot, votes: [.init(player: .player1, action: mode == .auto ? .apply : .mix),
+                                               .init(player: .player3, action: .redo)]) : nil
+                let snapshot = GameSnapshot(protocolVersion: 2, sessionID: sessionID, snapshotRevision: 3,
+                    phase: phase, roundID: active ? UUID() : nil, selectedModel: .ryb, mixMode: mode,
+                    target: active ? .init(id: UUID(), text: "Target", sRGB: .init(red: 0.1, green: 0.2, blue: 0.3)) : nil,
+                    reassignmentDuration: 8, showTargetColor: true, timerSecondsRemaining: 4,
+                    assignmentEpoch: active ? 2 : nil, assignments: [], mixEntries: [],
+                    mixLocked: phase == .result || phase == .score,
+                    mixResult: phase == .result || phase == .score ? .init(red: 0.4, green: 0.5, blue: 0.6) : nil,
+                    currentBlend: live ? .init(red: 0.7, green: 0.8, blue: 0.9) : nil,
+                    voting: voting, score: phase == .score ? 80 : nil, paused: false, seatStatus: [])
+                frames += try codec.encode(.snapshot(snapshot))
+            }
+        }
+        var decoder = LocalMessageCodec()
+        XCTAssertTrue(try decoder.append(frames.prefix(3)).isEmpty)
+        XCTAssertTrue(try decoder.append(frames.dropFirst(3).prefix(5)).isEmpty)
+        let messages = try decoder.append(frames.dropFirst(8))
+        XCTAssertEqual(messages.count, 8)
+        for (index, message) in messages.enumerated() {
+            guard case .snapshot(let snapshot) = message else { return XCTFail("Expected snapshot") }
+            XCTAssertEqual(snapshot.mixMode, index < 4 ? .manual : .auto)
+            XCTAssertEqual(snapshot.voting?.id, index % 4 == 1 || index % 4 == 2 ? ballot : nil)
+            XCTAssertEqual(snapshot.voting?.votes.map(\.player), index % 4 == 1 || index % 4 == 2 ? [.player1, .player3] : nil)
+            XCTAssertEqual(snapshot.currentBlend?.blue, index == 5 ? 0.9 : nil)
+        }
+    }
+
+    func testVoteFramesCanBeSplitAndCombined() throws {
+        let ballot = UUID()
+        let codec = LocalMessageCodec()
+        let first = try codec.encode(.input(.init(sessionID: sessionID, roundID: UUID(), actionID: UUID(),
+                                                action: .vote(action: .apply, votingID: ballot))))
+        let second = try codec.encode(.input(.init(sessionID: sessionID, roundID: UUID(), actionID: UUID(),
+                                                 action: .vote(action: .redo, votingID: ballot))))
+        var decoder = LocalMessageCodec()
+        XCTAssertTrue(try decoder.append(first.prefix(2)).isEmpty)
+        XCTAssertTrue(try decoder.append(first.dropFirst(2).prefix(10)).isEmpty)
+        let messages = try decoder.append(first.dropFirst(12) + second)
+        XCTAssertEqual(messages.count, 2)
+        for (message, expected) in zip(messages, [LocalVoteAction.apply, .redo]) {
+            guard case .input(let input) = message,
+                  case .vote(let action, let votingID) = input.action else { return XCTFail("Expected vote") }
+            XCTAssertEqual(action, expected)
+            XCTAssertEqual(votingID, ballot)
+        }
+    }
+
+    func testVersionOneHelloAndRejectPreserveOriginalJSONShapes() throws {
+        let hello = Data("""
+        {"hello":{"_0":{"protocolVersion":1,"clientID":"\(sessionID)"}}}
+        """.utf8)
+        let rejection = Data("""
+        {"reject":{"_0":{"sessionID":"\(sessionID)","reason":"versionMismatch"}}}
+        """.utf8)
+        var decoder = LocalMessageCodec()
+        let messages = try decoder.append(frame(hello) + frame(rejection))
+        for (message, original) in zip(messages, [hello, rejection]) {
+            let actual = try LocalMessageCodec().encode(message).dropFirst(4)
+            XCTAssertEqual(try JSONSerialization.jsonObject(with: Data(actual)) as? NSDictionary,
+                           try JSONSerialization.jsonObject(with: original) as? NSDictionary)
+        }
+    }
+
+    func testVersionOneSnapshotWithoutNewFieldsIsRejectedBeforeDecoding() throws {
+        let payload = Data("""
+        {"snapshot":{"_0":{"protocolVersion":1}}}
+        """.utf8)
+        var decoder = LocalMessageCodec()
+        XCTAssertThrowsError(try decoder.append(frame(payload))) {
+            XCTAssertEqual($0 as? LocalPlayError, .versionMismatch)
+        }
     }
 
     private func frame(_ payload: Data) -> Data {
