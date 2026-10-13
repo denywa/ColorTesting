@@ -104,6 +104,24 @@ final class GameViewModel {
 
     var availableRequests: [ColorRequest] { ColorData.requestPool + customRequests }
     var canConfirm: Bool { canMutateRules && phase == .settings && !availableRequests.isEmpty }
+    var canMix: Bool {
+        phase == .playing && round?.mixMode == .manual
+            && round?.mix.isLocked == false && round?.mix.units.isEmpty == false
+    }
+    var canApply: Bool {
+        phase == .playing && round?.mixMode == .auto
+            && round?.mix.isLocked == false && round?.mix.units.isEmpty == false
+    }
+    var canRedo: Bool {
+        ((phase == .result && round?.mixMode == .manual
+            && round?.mix.isLocked == true) || canApply)
+    }
+    var canFinish: Bool {
+        phase == .result && round?.mixMode == .manual
+            && round?.mix.isLocked == true && mixResult != nil
+    }
+    var canNewRound: Bool { phase == .score }
+
     var isLocalClient: Bool {
         if case .client = controlMode { return true }
         return false
@@ -298,8 +316,7 @@ final class GameViewModel {
     }
 
     func pressMixButton() {
-        guard canMutateRules, phase == .playing, let round,
-              !round.mix.units.isEmpty, !round.mix.isLocked else { return }
+        guard canMutateRules, canMix, let round else { return }
         self.round?.mix.isLocked = true
         pauseTimer()
         removeKeyMonitor()
@@ -308,11 +325,27 @@ final class GameViewModel {
         notifyHostChange()
     }
 
+    func selectApply() {
+        guard canMutateRules, canApply, let round else { return }
+        let result = ColorMixer.blend(round.mix.units, model: round.colorModel)
+        mixResult = result
+        self.round?.mix.isLocked = true
+        score = ScoreCalculator.matchPercentage(
+            ColorConverter.sRGBToLab(result), ColorConverter.sRGBToLab(round.request.targetSRGB)
+        )
+        pauseTimer()
+        removeKeyMonitor()
+        phase = .score
+        notifyHostChange()
+    }
+
     func selectRedo() {
-        guard canMutateRules, phase == .result, round?.mix.isLocked == true else { return }
+        guard canMutateRules, canRedo else { return }
         round?.mix.units.removeAll()
         round?.mix.isLocked = false
+        gameState.currentBlend = nil
         mixResult = nil
+        score = nil
         phase = .playing
         resumeTimer()
         installKeyMonitor()
@@ -320,7 +353,7 @@ final class GameViewModel {
     }
 
     func selectFinish() {
-        guard canMutateRules, phase == .result, let mixResult,
+        guard canMutateRules, canFinish, let mixResult,
               let target = round?.request.targetSRGB else { return }
         let resultLab = ColorConverter.sRGBToLab(mixResult)
         let targetLab = ColorConverter.sRGBToLab(target)
@@ -331,7 +364,7 @@ final class GameViewModel {
     }
 
     func startNewRound() {
-        guard canMutateRules, phase == .score else { return }
+        guard canMutateRules, canNewRound else { return }
         pauseTimer()
         removeKeyMonitor()
         gameState = GameState()

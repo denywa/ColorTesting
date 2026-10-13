@@ -113,7 +113,7 @@ The checked tasks above record the existing round-flow baseline. Playtesting Par
   - _Depends: 5.1_
   - _Requirements: 2.1, 2.2, 2.6, 2.7, 4.3_
 
-- [ ] 6. Support mode-specific round actions and live Auto color
+- [x] 6. Support mode-specific round actions and live Auto color
 - [x] 6.1 Update live color for every accepted Auto contribution
   - Maintain an optional live color separately from the frozen result; empty, Manual and scored states have no live color.
   - Recalculate from all accepted units after both solo input and host-accepted network input using the shared RYB mixer; client snapshot application accepts the host color without calculating it.
@@ -122,7 +122,7 @@ The checked tasks above record the existing round-flow baseline. Playtesting Par
   - _Boundary: GameState live color, GameViewModel input and applyRemoteState_
   - _Depends: 5.1, 5.2_
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5, 6.1_
-- [ ] 6.2 Apply or clear Auto Mix without a Manual result phase
+- [x] 6.2 Apply or clear Auto Mix without a Manual result phase
   - Add shared eligibility for Mix, Apply, Redo, Finish and New Round; gate each action by phase, mode, lock and nonempty/result state.
   - Auto Apply freezes and scores the latest bowl directly into the score phase, stops timer/input, and retains the target; Auto Redo clears units/live color and continues playing with assignments and remaining time.
   - Preserve Manual Mix → result → Redo/Finish → score behavior and invalid-action no-ops; clear transient colors and reset mode on New Round.
