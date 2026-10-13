@@ -274,7 +274,7 @@ Tugas selesai di atas mencatat baseline sesi lokal dan dipertahankan sebagai riw
   - _Boundary: LocalPlayCoordinator majority resolution and GameViewModel action integration_
   - _Depends: 9.1_
   - _Requirements: 2.1, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 8.4, 8.5, 8.9_
-- [ ] 9.3 Pertahankan input warna dan gunakan bowl terkini saat vote tertunda
+- [x] 9.3 Pertahankan input warna dan gunakan bowl terkini saat vote tertunda
   - Jangan pause timer atau menutup input warna karena vote tertunda; jangan menghapus atau mengubah pilihan sah ketika unit baru diterima atau assignment berganti.
   - Serialisasi warna dan vote yang hampir bersamaan pada host; mayoritas Apply/Mix memakai urutan unit yang benar-benar telah diterima host sebelum vote kedua.
   - Selesai ketika tes input/vote deterministik menambahkan warna di antara dua vote dan hasil tindakan sama dengan blend/rasio dari unit terbaru.
