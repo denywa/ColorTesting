@@ -243,7 +243,9 @@ final class LocalGameSnapshotMapperTests: XCTestCase {
                                                 ["player": "player2", "action": "mix"],
                                                 ["player": "player3", "action": "mix"]]]
         }
-        for invalid in [badPair, missing, badAction, majority, threeVotes] {
+        try mapper.apply(majority, to: client)
+        XCTAssertEqual(client.phase, .playing, "Two Manual Mix votes must remain pending")
+        for invalid in [badPair, missing, badAction, threeVotes] {
             XCTAssertThrowsError(try mapper.apply(invalid, to: client))
             XCTAssertEqual(client.roundID, snapshot.roundID)
             XCTAssertEqual(client.round?.mix.units.count, 1)

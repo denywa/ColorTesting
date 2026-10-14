@@ -136,7 +136,10 @@ final class GameViewModel {
     }
 
     var availableRequests: [ColorRequest] {
-        ColorData.requestPool.filter { !deletedBuiltInRequestIDs.contains($0.id) } + customRequests
+        let editedIDs = Set(customRequests.map(\.id))
+        return ColorData.requestPool.filter {
+            !deletedBuiltInRequestIDs.contains($0.id) && !editedIDs.contains($0.id)
+        } + customRequests
     }
     var requestsForSelectedLevel: [ColorRequest] {
         availableRequests.filter { $0.difficulty == selectedRequestLevel }
@@ -238,16 +241,34 @@ final class GameViewModel {
     }
 
     @discardableResult
+    func editRequest(id: UUID, text: String, hex: String, difficulty: RequestDifficulty) -> Bool {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard canMutateRules, phase == .settings, !trimmedText.isEmpty,
+              let color = ColorHex.sRGB(hex),
+              let original = availableRequests.first(where: { $0.id == id }) else { return false }
+        let request = ColorRequest(id: id, text: trimmedText, targetSRGB: color, difficulty: difficulty)
+        // Built-in edits are local overrides with the original identity in the existing request store.
+        var updated = customRequests
+        if let index = updated.firstIndex(where: { $0.id == id }) { updated[index] = request }
+        else { updated.append(request) }
+        guard customRequestStore.save(updated) else { return false }
+        customRequests = updated
+        remainingRequestIDs.removeValue(forKey: original.difficulty.rawValue)
+        remainingRequestIDs.removeValue(forKey: difficulty.rawValue)
+        selectedRequestID = id
+        return true
+    }
+
+    @discardableResult
     func deleteRequest(id: UUID) -> Bool {
         guard canMutateRules, phase == .settings,
               let request = availableRequests.first(where: { $0.id == id }) else { return false }
+        let updated = customRequests.filter { $0.id != id }
+        guard customRequestStore.save(updated) else { return false }
+        customRequests = updated
         if ColorData.requestPool.contains(where: { $0.id == id }) {
             deletedBuiltInRequestIDs.insert(id)
             customRequestStore.saveDeletedBuiltIns(deletedBuiltInRequestIDs)
-        } else {
-            let updated = customRequests.filter { $0.id != id }
-            guard customRequestStore.save(updated) else { return false }
-            customRequests = updated
         }
         if storedSelectedRequestID == id { storedSelectedRequestID = nil }
         remainingRequestIDs.removeValue(forKey: request.difficulty.rawValue)

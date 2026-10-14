@@ -20,8 +20,8 @@ The project provides configurable request difficulty, mixing modes, timers, and 
 
 - Play together on one device or connect three devices over the same local network.
 - In three-device play, the host manages settings and progression while each player contributes their assigned colors.
-- Mix, Apply, Finish, and Redo use voting: two matching votes execute the action immediately.
-- A vote is final for that ballot. Color input continues while votes are pending, and the action uses the latest accepted mix.
+- Manual Mix requires all three players to vote Mix. Manual Redo/Finish and Auto Apply/Redo execute immediately after two matching votes.
+- During mixing, tap the selected action again to cancel its vote. Players with a pending vote cannot add colors until they cancel; other players can continue contributing. Manual result-screen Redo/Finish votes remain final for that ballot.
 - Connection recovery restores shared state and pending votes. Additional players and incompatible protocol versions are rejected.
 
 ### Endless Days
@@ -60,6 +60,7 @@ Lives reset when a new Day begins. Redo clears the mix without counting as a mis
 
 - Requests are organized into three difficulty levels.
 - Add custom request text, a six-digit hexadecimal target color, and a difficulty level.
+- Edit built-in or custom request text, target color, and difficulty; built-in edits are saved as local overrides.
 - Delete built-in or custom requests from settings.
 - Random selection uses a shuffled queue for each level: requests do not repeat until that level's pool has been exhausted.
 - Custom requests and built-in deletion preferences persist locally on the device. In network play, the host's request pool supplies the shared requests.
@@ -90,11 +91,8 @@ The application has no third-party runtime dependencies to install.
 ```bash
 git clone https://github.com/denywa/ColorTesting.git
 cd ColorTesting
-git switch codex/playtest-part-ii-endless-ui
 open ColorGameTesting2.xcodeproj
 ```
-
-The playtesting updates documented here are currently on `codex/playtest-part-ii-endless-ui`, proposed in [pull request #3](https://github.com/denywa/ColorTesting/pull/3). Once merged, they can be accessed from `main`.
 
 ### Run on Mac
 

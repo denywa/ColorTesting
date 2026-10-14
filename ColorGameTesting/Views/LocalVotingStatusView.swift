@@ -4,17 +4,30 @@ struct LocalVotingStatusView: View {
     let coordinator: LocalPlayCoordinator
     var compact = false
 
+    var rule: String {
+        coordinator.requiresAllMixVotes ? "All three votes mix the colors. Tap Mix again to cancel your vote." :
+        "Two matching votes immediately run the action."
+    }
+
+    var statusMessage: String? {
+        if coordinator.requiresAllMixVotes {
+            return coordinator.colorInputBlockedByVote ? "Waiting for others" : nil
+        }
+        return "Majority vote · 2 of 3 must agree"
+    }
+
     var choices: [String] {
         PlayerID.allCases.enumerated().map { index, player in
             if let vote = coordinator.voting?.votes.first(where: { $0.player == player }) {
-                return "Player \(index + 1): chose \(vote.action.rawValue.capitalized) (final)"
+                let state = coordinator.allowsVoteCancellation ? "tap again to cancel" : "final"
+                return "Player \(index + 1): chose \(vote.action.rawValue.capitalized) (\(state))"
             }
             return "Player \(index + 1): waiting for a choice"
         }
     }
 
     var body: some View {
-        Group {
+        VStack(spacing: 3) {
             if compact {
                 HStack(spacing: 6) {
                     Image(systemName: "person.2.fill").accessibilityHidden(true)
@@ -30,7 +43,7 @@ struct LocalVotingStatusView: View {
             } else {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
-                Text("2 matching votes").font(.caption.bold()).foregroundStyle(PlaytestStyle.accent)
+                Text(coordinator.requiresAllMixVotes ? "3 Mix votes" : "2 matching votes").font(.caption.bold()).foregroundStyle(PlaytestStyle.accent)
                 ForEach(Array(PlayerID.allCases.enumerated()), id: \.offset) { index, player in
                     let vote = coordinator.voting?.votes.first { $0.player == player }
                     Text("Player \(index + 1): \(vote.map { $0.action.rawValue.capitalized + " ✓" } ?? "Waiting")")
@@ -39,7 +52,7 @@ struct LocalVotingStatusView: View {
                 }
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text("Two matching votes immediately run the action.").font(.caption.bold())
+                Text(rule).font(.caption.bold())
                 ForEach(choices, id: \.self) { Text($0).font(.caption) }
             }
         }
@@ -47,8 +60,17 @@ struct LocalVotingStatusView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 14))
             }
+            if let statusMessage {
+                Text(statusMessage)
+                    .font(.caption2.bold())
+                    .foregroundStyle(coordinator.requiresAllMixVotes ? Color(red: 0.65, green: 0.12, blue: 0.38) : PlaytestStyle.accent)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.white.opacity(0.95), in: Capsule())
+            }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel((["Two matching votes immediately run the action."] + choices).joined(separator: " "))
+        .accessibilityLabel(([rule] + choices + (statusMessage.map { [$0] } ?? [])).joined(separator: " "))
     }
 }

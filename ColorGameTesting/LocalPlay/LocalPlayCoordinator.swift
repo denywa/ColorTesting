@@ -406,6 +406,38 @@ final class LocalPlayCoordinator {
         return isVoteEligible(action)
     }
 
+    var requiresAllMixVotes: Bool {
+        viewModel.phase == .playing && viewModel.round?.mixMode == .manual
+    }
+
+    var allowsVoteCancellation: Bool {
+        viewModel.phase == .playing
+    }
+
+    private func hasPendingVote(_ player: PlayerID) -> Bool {
+        voting?.votes.contains(where: { $0.player == player }) == true
+    }
+
+    var colorInputBlockedByVote: Bool {
+        role.map { hasPendingVote($0.playerID) } ?? false
+    }
+
+    func canCancelVote(_ action: LocalVoteAction) -> Bool {
+        guard allowsVoteCancellation, !endingSession, let role,
+              connectionStatus == .connected, !paused,
+              role != .host || (hostIsForeground && recoveringPeers.isEmpty),
+              role == .host || (!awaitingSnapshot && hostPeer != nil) else { return false }
+        return voting?.votes.contains(where: { $0.player == role.playerID && $0.action == action }) == true
+    }
+
+    @discardableResult
+    func toggleVote(_ action: LocalVoteAction) -> Bool {
+        if canCancelVote(action), let voting {
+            return perform(.cancelVote(action: action, votingID: voting.id))
+        }
+        return castVote(action)
+    }
+
     private func isVoteEligible(_ action: LocalVoteAction) -> Bool {
         switch action {
         case .mix: return viewModel.canMix
@@ -467,8 +499,11 @@ final class LocalPlayCoordinator {
         switch action {
         case let .vote(voteAction, votingID):
             guard canVote(voteAction), voting?.id == votingID else { return false }
+        case let .cancelVote(voteAction, votingID):
+            guard canCancelVote(voteAction), voting?.id == votingID else { return false }
         case let .addColor(slot, observedColorID, epoch):
             guard viewModel.phase == .playing, viewModel.round?.mix.isLocked == false,
+                  !hasPendingVote(role.playerID),
                   epoch == viewModel.assignmentEpoch,
                   let assignment = viewModel.round?.assignments[role.playerID],
                   (slot == .primary ? assignment.primaryColor.id : assignment.secondaryColor.id) == observedColorID else {
@@ -507,7 +542,7 @@ final class LocalPlayCoordinator {
             guard let proposed = proposedVoting(for: input, from: source) else { return false }
             acceptedActionIDs.insert(input.actionID)
             if let decision = proposed.votes.first(where: { vote in
-                proposed.votes.filter { $0.action == vote.action }.count >= 2
+                proposed.votes.filter { $0.action == vote.action }.count >= (vote.action == .mix ? 3 : 2)
             })?.action {
                 guard isVoteEligible(decision) else { return false }
                 voting = decision == .finish || decision == .apply ? nil : .init(id: UUID(), votes: [])
@@ -522,8 +557,19 @@ final class LocalPlayCoordinator {
                 publishChange()
             }
             return true
+        case let .cancelVote(action, votingID):
+            guard allowsVoteCancellation, var proposed = voting, proposed.id == votingID,
+                  let index = proposed.votes.firstIndex(where: { $0.player == source.playerID && $0.action == action }) else {
+                return false
+            }
+            proposed.votes.remove(at: index)
+            acceptedActionIDs.insert(input.actionID)
+            voting = proposed
+            publishChange()
+            return true
         case let .addColor(slot, observedColorID, epoch):
             guard viewModel.phase == .playing, viewModel.round?.mix.isLocked == false,
+                  !hasPendingVote(source.playerID),
                   let assignment = assignmentHistory[epoch]?[source.playerID] else { return false }
             let color = slot == .primary ? assignment.primaryColor : assignment.secondaryColor
             guard color.id == observedColorID,

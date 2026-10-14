@@ -92,7 +92,7 @@ import XCTest
     }
 
     func testVersionThreeContractAndVotePayload() throws {
-        XCTAssertEqual(LocalPlayProtocol.version, 3)
+        XCTAssertEqual(LocalPlayProtocol.version, 4)
         let ballot = UUID()
         let input = Data("""
         {"input":{"_0":{"sessionID":"\(sessionID)","roundID":"\(UUID())","actionID":"\(UUID())","action":{"vote":{"action":"apply","votingID":"\(ballot)"}}}}}

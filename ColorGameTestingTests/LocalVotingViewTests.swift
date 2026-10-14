@@ -31,7 +31,7 @@ final class LocalVotingViewTests: XCTestCase {
     }
 
     private func texts(in value: Any) -> [String] {
-        if let status = value as? LocalVotingStatusView { return ["Two matching votes immediately run the action."] + status.choices }
+        if let status = value as? LocalVotingStatusView { return [status.rule] + status.choices }
         if let text = value as? Text { return [String(describing: text)] }
         return Mirror(reflecting: value).children.flatMap { texts(in: $0.value) }
     }
@@ -40,10 +40,11 @@ final class LocalVotingViewTests: XCTestCase {
                               file: StaticString = #filePath, line: UInt = #line) {
         let statuses = peers.map { LocalVotingStatusView(coordinator: $0).choices }
         XCTAssertTrue(statuses.allSatisfy { $0 == statuses[0] }, file: file, line: line)
-        XCTAssertEqual(statuses[0][voter], "Player \(voter + 1): chose \(action) (final)", file: file, line: line)
+        let state = peers[0].allowsVoteCancellation ? "tap again to cancel" : "final"
+        XCTAssertEqual(statuses[0][voter], "Player \(voter + 1): chose \(action) (\(state))", file: file, line: line)
     }
 
-    func testManualAllRolesVoteOnceKeepColorInputAndShareResultChoices() async throws {
+    func testManualAllRolesCanCancelAndNeedUnanimityBeforeResultMajority() async throws {
         for voter in 0..<3 {
             let (models, peers) = try await session(mode: .manual)
             defer { peers.forEach { $0.appWillTerminate() } }
@@ -52,16 +53,33 @@ final class LocalVotingViewTests: XCTestCase {
             views[voter].mix()
             await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 1 } }
             assertStatus(peers, voter: voter, action: "Mix")
-            XCTAssertTrue(texts(in: views[voter].content(size: CGSize(width: 900, height: 500))).contains { $0.contains("Two matching votes") })
-            XCTAssertFalse(views[voter].canMix, "A final choice disables this ballot")
+            XCTAssertEqual(LocalVotingStatusView(coordinator: peers[voter]).statusMessage, "Waiting for others")
+            XCTAssertNil(LocalVotingStatusView(coordinator: peers[(voter + 1) % 3]).statusMessage)
+            XCTAssertTrue(texts(in: views[voter].content(size: CGSize(width: 900, height: 500))).contains { $0.contains("All three votes") })
+            XCTAssertTrue(views[voter].canMix, "The same button cancels the vote")
+            XCTAssertTrue(views[voter].colorInputsDisabled)
             XCTAssertTrue(views.allSatisfy { !$0.inputsDisabled })
             XCTAssertTrue(models.allSatisfy { $0.phase == .playing })
             XCTAssertTrue(peers.allSatisfy { $0.voting?.id == peers[0].voting?.id })
             models[voter].addColor(player: PlayerID.allCases[voter], slot: .secondary)
+            XCTAssertEqual(models[0].round?.mix.units.count, 1)
+            let other = (voter + 1) % 3
+            models[other].addColor(player: PlayerID.allCases[other], slot: .secondary)
             await waitUntil { models.allSatisfy { $0.round?.mix.units.count == 2 } }
-            views[(voter + 1) % 3].mix()
+            views[voter].mix()
+            await waitUntil { peers.allSatisfy { $0.voting?.votes.isEmpty == true } }
+            XCTAssertFalse(views[voter].colorInputsDisabled)
+            XCTAssertNil(LocalVotingStatusView(coordinator: peers[voter]).statusMessage)
+            models[voter].addColor(player: PlayerID.allCases[voter], slot: .primary)
+            await waitUntil { models.allSatisfy { $0.round?.mix.units.count == 3 } }
+            views[voter].mix()
+            views[other].mix()
+            await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 2 } }
+            XCTAssertTrue(models.allSatisfy { $0.phase == .playing })
+            views[(voter + 2) % 3].mix()
             await waitUntil { models.allSatisfy { $0.phase == .result } }
             let results = zip(models, peers).map { ResultView(viewModel: $0, coordinator: $1) }
+            XCTAssertEqual(LocalVotingStatusView(coordinator: peers[voter]).statusMessage, "Majority vote · 2 of 3 must agree")
             XCTAssertTrue(results.allSatisfy { $0.showsActions && !$0.actionsDisabled })
             results[voter].finish()
             await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 1 } }
@@ -85,6 +103,9 @@ final class LocalVotingViewTests: XCTestCase {
             defer { peers.forEach { $0.appWillTerminate() } }
             let views = zip(models, peers).map { GameView(viewModel: $0, coordinator: $1) }
             XCTAssertTrue(views.allSatisfy { $0.canApply && $0.canRedo && !$0.showsMixButton })
+            XCTAssertTrue(peers.allSatisfy {
+                LocalVotingStatusView(coordinator: $0).statusMessage == "Majority vote · 2 of 3 must agree"
+            })
             peers[0].setPaused(true)
             await waitUntil { peers.allSatisfy { $0.paused } }
             XCTAssertTrue(views.allSatisfy { !$0.canApply && !$0.canRedo && $0.inputsDisabled })
@@ -96,8 +117,15 @@ final class LocalVotingViewTests: XCTestCase {
             await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 1 } }
             assertStatus(peers, voter: voter, action: "Redo")
             XCTAssertFalse(views[voter].canApply)
-            XCTAssertFalse(views[voter].canRedo)
-            XCTAssertFalse(views[voter].inputsDisabled)
+            XCTAssertTrue(views[voter].canRedo)
+            XCTAssertTrue(views[voter].colorInputsDisabled)
+            models[voter].addColor(player: PlayerID.allCases[voter], slot: .secondary)
+            XCTAssertEqual(models[0].round?.mix.units.count, 1)
+            views[voter].redo()
+            await waitUntil { peers.allSatisfy { $0.voting?.votes.isEmpty == true } }
+            XCTAssertFalse(views[voter].colorInputsDisabled)
+            views[voter].redo()
+            await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 1 } }
             views[(voter + 1) % 3].redo()
             await waitUntil { models.allSatisfy { $0.round?.mix.units.isEmpty == true } }
             XCTAssertTrue(models.allSatisfy { $0.phase == .playing })
@@ -105,6 +133,14 @@ final class LocalVotingViewTests: XCTestCase {
             models[voter].addColor(player: PlayerID.allCases[voter], slot: .primary)
             await waitUntil { models.allSatisfy { $0.round?.mix.units.count == 1 } }
             XCTAssertTrue(views[voter].canApply, "New ballot permits a fresh final choice")
+            views[voter].apply()
+            await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 1 } }
+            XCTAssertTrue(views[voter].canApply)
+            XCTAssertFalse(views[voter].canRedo)
+            views[voter].apply()
+            await waitUntil { peers.allSatisfy { $0.voting?.votes.isEmpty == true } }
+            models[voter].addColor(player: PlayerID.allCases[voter], slot: .secondary)
+            await waitUntil { models.allSatisfy { $0.round?.mix.units.count == 2 } }
             views[voter].apply()
             await waitUntil { peers.allSatisfy { $0.voting?.votes.count == 1 } }
             views[(voter + 1) % 3].apply()
