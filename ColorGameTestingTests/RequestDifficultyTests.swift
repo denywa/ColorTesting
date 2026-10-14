@@ -55,42 +55,28 @@ final class RequestDifficultyTests: XCTestCase {
         }
     }
 
-    func testBuiltInClassificationPreservesEveryExistingTarget() {
-        let expected: [(String, String, String, RequestDifficulty)] = [
-            ("001", "Glossy mocha brown", "#4A3B32", .level3),
-            ("002", "Milk tea", "#C8B19A", .level3),
-            ("003", "Honey blonde", "#F6D48B", .level2),
-            ("004", "Lavender", "#C8B4F4", .level2),
-            ("005", "Sky blue", "#87CEFA", .level2),
-            ("006", "Red blood", "#B22222", .level1),
-            ("007", "Juicy orange", "#FF8C32", .level1)
-        ]
-        XCTAssertEqual(ColorData.requestPool.count, expected.count)
-        XCTAssertEqual(Set(ColorData.requestPool.map(\.id)).count, expected.count)
-        for (request, fixture) in zip(ColorData.requestPool, expected) {
-            XCTAssertEqual(request.id, UUID(uuidString: "C0000000-0000-0000-0000-000000000\(fixture.0)"))
-            XCTAssertEqual(request.text, fixture.1)
-            XCTAssertEqual(ColorHex.string(from: request.targetSRGB), fixture.2)
-            XCTAssertEqual(request.difficulty, fixture.3)
-        }
-        for level in RequestDifficulty.allCases {
-            XCTAssertFalse(ColorData.requestPool.filter { $0.difficulty == level }.isEmpty)
-        }
+    func testBuiltInClassificationUsesOnlyTheNewCatalogs() {
+        XCTAssertEqual(Set(ColorData.requestPool.map(\.id)).count, ColorData.requestPool.count)
+        XCTAssertFalse(ColorData.requestPool.contains { $0.id.uuidString.hasPrefix("C0000000-") })
+        XCTAssertEqual(ColorData.requestPool.filter { $0.difficulty == .level1 }.count, 40)
+        XCTAssertEqual(ColorData.requestPool.filter { $0.difficulty == .level2 }.count, 23)
+        XCTAssertEqual(ColorData.requestPool.filter { $0.difficulty == .level3 }.count, 40)
     }
 
     func testSelectingLevelsFiltersCatalogAndClearsIncompatibleChoices() {
         withDefaults { defaults in
             let model = GameViewModel(requestDefaults: defaults)
             XCTAssertEqual(model.selectedRequestLevel, .level1)
-            XCTAssertEqual(Set(model.requestsForSelectedLevel.map(\.text)), ["Red blood", "Juicy orange"])
+            XCTAssertEqual(model.requestsForSelectedLevel.count, 40)
+            XCTAssertTrue(model.requestsForSelectedLevel.allSatisfy { $0.difficulty == .level1 })
             model.selectedRequestID = ColorData.requestPool[5].id
             model.selectedRequestLevel = .level2
             XCTAssertNil(model.selectedRequestID)
-            XCTAssertEqual(Set(model.requestsForSelectedLevel.map(\.text)), ["Sky blue", "Lavender", "Honey blonde"])
-            model.selectedRequestID = ColorData.requestPool[0].id
+            XCTAssertTrue(model.requestsForSelectedLevel.allSatisfy { $0.difficulty == .level2 })
+            model.selectedRequestID = ColorData.levelThreeRequests[0].id
             XCTAssertEqual(model.selectedRequestLevel, .level3, "Existing explicit-selection callers must keep working")
             model.confirmSettings()
-            XCTAssertEqual(model.round?.request.id, ColorData.requestPool[0].id)
+            XCTAssertEqual(model.round?.request.id, ColorData.levelThreeRequests[0].id)
             model.selectedRequestLevel = .level1
             XCTAssertEqual(model.selectedRequestLevel, .level3, "Level changes require settings")
             model.pauseTimer()
