@@ -79,3 +79,6 @@ Players can add a named target color during setup and reuse it after restarting 
 ## Request deletion update
 
 Solo players and the host may delete built-in or custom requests from the settings library. Custom entries are removed from saved records; built-in deletions are stored as stable ID exclusions on that device. Clear deleted selections and cached selection queues. Deletion is settings-only and does not change active rounds or guest libraries. Empty configured levels disable Start Run and show guidance to add requests or edit the schedule.
+## Request editing update — 2026-10-14
+
+In the settings lobby, the host or solo player can edit the text, six-digit hex target color, and difficulty of any available built-in or custom request. Editing preserves the request ID, validates non-empty text and a valid hex color, and persists locally. Built-in edits override their originals without duplicating them in the pool. Deleting an edited built-in removes its override and keeps the original hidden after relaunch. Editing is rejected during active gameplay and for guest devices. The existing Add form is reused with prefilled values, Save, and Cancel; Cancel leaves stored requests unchanged.

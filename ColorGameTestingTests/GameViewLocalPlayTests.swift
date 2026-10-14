@@ -77,7 +77,7 @@ final class GameViewLocalPlayTests: XCTestCase {
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
         let peer = joinPeer(coordinator)
-        joinPeer(coordinator)
+        let thirdPeer = joinPeer(coordinator)
 
         XCTAssertTrue(coordinator.perform(.startRound))
         let view = GameView(viewModel: model, coordinator: coordinator)
@@ -103,6 +103,9 @@ final class GameViewLocalPlayTests: XCTestCase {
         XCTAssertEqual(model.phase, .playing)
         coordinator.handle(.received(.input(.init(sessionID: coordinator.sessionID!, roundID: model.roundID!,
             actionID: UUID(), action: .vote(action: .mix, votingID: coordinator.voting!.id))), from: peer))
+        XCTAssertEqual(model.phase, .playing)
+        coordinator.handle(.received(.input(.init(sessionID: coordinator.sessionID!, roundID: model.roundID!,
+            actionID: UUID(), action: .vote(action: .mix, votingID: coordinator.voting!.id))), from: thirdPeer))
         XCTAssertEqual(model.phase, .result)
         model.pauseTimer()
         model.removeKeyMonitor()

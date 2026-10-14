@@ -111,18 +111,18 @@ Tiga orang dapat memainkan satu ronde ColorGameTesting secara bersamaan pada tig
 3. When aplikasi dibuka kembali setelah ditutup, the ColorGameTesting app shall memulai dari pilihan mode permainan tanpa memulihkan sesi tiga perangkat atau ronde sebelumnya.
 4. The ColorGameTesting app shall membatasi sesi tiga perangkat pada perangkat yang menjalankan aplikasi dalam jaringan Wi-Fi lokal yang sama.
 
-### Requirement 8: Suara final dan keputusan mayoritas
+### Requirement 8: Suara Mix bulat dan pembatalan suara saat bermain
 
-**Tujuan:** Sebagai pemain, saya ingin suara saya tercatat dan keputusan kelompok segera berlaku setelah dua pemain memilih tindakan yang sama.
+**Tujuan:** Sebagai pemain, saya ingin Manual Mix menunggu persetujuan semua pemain, dapat membatalkan suara saat bermain, dan tetap memakai mayoritas untuk Redo/Finish atau Auto Apply/Redo.
 
 #### Kriteria Penerimaan
 
-1. When pemain memilih tindakan Mix, Finish/Apply, atau Redo yang tersedia pada perangkatnya, the ColorGameTesting app shall mencatat satu suara final untuk peran pemain tersebut dalam pemungutan suara saat ini.
-2. While seorang pemain sudah memberikan suara dalam pemungutan suara saat ini, the ColorGameTesting app shall menolak suara pengganti atau suara kedua dari peran yang sama.
-3. While belum ada dua suara untuk tindakan yang sama, the ColorGameTesting app shall menampilkan tindakan dan peran yang sudah memilih sebagai keputusan tertunda pada semua perangkat tanpa menjalankan tindakan.
-4. When dua pemain telah memilih tindakan yang sama, the ColorGameTesting app shall menjalankan tindakan tersebut tepat satu kali tanpa menunggu suara pemain ketiga.
-5. If dua suara pertama memilih tindakan berbeda, the ColorGameTesting app shall menunggu suara pemain ketiga untuk menentukan tindakan yang memperoleh dua suara.
-6. While keputusan masih tertunda pada fase bermain, the ColorGameTesting app shall tetap menerima kontribusi warna yang sah dan memperbarui campuran tanpa menghapus suara yang sudah tercatat.
-7. When tindakan hasil mayoritas dijalankan, the ColorGameTesting app shall menerapkan tindakan tersebut pada campuran terbaru yang sudah diterima.
-8. If suatu tindakan tidak tersedia pada fase atau keadaan campuran saat ini, the ColorGameTesting app shall menolak suara untuk tindakan tersebut tanpa mengubah suara yang sudah sah.
-9. When tindakan hasil mayoritas dijalankan, the ColorGameTesting app shall menghapus suara tertunda untuk pemungutan suara berikutnya.
+1. When ketiga pemain memberikan suara Mix dalam Manual Mix, the ColorGameTesting app shall menjalankan Mix tepat satu kali; satu atau dua suara tetap tertunda.
+2. When dua pemain memilih tindakan yang sama untuk Manual Redo/Finish atau Auto Apply/Redo, the ColorGameTesting app shall menjalankan tindakan tersebut tanpa menunggu pemain ketiga.
+3. While pemain mempunyai suara tertunda pada fase bermain, the ColorGameTesting app shall menolak kontribusi warna pemain tersebut di UI, input keyboard, dan host jaringan, tetapi tetap menerima warna pemain lain yang belum memberikan suara.
+4. When pemain menekan kembali tombol tindakan yang sudah dipilih pada fase bermain, the ColorGameTesting app shall menghapus hanya suara pemain tersebut dan mengaktifkan kembali kontribusi warnanya.
+5. While suara pemain masih tertunda, the ColorGameTesting app shall menolak suara untuk tindakan lain sampai pemain membatalkan suara sebelumnya.
+6. While berada pada layar hasil Manual Mix, the ColorGameTesting app shall mempertahankan suara Redo/Finish sebagai pilihan final tanpa pembatalan.
+7. When menerima pembatalan suara, the ColorGameTesting app shall memvalidasi sesi, round, ballot, identitas pemain, tindakan, status koneksi, dan ID aksi; pembatalan yang salah, kedaluwarsa, berulang, atau saat jeda tidak mengubah suara.
+8. When aksi dijalankan, the ColorGameTesting app shall memakai campuran terbaru yang telah diterima dan menghapus suara untuk ballot berikutnya.
+9. When koneksi pulih, the ColorGameTesting app shall memulihkan suara tertunda dan pembatasan input tiap pemain; versi protokol lama ditolak.

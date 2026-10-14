@@ -136,6 +136,8 @@ final class LocalPlayInputIntegrationTests: XCTestCase {
         XCTAssertEqual(models[0].phase, .playing)
         await waitUntil { peers[1].voting?.votes.count == 1 }
         XCTAssertTrue(peers[1].castVote(.mix))
+        await waitUntil { peers[2].voting?.votes.count == 2 }
+        XCTAssertTrue(peers[2].castVote(.mix))
         await waitUntil { models.allSatisfy { $0.phase == .result } }
         XCTAssertEqual(models[0].round?.mix.units.map(\.color.id), hostColors)
         XCTAssertEqual(models[1].mixResult, models[0].mixResult)

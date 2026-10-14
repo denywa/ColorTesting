@@ -70,12 +70,13 @@ final class ScoreViewLocalPlayTests: XCTestCase {
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
         let peer = joinPeer(coordinator)
-        joinPeer(coordinator)
+        let thirdPeer = joinPeer(coordinator)
 
         XCTAssertTrue(coordinator.perform(.startRound))
         model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
         XCTAssertTrue(coordinator.castVote(.mix))
         peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
+        peerVote(.mix, coordinator: coordinator, model: model, peer: thirdPeer)
         XCTAssertTrue(coordinator.castVote(.finish))
         peerVote(.finish, coordinator: coordinator, model: model, peer: peer)
         let view = ScoreView(viewModel: model, coordinator: coordinator)

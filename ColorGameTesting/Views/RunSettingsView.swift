@@ -25,9 +25,9 @@ struct RunSettingsView: View {
             .pickerStyle(.segmented)
             .accessibilityValue(config.timerMode.title)
             if config.timerMode == .day {
-                Stepper("Day time: \(config.dayDuration / 60) min", value: binding(\.dayDuration), in: 60...86_400, step: 60)
+                DurationSettingView(title: "Day Time", totalSeconds: binding(\.dayDuration))
             } else {
-                Stepper("Client time: \(config.clientDuration / 60) min", value: binding(\.clientDuration), in: 60...86_400, step: 60)
+                DurationSettingView(title: "Client Time", totalSeconds: binding(\.clientDuration))
             }
             HStack {
                 Text("Passing score")

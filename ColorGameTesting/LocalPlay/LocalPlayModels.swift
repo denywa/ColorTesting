@@ -1,7 +1,7 @@
 import Foundation
 
 enum LocalPlayProtocol {
-    static let version = 3
+    static let version = 4
 }
 
 enum PlayMode {
@@ -88,6 +88,7 @@ enum LocalGameAction: Codable {
     case returnToLobby
     case addColor(slot: ColorSlot, observedColorID: UUID, assignmentEpoch: Int)
     case vote(action: LocalVoteAction, votingID: UUID)
+    case cancelVote(action: LocalVoteAction, votingID: UUID)
     case newRound
 }
 

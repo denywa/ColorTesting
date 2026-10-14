@@ -101,6 +101,9 @@ struct ContentView: View {
                         SettingsView(viewModel: viewModel, coordinator: coordinator, embedded: true)
                     }
                 }
+                #if os(iOS)
+                .scrollDismissesKeyboard(.interactively)
+                #endif
             } else {
                 LocalLobbyView(coordinator: coordinator)
             }

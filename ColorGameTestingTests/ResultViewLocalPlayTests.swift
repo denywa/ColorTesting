@@ -84,12 +84,13 @@ final class ResultViewLocalPlayTests: XCTestCase {
         let coordinator = LocalPlayCoordinator(viewModel: model, transport: TestTransport())
         try coordinator.startHosting()
         let peer = joinPeer(coordinator)
-        joinPeer(coordinator)
+        let thirdPeer = joinPeer(coordinator)
 
         XCTAssertTrue(coordinator.perform(.startRound))
         model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[0])]
         XCTAssertTrue(coordinator.castVote(.mix))
         peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
+        peerVote(.mix, coordinator: coordinator, model: model, peer: thirdPeer)
         let view = ResultView(viewModel: model, coordinator: coordinator)
         XCTAssertTrue(view.showsActions)
         XCTAssertEqual(buttonCount(in: view.layoutContent(round: model.round!, result: model.mixResult!, size: CGSize(width: 900, height: 500))), 2)
@@ -113,6 +114,7 @@ final class ResultViewLocalPlayTests: XCTestCase {
         model.round?.mix.units = [ColorUnit(color: ColorData.rybPalette[1])]
         XCTAssertTrue(coordinator.castVote(.mix))
         peerVote(.mix, coordinator: coordinator, model: model, peer: peer)
+        peerVote(.mix, coordinator: coordinator, model: model, peer: thirdPeer)
         view.finish()
         XCTAssertEqual(model.phase, .result)
         peerVote(.finish, coordinator: coordinator, model: model, peer: peer)

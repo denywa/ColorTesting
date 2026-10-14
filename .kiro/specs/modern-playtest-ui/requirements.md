@@ -137,3 +137,7 @@ Request cards show two preview lines in compact cards and three in taller cards 
 ## Mac parity with the approved iPhone layout
 
 Mac and iPhone now share adaptive gameplay, breakdown and score layouts, request cards/notices, lives/timer/progress headers, compact votes, and one lobby/settings scroll owner. Mac retains key labels and six solo controls, uses larger bowls/comparison swatches where space permits, and has a 680×480 minimum content size with a 1000×600 default window. Keep the solo bowl position consistent across gameplay and result. Preserve Lobby/Leave navigation even when active-screen data is missing. The accepted iPhone sizes and layouts remain unchanged for normal play.
+
+## Voting update — 2026-10-14
+
+This update supersedes the earlier majority-only and final-vote rules during gameplay. Manual Mix requires three votes; Manual result Redo/Finish and Auto Apply/Redo require two matching votes. In gameplay, the selected action button remains enabled and becomes Cancel Mix, Cancel Apply, or Cancel Redo. Cancelling restores that player's color controls. Other actions remain disabled until cancellation. Pending votes block only the voters' colors. Manual result votes remain final. Voting status and accessibility descriptions reflect the applicable threshold and cancellation behavior.

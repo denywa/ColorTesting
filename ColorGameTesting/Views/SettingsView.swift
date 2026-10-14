@@ -5,6 +5,7 @@ struct SettingsView: View {
     let coordinator: LocalPlayCoordinator?
     var embedded = false
     @State private var showingAddRequest = false
+    @State private var editingRequest: ColorRequest?
 
     init(viewModel: GameViewModel, coordinator: LocalPlayCoordinator? = nil, embedded: Bool = false) {
         self.viewModel = viewModel
@@ -19,10 +20,18 @@ struct SettingsView: View {
     var body: some View {
         Group {
             if embedded { settingsContent }
-            else { ScrollView(.vertical) { settingsContent } }
+            else {
+                ScrollView(.vertical) { settingsContent }
+                    #if os(iOS)
+                    .scrollDismissesKeyboard(.interactively)
+                    #endif
+            }
         }
         .sheet(isPresented: $showingAddRequest) {
-            AddRequestView(viewModel: viewModel)
+            RequestEditorView(viewModel: viewModel)
+        }
+        .sheet(item: $editingRequest) { request in
+            RequestEditorView(viewModel: viewModel, request: request)
         }
     }
     private var settingsContent: some View {
@@ -59,18 +68,9 @@ struct SettingsView: View {
                     Text("Game Settings")
                         .font(.headline)
                 
-                    HStack {
-                        Text("Random Reassignment Duration")
-                        Spacer()
-                        Picker("Duration", selection: $viewModel.reassignmentDuration) {
-                            Text("15s").tag(15)
-                            Text("30s").tag(30)
-                            Text("45s").tag(45)
-                            Text("60s").tag(60)
-                            Text("90s").tag(90)
-                        }
-                        .frame(width: 120)
-                    }
+                    DurationSettingView(title: "Random Reassignment Duration",
+                                        totalSeconds: $viewModel.reassignmentDuration,
+                                        maximumSeconds: 3600)
                 
                     Toggle("Show Target Color Hint", isOn: $viewModel.showTargetColor)
                 }
@@ -114,6 +114,15 @@ struct SettingsView: View {
                     HStack(spacing: 12) {
                         Text(request.text).font(.callout)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            editingRequest = request
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                                .labelStyle(.iconOnly)
+                                .frame(minWidth: 44, minHeight: 44)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Edit request: \(request.text)")
                         Button(role: .destructive) {
                             viewModel.deleteRequest(id: request.id)
                         } label: {
@@ -141,20 +150,26 @@ struct SettingsView: View {
 
 }
 
-private struct AddRequestView: View {
+private struct RequestEditorView: View {
     let viewModel: GameViewModel
+    let request: ColorRequest?
     @Environment(\.dismiss) private var dismiss
-    @State private var requestText = ""
-    @State private var hex = ""
+    @State private var requestText: String
+    @State private var hex: String
     @State private var difficulty: RequestDifficulty
+    @State private var saveFailed = false
+    @FocusState private var inputFocused: Bool
 
-    init(viewModel: GameViewModel) {
+    init(viewModel: GameViewModel, request: ColorRequest? = nil) {
         self.viewModel = viewModel
-        _difficulty = State(initialValue: viewModel.selectedRequestLevel)
+        self.request = request
+        _requestText = State(initialValue: request?.text ?? "")
+        _hex = State(initialValue: request.map { ColorHex.string(from: $0.targetSRGB) } ?? "")
+        _difficulty = State(initialValue: request?.difficulty ?? viewModel.selectedRequestLevel)
     }
 
     private var color: SIMD3<Double>? { ColorHex.sRGB(hex) }
-    private var canAdd: Bool {
+    private var canSave: Bool {
         !requestText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && color != nil
     }
 
@@ -169,7 +184,9 @@ private struct AddRequestView: View {
                 .accessibilityValue(difficulty.title)
                 TextField("Request text", text: $requestText,
                           prompt: Text("e.g. Sunset red"))
+                    .focused($inputFocused)
                 TextField("Hex color", text: $hex, prompt: Text("#FF8C32"))
+                    .focused($inputFocused)
 
                 if let color {
                     HStack(spacing: 12) {
@@ -189,19 +206,39 @@ private struct AddRequestView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("Add Color Request")
+            #if os(iOS)
+            .scrollDismissesKeyboard(.interactively)
+            .submitLabel(.done)
+            .onSubmit { inputFocused = false }
+            #endif
+            .navigationTitle(request == nil ? "Add Color Request" : "Edit Color Request")
             .toolbar {
+                #if os(iOS)
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { inputFocused = false }
+                }
+                #endif
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        if viewModel.addCustomRequest(text: requestText, hex: hex, difficulty: difficulty) {
-                            dismiss()
+                    Button(request == nil ? "Add" : "Save") {
+                        let saved: Bool
+                        if let request {
+                            saved = viewModel.editRequest(id: request.id, text: requestText, hex: hex, difficulty: difficulty)
+                        } else {
+                            saved = viewModel.addCustomRequest(text: requestText, hex: hex, difficulty: difficulty)
                         }
+                        if saved { dismiss() } else { saveFailed = true }
                     }
-                    .disabled(!canAdd)
+                    .disabled(!canSave)
                 }
+            }
+            .alert("Request could not be saved", isPresented: $saveFailed) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Return to the settings lobby and try again.")
             }
         }
         .tint(PlaytestStyle.accent)

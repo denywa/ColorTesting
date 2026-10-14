@@ -176,7 +176,8 @@ struct LocalGameSnapshotMapper {
         if snapshot.phase == .playing || snapshot.phase == .result {
             guard let voting = snapshot.voting, voting.votes.count <= 2,
                   Set(voting.votes.map(\.player)).count == voting.votes.count,
-                  Set(voting.votes.map(\.action)).count == voting.votes.count else {
+                  (snapshot.phase == .playing && snapshot.mixMode == .manual ||
+                   Set(voting.votes.map(\.action)).count == voting.votes.count) else {
                 throw LocalPlayError.invalidMessage
             }
             let eligible: Set<LocalVoteAction>

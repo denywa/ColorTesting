@@ -20,19 +20,20 @@ struct GameView: View {
         return coordinator.role.map { [$0.playerID] } ?? []
     }
     var inputsDisabled: Bool { coordinator?.paused == true }
+    var colorInputsDisabled: Bool { inputsDisabled || coordinator?.colorInputBlockedByVote == true }
     var showsMixButton: Bool { viewModel.round?.mixMode == .manual }
-    var canMix: Bool { coordinator?.canVote(.mix) ?? viewModel.canMix }
-    var canApply: Bool { coordinator?.canVote(.apply) ?? viewModel.canApply }
-    var canRedo: Bool { coordinator?.canVote(.redo) ?? viewModel.canRedo }
+    var canMix: Bool { coordinator.map { $0.canVote(.mix) || $0.canCancelVote(.mix) } ?? viewModel.canMix }
+    var canApply: Bool { coordinator.map { $0.canVote(.apply) || $0.canCancelVote(.apply) } ?? viewModel.canApply }
+    var canRedo: Bool { coordinator.map { $0.canVote(.redo) || $0.canCancelVote(.redo) } ?? viewModel.canRedo }
 
     func apply() {
-        if let coordinator { coordinator.castVote(.apply) } else { viewModel.selectApply() }
+        if let coordinator { coordinator.toggleVote(.apply) } else { viewModel.selectApply() }
     }
     func redo() {
-        if let coordinator { coordinator.castVote(.redo) } else { viewModel.selectRedo() }
+        if let coordinator { coordinator.toggleVote(.redo) } else { viewModel.selectRedo() }
     }
     func mix() {
-        if let coordinator { coordinator.castVote(.mix) } else { viewModel.pressMixButton() }
+        if let coordinator { coordinator.toggleVote(.mix) } else { viewModel.pressMixButton() }
     }
 
     private var pauseStatus: String? {
@@ -100,7 +101,7 @@ struct GameView: View {
                 Spacer(minLength: 0)
                 if let player = coordinator?.role?.playerID, let assignment = round.assignments[player] {
                     colorControl(assignment.primaryColor, player: player, slot: .primary, compact: false)
-                        .disabled(inputsDisabled)
+                        .disabled(colorInputsDisabled)
                 }
             }
             .frame(width: sideWidth, alignment: .leading)
@@ -120,7 +121,7 @@ struct GameView: View {
                 Spacer(minLength: 0)
                 if let player = coordinator?.role?.playerID, let assignment = round.assignments[player] {
                     colorControl(assignment.secondaryColor, player: player, slot: .secondary, compact: false)
-                        .disabled(inputsDisabled)
+                        .disabled(colorInputsDisabled)
                 }
             }
             .frame(width: sideWidth, alignment: .trailing)
@@ -146,7 +147,7 @@ struct GameView: View {
                 }
             }
         }
-        .disabled(inputsDisabled)
+        .disabled(colorInputsDisabled)
     }
 
     private func bowl(round: Round, size: CGFloat, showsMode: Bool = true) -> some View {
@@ -164,10 +165,10 @@ struct GameView: View {
     @ViewBuilder private var actions: some View {
         HStack(spacing: 10) {
             if showsMixButton {
-                Button("Mix", action: mix).buttonStyle(PlaytestButtonStyle()).disabled(!canMix)
+                Button(coordinator?.canCancelVote(.mix) == true ? "Cancel Mix" : "Mix", action: mix).buttonStyle(PlaytestButtonStyle()).disabled(!canMix)
             } else {
-                Button("Redo", action: redo).buttonStyle(PlaytestButtonStyle(primary: false)).disabled(!canRedo)
-                Button("Apply", action: apply).buttonStyle(PlaytestButtonStyle()).disabled(!canApply)
+                Button(coordinator?.canCancelVote(.redo) == true ? "Cancel Redo" : "Redo", action: redo).buttonStyle(PlaytestButtonStyle(primary: false)).disabled(!canRedo)
+                Button(coordinator?.canCancelVote(.apply) == true ? "Cancel Apply" : "Apply", action: apply).buttonStyle(PlaytestButtonStyle()).disabled(!canApply)
             }
         }
     }

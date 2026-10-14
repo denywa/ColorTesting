@@ -11,6 +11,7 @@ Use the app to try the core game loop with people on one device and learn whethe
 - Configure an endless run with the fixed RYB palette and Manual or Auto Mix. Complete Day targets from three request levels; configure seven stages, then repeat stages 5–7. Day/client timers, passing score and daily mistakes are adjustable.
 - Let three players add colors to one shared mix. Each player has two assigned color slots; macOS supports dedicated keyboard keys and iOS provides touch controls.
 - Reassign player colors on a configurable timer while keeping the mix accumulated so far.
+- In three-device play, Manual Mix requires all three votes; Manual result Redo/Finish and Auto Apply/Redo require two matching votes. Gameplay votes can be cancelled by tapping the selected action again. A pending voter cannot add colors until cancellation; other players can keep contributing. Manual result votes remain final.
 - In Manual Mix, show ingredient proportions and a result before scoring. In Auto Mix, update the live color with each accepted contribution and apply it directly for scoring; both modes allow a redo.
 - Add named custom target requests with hex colors and difficulty levels, retaining them locally for later runs.
 
