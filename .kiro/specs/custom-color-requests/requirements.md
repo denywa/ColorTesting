@@ -66,7 +66,7 @@ Players can add a named target color during setup and reuse it after restarting 
 
 #### Acceptance Criteria
 
-1. The ColorGameTesting app shall provide Level 1 — Easy, Level 2 — Medium, and Level 3 — Hard, preserving all existing built-in request IDs, prompt text and target colors. The initial groups are Red blood/Juicy orange; Sky blue/Lavender/Honey blonde; Glossy mocha brown/Milk tea, respectively.
+1. The ColorGameTesting app shall provide Level 1 — Easy, Level 2 — Medium, and Level 3 — Hard. The seven original placeholder requests are removed from the built-in catalog; the new request sets provide 40 Level 1, 23 Level 2, and 40 Level 3 targets.
 2. When a new app session opens settings, the ColorGameTesting app shall select Level 1 and offer a level selector to the player authorized to configure the round.
 3. When the selected level changes, the ColorGameTesting app shall filter request choices to that level and clear a previously selected request belonging to another level.
 4. When the Add Color Request form opens, the ColorGameTesting app shall initialize its level selector to the settings level and allow the developer to choose any of the three levels.

@@ -4,17 +4,17 @@ Status: requirements, design and implementation plan approved; implementation co
 
 ## Purpose
 
-Allow the developer to playtest three difficulty pools now and add future requests to the appropriate pool while preparing new copywriting. Existing prompt text, target colors, and built-in request IDs remain unchanged.
+Allow the developer to playtest three difficulty pools and add future requests to the appropriate pool. The seven original placeholder requests were removed after the new copywriting was added.
 
 ## Proposed Initial Classification
 
 These are temporary playtesting groups, not measured difficulty ratings.
 
-| Level | Existing requests |
+| Level | Current built-in requests |
 | --- | --- |
-| Level 1 — Easy | Red blood; Juicy orange |
-| Level 2 — Medium | Sky blue; Lavender; Honey blonde |
-| Level 3 — Hard | Glossy mocha brown; Milk tea |
+| Level 1 — Easy | 40 new targets; see `docs/level-one-color-answer-key.md` |
+| Level 2 — Medium | 23 new targets; see `docs/level-two-color-answer-key.md` |
+| Level 3 — Hard | 40 new targets; see `docs/level-three-color-answer-key.md` |
 
 ## Acceptance Criteria
 
